@@ -24,8 +24,8 @@ INSERT OR IGNORE INTO migrations VALUES(1,datetime('now'));`);
 export const uid = (prefix='id') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();
 import syncFetch from 'sync-fetch';
-export const SUPABASE_URL = 'https://aqtnzvqyljweppklblni.supabase.co';
-export const SUPABASE_KEY = 'sb_publishable_uHPer_Bt1RR9DutO4vcG3w_MUVligrK';
+export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://aqtnzvqyljweppklblni.supabase.co';
+export const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uHPer_Bt1RR9DutO4vcG3w_MUVligrK';
 let cachedToken = null;
 let tokenExpiresAt = 0;
 
