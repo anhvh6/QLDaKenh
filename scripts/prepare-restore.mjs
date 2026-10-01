@@ -1,0 +1,25 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+const source='data/backups/taophacdo-backup-20261001-174339';
+const out='data/restore-aqtnzvqyljweppklblni';
+const work=path.join(process.env.TEMP,'taophacdo-restore-aqtnzvqyljweppklblni');
+fs.mkdirSync(work,{recursive:true});
+const toc=fs.readFileSync(source+'/contents.txt','utf8').replace(/^\uFEFF/,'').split(/\r?\n/);
+const selected=toc.filter(line=>{
+ if(!/^\d+;/.test(line))return false;
+ if(/\bpublic\b/.test(line)&&!line.includes('SCHEMA public')&&!line.includes('supabase_admin')&&!line.includes('FUNCTION realtime.'))return true;
+ const m=line.match(/TABLE DATA auth (\S+)/);if(m)return m[1]!=='schema_migrations';
+ return /SEQUENCE SET auth refresh_tokens_id_seq/.test(line);
+});
+fs.writeFileSync(work+'/restore.list',selected.join('\n')+'\n');
+fs.copyFileSync(source+'/database.dump',work+'/database.dump');
+execFileSync(path.join(process.env.TEMP,'taophacdo-pg17/bin/pg_restore.exe'),['--no-owner','--use-list',work+'/restore.list','--file',work+'/selected.sql',work+'/database.dump']);
+const sql=fs.readFileSync(work+'/selected.sql','utf8');
+if(/CREATE SCHEMA (auth|storage|realtime)|CREATE TABLE (auth|storage|realtime)\./.test(sql))throw Error('Unexpected platform DDL');
+const copyTables=[...sql.matchAll(/^COPY (\S+) /gm)].map(m=>m[1]);
+const guard=`DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='public') OR EXISTS(SELECT 1 FROM auth.users) THEN RAISE EXCEPTION 'Target is not empty; refusing restore'; END IF; END $$;\n`;
+fs.writeFileSync(work+'/restore.sql',"\\set ON_ERROR_STOP on\nBEGIN;\n"+guard+"SET LOCAL session_replication_role = replica;\n"+sql+"\nSET LOCAL session_replication_role = origin;\nCOMMIT;\nNOTIFY pgrst, 'reload schema';\n");
+fs.copyFileSync(work+'/restore.list',out+'/restore.list');
+fs.writeFileSync(out+'/restore-plan.json',JSON.stringify({source:'yovjwbswfeblfswdxown',target:'aqtnzvqyljweppklblni',selectedEntries:selected.length,copyTables,excluded:'Platform schema/roles and internal migration data; empty storage/realtime/vault data left at target defaults',transaction:true},null,2));
+console.log(JSON.stringify({work,selectedEntries:selected.length,tables:copyTables.length}));

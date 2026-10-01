@@ -1,0 +1,665 @@
+Dưới đây là toàn bộ nội dung tài liệu Đặc tả yêu cầu phần mềm chi tiết (Software Requirements Specification - SRS) được tổng hợp đầy đủ từ tất cả các sheet (Development_Plan, WBS_CRUD_Detail, Acceptance_Criteria, Module_Summary, Reference_System_Map).
+
+Bạn có thể sao chép trực tiếp khối mã bên dưới và lưu thành tệp SOFTWARE_REQUIREMENTS_SPECIFICATION.md để bàn giao cho đội ngũ phát triển (Dev/QA/DevOps):
+# ĐẶC TẢ YÊU CẦU PHẦN MỀM CHI TIẾT (SRS / FSD)
+## HỆ THỐNG QUẢN LÝ BÁN HÀNG, ĐĂNG BÀI ĐA NỀN TẢNG VÀ CHĂM SÓC KHÁCH HÀNG
+### (MULTI-PLATFORM OMNICHANNEL & CONTENT MARKETING HUB)
+
+---
+
+## 1. TỔNG QUAN KIẾN TRÚC & QUY MÔ DỰ ÁN
+
+### 1.1. Mục tiêu và Định vị hệ thống
+Hệ thống là giải pháp All-in-One hợp nhất giữa:
+1. **Content Marketing Hub:** Soạn thảo, lên lịch và đăng bài đa nền tảng độc lập (Facebook, Instagram, Zalo OA, YouTube).
+2. **Unified Social Inbox (Chat & Comment):** Hộp thư hội thoại tập trung kết nối thời gian thực, quản lý bình luận, tự động gom tin nhắn/bình luận đa kênh.
+3. **In-chat Social Commerce:** Tra cứu sản phẩm/combo, kiểm tra tồn kho và tạo đơn hàng trực tiếp ngay trong khung chat/comment mà không cần chuyển màn hình.
+4. **Customer 360 & Lead Pipeline:** Định danh khách hàng đa kênh (Social Identities Mapping), phễu chuyển đổi Lead tự động từ số điện thoại (SĐT).
+5. **Hệ thống Quản lý Khách hàng / Học viên theo tiến trình & Phác đồ:** Quản lý hành trình 6 giai đoạn, phân công đội ngũ phụ trách theo tiến trình, lưu trữ phác đồ can thiệp và tích hợp vận chuyển giáo trình qua ViettelPost.
+
+---
+
+### 1.2. Hệ thống tham chiếu chuẩn (Benchmark Reference Architecture)
+
+| Mã Module | Module nghiệp vụ | Hệ thống tham khảo chính | Điểm học hỏi & Tiêu chuẩn kỹ thuật |
+| :--- | :--- | :--- | :--- |
+| **M01** | Quản lý kênh kết nối | Pancake, Chatwoot | Luồng OAuth đa kênh (Facebook, Zalo OA, Instagram, YouTube), cơ chế mã hóa và tự động làm mới Token |
+| **M02** | Quản lý bài viết | Pancake, Harasocial | Trình soạn thảo đa kênh, bộ đệm Worker Queue đăng tải độc lập, truy vết Bài viết $\rightarrow$ Doanh số |
+| **M03** | Hội thoại (Unified Inbox) | Pancake, Respond.io, Chatwoot | Không gian làm việc tập trung, tích hợp Panel tạo đơn tại chỗ và thanh Quick Tag Bar |
+| **M04** | Quản lý Comment | Pancake, Harasocial | Luồng Public Reply, Private Reply sang Messenger, cơ chế tự động ẩn bình luận chống cướp khách |
+| **M05 & M06** | Khách hàng & Lead | Pancake, Sapo | Định danh đa kênh (Social Identity Mapping), trích xuất SĐT tự động thành Lead |
+| **M07 & M13** | Đơn hàng & Sản phẩm | Sapo | Bán hàng đa kênh, cấu trúc biến thể/Combo, giỏ hàng tạm, đẩy vận chuyển ViettelPost |
+| **M08** | Notification & SLA | StringeeX, Chatwoot | Bộ đếm thời gian phản hồi (SLA Timer), cảnh báo quá hạn trực quan và quy trình điều chuyển khẩn cấp (Escalation) |
+| **M09** | Báo cáo & Thống kê | Pancake, Sapo | Dashboard hiệu suất đa kênh, năng suất tư vấn viên và đo lường doanh thu theo nội dung |
+| **M10 & M12** | Quản trị & Phân quyền | Chatwoot | Ma trận phân quyền Role-based (Role $\times$ Module $\times$ Action), mô hình Team/Agent |
+| **M11** | API & Webhook | Chatwoot | Webhook engine hỗ trợ Retry/Backoff, bảo vệ hệ thống bằng Rate Limiting |
+
+---
+
+### 1.3. Thống kê khối lượng chức năng (Module Summary)
+
+| Mã | Tên Module | Tổng CRUD | P0 (Must - MVP) | P1 (Should - Nâng cao) | P2 (Could - Bổ trợ) |
+| :---: | :--- | :---: | :---: | :---: | :---: |
+| **M01** | Quản lý kênh kết nối | **9** | 7 | 2 | 0 |
+| **M02** | Quản lý bài viết & Lịch phát hành | **10** | 6 | 3 | 1 |
+| **M03** | Quản lý hội thoại tin nhắn (Unified Inbox) | **26** | 16 | 9 | 1 |
+| **M04** | Quản lý tương tác bình luận (Comment) | **12** | 8 | 3 | 1 |
+| **M05** | Hồ sơ Khách hàng (Customer 360) | **15** | 7 | 5 | 3 |
+| **M06** | Khách hàng tiềm năng (Lead Pipeline) | **10** | 6 | 3 | 1 |
+| **M07** | Bán hàng & Đơn hàng (Sales / Order) | **12** | 0 | 11 | 1 |
+| **M08** | Thông báo & Giám sát SLA | **9** | 6 | 2 | 1 |
+| **M09** | Báo cáo & Phân tích (Analytics) | **9** | 4 | 4 | 1 |
+| **M10** | Cấu hình & Quản trị hệ thống | **12** | 5 | 5 | 2 |
+| **M11** | Tích hợp & Nền tảng API | **9** | 1 | 6 | 2 |
+| **M12** | Phân quyền & Quản lý người dùng | **13** | 9 | 3 | 1 |
+| **M13** | Quản lý sản phẩm & Kho hàng | **15** | 6 | 6 | 3 |
+| **TỔNG** | **Toàn bộ hệ thống** | **162** | **81** | **60** | **21** |
+
+---
+
+## 2. ĐẶC TẢ CHI TIẾT CÁC MODULE NGHIỆP VỤ
+
+### MODULE M01: QUẢN LÝ KÊNH KẾT NỐI (CHANNEL CONNECTOR)
+*Mục tiêu: Đảm bảo kết nối ổn định, thu nạp Webhook và duy trì phiên làm việc liên tục.*
+
+#### M01.1.1 - Kết nối Fanpage Facebook (OAuth 2.0) [P0 - Must]
+- **Actor:** Admin
+- **API gợi ý:** `POST /api/v1/channels/facebook/connect`
+- **Nghiệp vụ:** 
+  1. Admin xác thực qua Meta OAuth với các scope: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `pages_manage_messages`.
+  2. Lấy danh sách Fanpage quản trị, hỗ trợ chọn kết nối đồng thời nhiều Fanpage.
+  3. Đổi Short-lived Token sang Long-lived Page Access Token. Mã hóa AES-256 trước khi lưu Database.
+- **Acceptance Criteria (AC):**
+  - *Given:* Admin có quyền quản trị Fanpage hợp lệ trên Facebook.
+  - *When:* Thực hiện kết nối và tick chọn danh sách Fanpage.
+  - *Then:* Hệ thống lưu Page ID, tên, avatar, token mã hóa; đăng ký Webhook nhận tin nhắn/bình luận; trạng thái kênh là `ACTIVE`. Nếu lỗi từ Meta API, hiển thị thông báo lỗi rõ ràng.
+
+#### M01.1.2 - Kết nối Zalo Official Account (Zalo OA) [P0 - Must]
+- **Actor:** Admin
+- **API gợi ý:** `POST /api/v1/channels/zalo/connect`
+- **Nghiệp vụ:** Xác thực qua Zalo OA OAuth PKCE. Lưu OA ID, `access_token` (hạn 25 giờ), `refresh_token` (hạn 3 tháng). Cung cấp tùy chọn đồng bộ tin nhắn cũ từ Zalo OA về hệ thống.
+
+#### M01.1.3 & M01.1.4 - Danh sách & Chi tiết kênh kết nối [P0 - Must]
+- **Actor:** Admin
+- **API gợi ý:** `GET /api/v1/channels`, `GET /api/v1/channels/{id}`
+- **Nghiệp vụ:** Hiển thị danh sách Fanpage, Zalo OA, Instagram Business, YouTube gồm: Tên kênh, Avatar, Platform, Người kết nối, Số người theo dõi, Trạng thái (`ACTIVE`, `EXPIRED`, `ERROR`). Thời gian tải trang $\le 2$ giây.
+
+#### M01.1.5 - Reconnect (Làm mới phiên kết nối) [P0 - Must]
+- **Actor:** Admin
+- **API gợi ý:** `POST /api/v1/channels/{id}/reconnect`
+- **Nghiệp vụ:** Khi tài khoản mạng xã hội đổi mật khẩu hoặc token hết hạn, người dùng bấm Reconnect để cấp lại token. **Tuyệt đối không làm mất lịch sử hội thoại, khách hàng hoặc bài viết cũ**.
+
+#### M01.1.6 - Disconnect (Ngắt kết nối kênh) [P0 - Must]
+- **Actor:** Admin
+- **API gợi ý:** `DELETE /api/v1/channels/{id}`
+- **Nghiệp vụ:** Hiển thị cảnh báo rủi ro gián đoạn hội thoại/bài đăng. Thực hiện Soft-delete kênh, hủy đăng ký Webhook và dừng các background worker liên quan.
+
+#### M01.1.7 - Cấu hình Webhook theo kênh [P0 - Must]
+- **Actor:** System / Admin
+- **API gợi ý:** `POST /api/v1/channels/{id}/webhook-config`
+- **Nghiệp vụ:** Đăng ký nhận sự kiện realtime: bài viết mới, bình luận mới, tin nhắn mới, thả cảm xúc từ Meta Graph API và Zalo Open API.
+
+#### M01.1.8 - Health Check & Tự động gia hạn Token [P1 - Should]
+- **Actor:** System (Cron Job)
+- **API/Job:** `CRON /api/v1/channels/sync-status` (chạy mỗi 6-12 tiếng)
+- **Nghiệp vụ:** Quét toàn bộ kênh. Với Zalo OA, tự động gọi API làm mới Access Token bằng Refresh Token trước khi hết hạn 2 giờ. Nếu token Facebook bị thu hồi, gửi thông báo cảnh báo khẩn cấp cho Admin.
+
+#### M01.1.9 - Phân quyền kênh theo Đội ngũ (Team Assignment) [P1 - Should]
+- **Actor:** Admin
+- **API gợi ý:** `PUT /api/v1/channels/{id}/assign-team`
+- **Nghiệp vụ:** Gán kênh/Fanpage cho một hoặc nhiều Team chuyên trách (Team Sale, Team CSKH). Nhân viên chỉ thấy dữ liệu của kênh mà nhóm mình được phân công.
+
+---
+
+### MODULE M02: QUẢN LÝ BÀI VIẾT & LỊCH PHÁT HÀNH (CONTENT HUB)
+*Mục tiêu: Đăng tải độc lập, hạn chế tối đa tỷ lệ lỗi chéo giữa các nền tảng và đo lường chuyển đổi.*
+
+#### M02.1.1 - Soạn thảo bài đăng & Lưu nháp (Save Draft) [P0 - Must]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `POST /api/v1/posts` (`status=DRAFT`)
+- **Nghiệp vụ:** 
+  - Chọn danh sách kênh xuất bản (Facebook, Instagram, YouTube).
+  - Trình soạn thảo Master Content hỗ trợ: Emoji, Textarea bôi đậm/nghiêng, đếm ký tự theo giới hạn từng kênh.
+  - Cho phép tùy biến nội dung riêng theo từng kênh (Custom Tab).
+  - Đính kèm file media (ảnh JPG/PNG, video MP4). Lưu bài viết dưới dạng bản nháp an toàn.
+
+#### M02.1.2 - Xuất bản bài viết tức thì (Publish Now) [P0 - Must]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `POST /api/v1/posts/{id}/publish`
+- **Nghiệp vụ:** Đẩy yêu cầu vào Message Queue (Redis/BullMQ). Hệ thống gọi API độc lập sang từng mạng xã hội:
+  - *Facebook:* Tạo Post Feed hoặc Video Post.
+  - *Instagram:* Tạo Container Media $\rightarrow$ Publish Container.
+  - *YouTube:* Upload video qua YouTube Data API v3.
+- **Acceptance Criteria (AC):**
+  - *Given:* Bài viết có đầy đủ nội dung và file media hợp lệ.
+  - *When:* Nhấn Đăng bài lên Facebook và Instagram cùng lúc.
+  - *Then:* Nếu Instagram bị lỗi (sai tỷ lệ khung hình), Facebook vẫn phải đăng thành công. Bài viết chuyển trạng thái `PARTIAL_FAILED`, lưu `external_post_id`, link bài viết gốc trên FB và hiển thị mã lỗi chi tiết của Instagram.
+
+#### M02.1.3 - Lên lịch đăng bài tự động (Schedule) [P1 - Should]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `POST /api/v1/posts/{id}/schedule`
+- **Nghiệp vụ:** Chọn ngày và giờ phát hành trong tương lai (tối thiểu sau thời điểm hiện tại 10 phút, múi giờ GMT+7). Worker Scheduler tự động kích hoạt tiến trình đăng với độ trễ $\le 60$ giây.
+
+#### M02.1.4 & M02.1.5 - Danh sách, Bộ lọc & Chi tiết bài đăng [P0 - Must]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `GET /api/v1/posts`, `GET /api/v1/posts/{id}`
+- **Nghiệp vụ:** 
+  - Hiển thị danh sách: Thời gian đăng, Kênh, Nội dung trích lược, Trạng thái (`DRAFT`, `SCHEDULED`, `PUBLISHED`, `FAILED`), Bộ chỉ số tương tác thời gian thực: Lượt xem (View), Bình luận (Comment), Thích (Like), Chia sẻ (Share).
+  - Bộ lọc: Lọc theo Page, theo nền tảng (Facebook, Instagram, YouTube), theo trạng thái xuất bản.
+
+#### M02.1.6 - Chỉnh sửa bài đăng [P0 - Must]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `PUT /api/v1/posts/{id}`
+- **Nghiệp vụ:** Chỉnh sửa đầy đủ với bài nháp và bài đang lên lịch. Với bài đã xuất bản, hỗ trợ cập nhật nội dung văn bản trên Facebook Page qua Graph API.
+
+#### M02.1.7 - Xóa bài đăng [P1 - Should]
+- **Actor:** Admin
+- **API gợi ý:** `DELETE /api/v1/posts/{id}?delete_social=true|false`
+- **Nghiệp vụ:** Cung cấp 2 tùy chọn: (1) Chỉ xóa dữ liệu lưu trữ nội bộ; (2) Xóa đồng thời bài viết gốc trên nền tảng mạng xã hội.
+
+#### M02.1.8 - Nhân bản bài đăng (Duplicate) [P0 - Must]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `POST /api/v1/posts/{id}/duplicate`
+- **Nghiệp vụ:** Sao chép nguyên trạng văn bản, danh sách file đính kèm và cấu hình kênh sang một bản ghi nháp mới.
+
+#### M02.1.9 - Xử lý lỗi đăng bài (Retry Failed Post) [P0 - Must]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `POST /api/v1/posts/{id}/destinations/{destination_id}/retry`
+- **Nghiệp vụ:** Cung cấp nút "Thử lại" độc lập cho kênh bị lỗi mà không phát hành lại trên các kênh đã đăng thành công trước đó.
+
+#### M02.1.10 - Liên kết Bài viết $\rightarrow$ Khách hàng tiềm năng & Đơn hàng [P1 - Should]
+- **Actor:** Agent / Admin
+- **API gợi ý:** `GET /api/v1/posts/{id}/conversions`
+- **Nghiệp vụ:** Thống kê tổng số bình luận chứa SĐT, số Lead và tổng doanh số đơn hàng phát sinh trực tiếp từ bài viết cụ thể để tính toán hiệu quả ROI.
+
+---
+
+### MODULE M03: HỘI THOẠI TIN NHẮN (UNIFIED INBOX & IN-CHAT COMMERCE)
+*Mục tiêu: Không gian làm việc tập trung, tích hợp tạo đơn và quản lý học viên trực tiếp tại khung chat.*
+
+#### NHÓM 1: QUẢN TRỊ LUỒNG HỘI THOẠI CHAT
+- **M03.1.1 - Danh sách hội thoại [P0 - Must]:** Gom toàn bộ tin nhắn từ Facebook Messenger, Zalo OA, Instagram Direct về một giao diện. Phân 3 tab nhanh: `Tất cả`, `Chưa đọc`, `Đang chờ`. Cập nhật badge số lượng tin nhắn chưa đọc realtime qua WebSocket.
+- **M03.1.2 - Dòng thời gian hội thoại (Timeline) [P0 - Must]:** Xem toàn bộ lịch sử trao đổi 2 chiều giữa khách hàng và các nhân viên tư vấn.
+- **M03.1.3 - Gửi tin nhắn đa phương tiện [P0 - Must]:** Hỗ trợ gửi tin nhắn văn bản, kho ảnh, tài liệu đính kèm, tin nhắn thoại (Voice record) qua cả 3 nền tảng Facebook, Zalo, Instagram.
+- **M03.1.4 - Mẫu trả lời nhanh nhiều khối (Canned Responses) [P0 - Must]:**
+  - Quản lý danh mục/chủ đề câu trả lời nhanh.
+  - **Đặc tả quan trọng:** 1 mẫu có thể cấu hình gửi liên tiếp nhiều block nội dung theo thứ tự (Ví dụ: Block 1: Đoạn văn bản chào hỏi + Ảnh đính kèm $\rightarrow$ Block 2: Bảng giá chi tiết + Video hướng dẫn).
+  - Gõ phím tắt `/` trong khung chat để tìm và gửi nhanh.
+- **M03.1.5 - Phân công hội thoại [P0 - Must]:** Gán hội thoại cho nhân viên phụ trách; hỗ trợ cơ chế chỉ cho phép nhân viên xem khách hàng được phân công.
+- **M03.1.6 & M03.1.7 - Trạng thái hội thoại [P0/P1]:** Đánh dấu Đã đọc/Chưa đọc; Đóng hội thoại (`RESOLVED`) và tự động kích hoạt mở lại (`REOPEN`) khi khách gửi tin nhắn mới.
+- **M03.1.8 - Tìm kiếm & Bộ lọc hội thoại nâng cao [P0 - Must]:**
+  - Tìm kiếm: Tên khách hàng, Số điện thoại, Nội dung tin nhắn, Fanpage.
+  - Bộ lọc: Theo Page, theo nền tảng, theo nhân viên, theo thẻ màu, theo trạng thái đọc, theo thời gian, lọc riêng bình luận/tin nhắn, lọc đã tạo hồ sơ khách hàng, lọc đã tạo đơn hàng.
+
+#### NHÓM 2: PANEL TẠO ĐƠN HÀNG TẠI CHỖ (IN-CHAT COMMERCE PANEL)
+*Bố trí cố định bên phải màn hình chat, chia 2 tab: "Thông tin khách" và "Tạo đơn hàng".*
+- **M03.2.1 - Tab Thông tin khách hàng [P0 - Must]:** Hiển thị và chỉnh sửa trực tiếp: Họ tên, Số điện thoại, Địa chỉ giao hàng.
+- **M03.2.2 - Tra cứu sản phẩm & Combo [P0 - Must]:** Ô tìm kiếm nhanh theo SKU/Tên sản phẩm với thời gian phản hồi $< 200\text{ms}$; nút chọn nhanh các gói Combo bán kèm.
+- **M03.2.3, M03.2.4 & M03.2.5 - Quản lý giỏ hàng tạm [P0 - Must]:** Thêm sản phẩm vào đơn, điều chỉnh số lượng, áp dụng chiết khấu/giảm giá; hệ thống tự tính toán Thành tiền tức thì.
+- **M03.2.6 & M03.2.7 - Kho hàng & Địa chỉ nhận hàng [P0/P1]:** Chọn chi nhánh/kho xuất hàng; chọn địa chỉ có sẵn hoặc nhập địa chỉ mới.
+- **M03.2.8 & M03.2.10 - Xác nhận tạo đơn (Submit Order) [P0 - Must]:** Bấm "Tạo đơn", hệ thống sinh mã đơn hàng, trừ tồn kho và tự động gửi tin nhắn tóm tắt đơn hàng kèm tổng tiền cho khách ngay trong khung chat.
+- **M03.2.11 - Badge đơn hàng trên dòng thời gian [P1 - Should]:** Hiển thị thẻ tóm tắt đơn hàng (Mã đơn, Tổng tiền, Trạng thái vận chuyển) ngay trong lịch sử chat để nhân viên tiện theo dõi.
+
+#### NHÓM 3: THANH NHÃN MÀU CỐ ĐỊNH (QUICK TAG BAR) & TIẾN TRÌNH HỌC VIÊN
+- **M03.2.12 - Thanh nhãn màu cố định (Quick Tag Bar) [P0 - Must]:**
+  - Dải nút nhãn màu sắc bố trí 2 hàng cố định ngay dưới ô nhập nội dung chat (Ví dụ: *Khách mới, Tư vấn giá, Đã đóng tiền, Cần gọi lại, Đã gửi sách...*).
+  - Bấm chọn để gắn hoặc bỏ nhãn tức thì; hỗ trợ gắn nhiều nhãn cùng lúc.
+- **M03.2.15 - Badge định danh khách hàng [P1 - Should]:** Gắn cờ *Người lạ* nếu chưa có trong DB, tự động chuyển thành *Học viên / Khách quen* khi phát sinh đơn hàng hoặc hồ sơ.
+- **Quản lý Tiến trình khách hàng & Hồ sơ học viên (Nghiệp vụ doanh nghiệp):**
+  1. **Hiển thị tiến trình trực quan:** Khách mới $\rightarrow$ Đã call tư vấn $\rightarrow$ Đã đóng tiền đủ $\rightarrow$ Đang tham gia học $\rightarrow$ Sắp hết hạn học $\rightarrow$ Đã học xong.
+  2. **Tự động chuyển giao nhân sự:** Tại mỗi bước tiến trình, hệ thống tự động gán cho nhóm nhân viên phụ trách tương ứng và gửi thông báo.
+  3. **Hồ sơ học viên chi tiết:** Xem tên học viên, trạng thái tiến trình, số điện thoại, địa chỉ, ngày bắt đầu/kết thúc khóa học, số ngày học còn lại, danh sách sản phẩm/khóa học đã mua.
+  4. **Tích hợp phác đồ & Vận chuyển:** Đường dẫn phác đồ can thiệp/học tập (cho phép xem và chỉnh sửa), nút gia hạn khóa học và tra cứu trạng thái vận đơn giáo trình (ViettelPost).
+  5. **Tương tác nội bộ:** Hỗ trợ tạo ghi chú nội bộ, tag tên đồng nghiệp (@nhanvien) trong khung hội thoại để phối hợp xử lý mà khách hàng không nhìn thấy.
+
+---
+
+### MODULE M04: QUẢN LÝ TƯƠNG TÁC BÌNH LUẬN (COMMENT MANAGEMENT)
+*Mục tiêu: Gom toàn bộ bình luận, tương tác 2 chiều và chuyển đổi thành đơn hàng.*
+
+- **M04.1.1 - Hộp thư bình luận tập trung [P0 - Must]:** Đồng bộ toàn bộ bình luận từ Facebook Page và Instagram theo thời gian thực; tự động gom theo bài viết hoặc dòng thời gian mới nhất.
+- **M04.1.2 - Trả lời bình luận công khai (Public Reply) [P0 - Must]:** Trả lời trực tiếp hiển thị dưới comment của khách hàng trên mạng xã hội.
+- **M04.1.3 - Phản hồi tin nhắn riêng tư (Private Reply) [P0 - Must]:**
+  - Gửi tin nhắn Messenger từ bình luận của khách theo chính sách Meta API.
+  - Tự động tạo một phiên hội thoại mới trong Inbox M03 để tiếp tục chăm sóc.
+- **M04.1.4 - Tự động ẩn & Xóa bình luận [P1 - Should]:**
+  - Tự động quét regex và ẩn ngay lập tức các bình luận chứa Số điện thoại hoặc từ khóa tiêu cực để tránh cướp khách.
+  - Hỗ trợ xóa bình luận rác/spam.
+- **M04.1.5 & M04.1.6 - Gán nhãn & Phân công bình luận [P0/P1]:** Tích hợp thanh Quick Tag Bar và phân công nhân viên xử lý tương tự module chat.
+- **M04.1.8 & M04.1.10 - Tạo Lead & Tạo đơn hàng từ bình luận [P0 - Must]:** Tích hợp trọn vẹn panel "Tạo đơn tại chỗ" ngay bên cạnh giao diện comment để nhân viên chốt đơn tức thì.
+
+---
+
+### MODULE M05: HỒ SƠ KHÁCH HÀNG (CUSTOMER 360)
+*Mục tiêu: Nhận diện khách hàng hợp nhất trên mọi điểm tiếp xúc.*
+
+- **M05.1.1 & M05.1.2 - Quản lý hồ sơ khách hàng [P0 - Must]:** Tạo thủ công hoặc tự động đồng bộ khi chốt đơn/chuyển đổi từ hội thoại.
+- **M05.1.3 - Màn hình hợp nhất Customer 360 [P0 - Must]:** Hiển thị trên một màn hình duy nhất: Thông tin cá nhân, danh sách kênh mạng xã hội đã liên kết, lịch sử tương tác, lịch sử đơn hàng và tổng giá trị vòng đời (LTV).
+- **M05.1.5 - Định danh đa kênh (Social Identities Mapping) [P0 - Must]:** Liên kết nhiều tài khoản mạng xã hội (Facebook PSID, Zalo User ID, Instagram ID) vào cùng một hồ sơ khách hàng duy nhất dựa trên Số điện thoại.
+- **M05.1.6 - Quản lý nhiều địa chỉ nhận hàng [P0 - Must]:** Lưu danh sách nhiều địa chỉ giao hàng của một khách để chọn nhanh khi tạo đơn.
+- **M05.1.7 & M05.1.8 - Phân loại & Nguồn gốc khách hàng [P1 - Should]:** Phân nhóm khách hàng (Mới, Thân thiết, VIP); ghi nhận nguồn gốc chuyển đổi (Quảng cáo, Bài viết cụ thể, Tự nhiên).
+- **M05.1.12 - Hợp nhất hồ sơ trùng lặp (Merge Customer) [P2 - Could]:** Công cụ gộp 2 hồ sơ trùng lặp thành một, tự động cộng dồn lịch sử đơn hàng, hội thoại và điểm tích lũy.
+
+---
+
+### MODULE M06: KHÁCH HÀNG TIỀM NĂNG (LEAD MANAGEMENT)
+*Mục tiêu: Bắt trọn nhu cầu khách hàng, chuẩn hóa quy trình chuyển đổi.*
+
+- **M06.1.1 - Tự động thu thập Lead (Auto Lead Capture) [P0 - Must]:** Quét tự động tin nhắn/bình luận; khi khách cung cấp SĐT, hệ thống tự động bóc tách và tạo bản ghi Lead mới.
+- **M06.1.3 & M06.1.4 - Danh sách & Chi tiết Lead [P0 - Must]:** Quản lý dưới dạng Bảng hoặc Kanban Board theo các cột trạng thái; liên kết trực tiếp với bài viết/bình luận phát sinh Lead.
+- **M06.1.5 - Cập nhật trạng thái Pipeline [P0 - Must]:** Chuẩn hóa luồng: `Lead mới` $\rightarrow$ `Đang liên hệ` $\rightarrow$ `Tiềm năng (Qualified)` $\rightarrow$ `Chốt thành công` $\rightarrow$ `Mất Lead`.
+- **M06.1.6 - Phân bổ Lead tự động [P0 - Must]:** Tự động chia Lead cho đội ngũ tư vấn theo cơ chế xoay vòng (Round-robin) hoặc theo ca làm việc.
+- **M06.1.7 & M06.1.8 - Chuyển đổi Khách hàng & Ghi nhận lý do thất bại [P0/P1]:** Chuyển Lead thành Customer khi tạo đơn thành công; bắt buộc nhập lý do thất bại (Giá cao, Không nghe máy, Đối thủ...) khi đóng Lead.
+
+---
+
+### MODULE M07 & M13: BÁN HÀNG, ĐƠN HÀNG VÀ SẢN PHẨM (SALES & PRODUCT)
+*Mục tiêu: Chuẩn hóa quy trình bán hàng, kiểm soát tồn kho và tự động hóa vận chuyển.*
+
+#### Quản lý Sản phẩm & Kho hàng (M13)
+- **M13.1.1 & M13.1.2 - Danh mục sản phẩm & SKU [P0 - Must]:** Quản lý mã SKU, tên, giá niêm yết, đơn vị tính, danh mục đa cấp, hình ảnh đại diện.
+- **M13.1.9 - Biến thể & Combo sản phẩm [P2 - Could]:** Hỗ trợ sản phẩm nhiều thuộc tính (màu, size) và đóng gói Combo nhiều món để bán nhanh trong chat.
+- **M13.1.10 - Kiểm soát tồn kho cơ bản [P0 - Must]:** Cập nhật số lượng tồn kho; tự động trừ tồn kho khi đơn hàng được xác nhận; cảnh báo hết hàng khi chạm ngưỡng tối thiểu.
+- **M13.1.13 - API tìm kiếm nhanh phục vụ chat [P0 - Must]:** Cung cấp API tìm kiếm độ trễ thấp ($< 200\text{ms}$) phục vụ gõ gợi ý sản phẩm trong Panel In-chat.
+
+#### Quản lý Đơn hàng & Vận chuyển (M07)
+- **M07.1.3 & M07.1.4 - Luồng đơn hàng: Nháp $\rightarrow$ Xác nhận [P1 - Should]:** Cho phép lưu đơn nháp trước khi chốt đơn chính thức.
+- **M07.1.5, M07.1.6 & M07.1.7 - Danh sách & Tùy biến bảng đơn hàng [P1 - Should]:**
+  - Phân chia tab trạng thái đơn: `Tất cả`, `Đơn mới`, `Đã xác nhận`, `Đang đóng gói`, `Đang giao`, `Hoàn tất`, `Đã hủy`.
+  - **Tùy biến bảng hiển thị:** Cho phép người dùng tùy chọn ẩn/hiện cột và kéo thả thay đổi vị trí các cột trong bảng danh sách đơn hàng.
+- **M07.1.8 & M07.1.9 - Thanh toán & Kết nối vận chuyển ViettelPost [P1/P2]:**
+  - Trạng thái thanh toán: Chưa thanh toán, Đã đặt cọc, Đã thanh toán (COD, Chuyển khoản).
+  - **Tích hợp ViettelPost:** Kết nối API đẩy đơn tự động sang ViettelPost, lấy mã vận đơn, in phiếu gửi hàng và theo dõi hành trình đơn giao theo thời gian thực.
+  - Tự động cấu hình nội dung tin nhắn gửi qua Zalo/Messenger thông báo cho khách khi đơn hàng đổi trạng thái giao hàng.
+- **M07.1.11 - In phiếu đóng gói & Hóa đơn [P1 - Should]:** Xuất file in nhiệt chuẩn khổ A5 / K80 gồm thông tin người gửi, người nhận, danh sách hàng hóa và mã barcode/QR vận đơn.
+
+---
+
+### MODULE M08: THÔNG BÁO VÀ GIÁM SÁT SLA (NOTIFICATION & SLA ENGINE)
+*Mục tiêu: Đảm bảo tốc độ phục vụ khách hàng, ngăn chặn tình trạng bỏ quên tin nhắn.*
+
+- **M08.1.1 & M08.1.2 - Trung tâm thông báo thời gian thực [P0 - Must]:** Bắn thông báo In-app và phát âm thanh chuông khi có tin nhắn mới, bình luận mới hoặc khi được giao việc.
+- **M08.1.3 & M08.1.4 - Cấu hình bộ chỉ số cam kết SLA [P0 - Must]:** Thiết lập ngưỡng thời gian phản hồi tin nhắn đầu tiên (FRT) và thời gian phản hồi trung bình (ví dụ: Không quá 3 phút).
+- **M08.1.6 - Cảnh báo hội thoại quá hạn SLA [P0 - Must]:** Đồng hồ SLA đếm ngược trên từng hội thoại; tự động đổi màu đỏ cảnh báo trên danh sách chat khi quá thời gian quy định.
+- **M08.1.7 & M08.1.8 - Quy trình điều chuyển leo thang (Escalation) [P0/P1]:** Tự động gửi thông báo khẩn cấp cho Trưởng nhóm/Quản trị viên khi nhân viên phụ trách bỏ sót hội thoại quá thời hạn cho phép.
+
+---
+
+### MODULE M09: BÁO CÁO VÀ THỐNG KÊ (REPORTING & ANALYTICS)
+*Mục tiêu: Cung cấp bức tranh toàn cảnh về hiệu quả kinh doanh và năng suất làm việc.*
+
+- **M09.1.1 - Dashboard Kênh & Tương tác mạng xã hội [P0 - Must]:** Báo cáo số lượng bài đăng, lượt tiếp cận (Reach), tương tác và tăng trưởng người theo dõi theo từng Fanpage/Zalo/YouTube.
+- **M09.1.2 - Dashboard Tương tác & Phản hồi [P0 - Must]:** Đo lường tổng số bình luận, tin nhắn, tỷ lệ phản hồi và thời gian phản hồi trung bình theo từng khung giờ trong ngày.
+- **M09.1.3 - Dashboard Năng suất nhân viên tư vấn [P0 - Must]:** Thống kê theo từng Agent: Số lượng hội thoại đã xử lý, tỷ lệ tuân thủ SLA, số đơn hàng chốt được và tổng doanh thu mang lại.
+- **M09.1.4 & M09.1.5 - Dashboard Doanh thu & Hiệu quả bài viết [P1 - Should]:** Doanh thu tổng hợp theo kênh; bảng xếp hạng các bài viết mang lại nhiều tương tác và đơn hàng nhất.
+- **M09.1.6 & M09.1.8 - Bộ lọc thời gian, So sánh kỳ & Xuất dữ liệu [P0/P1]:** Bộ lọc linh hoạt theo ngày/tuần/tháng; so sánh đối chuẩn cùng kỳ; hỗ trợ xuất báo cáo định dạng Excel/CSV.
+
+---
+
+### MODULE M10 & M12: QUẢN TRỊ HỆ THỐNG VÀ PHÂN QUYỀN (ADMIN & RBAC)
+*Mục tiêu: Đảm bảo an toàn thông tin, bảo mật dữ liệu cấp doanh nghiệp.*
+
+- **M12.1.1 - Mời người dùng tham gia qua Email [P0 - Must]:** Admin nhập họ tên, email, vai trò và nhóm phụ trách. Hệ thống gửi liên kết kích hoạt qua email để người dùng tự thiết lập mật khẩu cá nhân.
+- **M12.1.6 & M12.1.7 - Khóa & Xóa tài khoản nhân viên [P0/P2]:** Khóa tài khoản tức thì khi nhân viên nghỉ việc; khi xóa tài khoản, bắt buộc phải chọn nhân sự khác để bàn giao toàn bộ khách hàng và hội thoại đang phụ trách.
+- **M12.1.8, M12.1.9 & M12.1.11 - Ma trận phân quyền Role-based (RBAC) [P0 - Must]:**
+  - Vai trò mặc định: `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR`, `AGENT`, `VIEWER`.
+  - Phân quyền chi tiết theo ma trận: **Vai trò $\times$ Module $\times$ Hành động** (`Xem`, `Tạo`, `Sửa`, `Xóa`, `Xuất dữ liệu`).
+- **M12.1.12 - Quản lý Nhóm làm việc (Team Assignment) [P0 - Must]:** Phân chia người dùng vào các nhóm chuyên biệt (Team Sales, Team CSKH Học viên...). Phân quyền nhân viên chỉ được xem và xử lý khách hàng thuộc nhóm của mình.
+- **M10.1.11 & M12.1.13 - Nhật ký hoạt động hệ thống (Audit Trail) [P1 - Should]:** Ghi nhận toàn bộ vết thao tác: IP đăng nhập, thời gian, lịch sử xóa bài viết, cập nhật đơn hàng, xem số điện thoại khách hàng.
+- **Cấu hình bổ trợ khác:**
+  - Quản lý kho ảnh/media dùng chung của hệ thống (M10).
+  - Cấu hình tài khoản kết nối đơn vị vận chuyển ViettelPost (M10).
+  - Cấu hình danh mục nhãn màu tập trung dùng chung cho cả Chat, Comment và Khách hàng (M10.1.9).
+
+---
+
+### MODULE M11: NỀN TẢNG TÍCH HỢP & API ENGINE (INTEGRATION LAYER)
+*Mục tiêu: Đảm bảo khả năng mở rộng kiến trúc và kết nối hệ sinh thái bên ngoài.*
+
+- **M11.1.1 & M11.1.2 - Quản lý API Key & Phạm vi truy cập [P1 - Should]:** Khởi tạo API Key kèm cấu hình phạm vi quyền hạn (Scope) cho phép các hệ thống bên thứ ba tích hợp.
+- **M11.1.3 & M11.1.5 - Webhook Dispatcher & Cơ chế Retry [P1 - Should]:** Bắn sự kiện ra hệ thống ngoài khi phát sinh biến động (`order.created`, `lead.converted`, `customer.updated`). Tự động thử lại theo thuật toán Exponential Backoff (sau 1m, 5m, 15m, 1h) nếu máy chủ đích phản hồi lỗi.
+- **M11.1.7 - Multi-Channel Connector Framework [P0 - Must]:** Áp dụng mô hình thiết kế Adapter Pattern để mở rộng kết nối thêm các mạng xã hội mới trong tương lai mà không làm thay đổi core nghiệp vụ.
+- **M11.1.9 - Rate Limiting Settings [P2 - Could]:** Cấu hình giới hạn tần suất gọi API theo từng IP/API Key để phòng chống tấn công từ chối dịch vụ.
+
+---
+
+## 3. THIẾT KẾ CƠ SỞ DỮ LIỆU ĐỀ XUẤT (DATABASE SCHEMA)
+
+```sql
+-- ========================================================
+-- 1. BẢNG TỔ CHỨC, NGƯỜI DÙNG & PHÂN QUYỀN (M10, M12)
+-- ========================================================
+
+CREATE TABLE roles (
+    id VARCHAR(50) PRIMARY KEY, -- 'SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'AGENT', 'VIEWER'
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE role_permissions (
+    role_id VARCHAR(50) REFERENCES roles(id) ON DELETE CASCADE,
+    module_code VARCHAR(50) NOT NULL, -- 'M01', 'M02', 'M03', ...
+    action VARCHAR(20) NOT NULL,      -- 'READ', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT'
+    PRIMARY KEY (role_id, module_code, action)
+);
+
+CREATE TABLE teams (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    leader_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
+    role_id VARCHAR(50) REFERENCES roles(id),
+    status VARCHAR(20) DEFAULT 'ACTIVE', -- 'ACTIVE', 'INVITED', 'LOCKED'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE team_members (
+    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (team_id, user_id)
+);
+
+-- ========================================================
+-- 2. BẢNG KÊNH KẾT NỐI (M01)
+-- ========================================================
+
+CREATE TABLE channels (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    platform VARCHAR(50) NOT NULL, -- 'FACEBOOK', 'ZALO', 'INSTAGRAM', 'YOUTUBE'
+    external_account_id VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    avatar_url TEXT,
+    encrypted_access_token TEXT NOT NULL,
+    encrypted_refresh_token TEXT,
+    token_expires_at TIMESTAMPTZ,
+    assigned_team_id UUID REFERENCES teams(id),
+    status VARCHAR(50) DEFAULT 'ACTIVE', -- 'ACTIVE', 'EXPIRED', 'DISCONNECTED'
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================================================
+-- 3. BẢNG BÀI VIẾT & XUẤT BẢN ĐA KÊNH (M02)
+-- ========================================================
+
+CREATE TABLE posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255),
+    content TEXT,
+    media_assets JSONB DEFAULT '[]', -- [{type: 'IMAGE|VIDEO', url: '...'}]
+    status VARCHAR(50) DEFAULT 'DRAFT', -- 'DRAFT', 'SCHEDULED', 'PUBLISHING', 'PUBLISHED', 'PARTIAL_FAILED', 'FAILED'
+    scheduled_at TIMESTAMPTZ,
+    published_at TIMESTAMPTZ,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE post_destinations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+    channel_id UUID REFERENCES channels(id),
+    custom_content TEXT,
+    external_post_id VARCHAR(255),
+    external_url TEXT,
+    status VARCHAR(50) DEFAULT 'PENDING', -- 'PENDING', 'SUCCESS', 'FAILED'
+    error_message TEXT,
+    metrics JSONB DEFAULT '{"views": 0, "likes": 0, "comments": 0, "shares": 0}',
+    published_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================================================
+-- 4. BẢNG KHÁCH HÀNG & TIẾN TRÌNH HỌC VIÊN (M05, M06)
+-- ========================================================
+
+CREATE TABLE customers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) UNIQUE,
+    email VARCHAR(255),
+    type VARCHAR(50) DEFAULT 'NEW', -- 'NEW', 'LOYAL', 'VIP'
+    source VARCHAR(100),
+    progress_stage VARCHAR(100) DEFAULT 'MOI', 
+    -- 'MOI': Khách mới
+    -- 'DA_CALL': Đã call tư vấn
+    -- 'DONG_TIEN': Đã đóng tiền đủ
+    -- 'DANG_HOC': Đang tham gia học
+    -- 'SAP_HET_HAN': Sắp hết hạn học
+    -- 'DA_XONG': Đã học xong
+    study_start_date DATE,
+    study_end_date DATE,
+    treatment_plan_url TEXT, -- Link phác đồ học viên (xem/sửa)
+    assigned_user_id UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE customer_social_identities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+    channel_id UUID REFERENCES channels(id),
+    platform VARCHAR(50) NOT NULL,
+    external_user_id VARCHAR(255) NOT NULL, -- PSID / Zalo User ID / Insta ID
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(channel_id, external_user_id)
+);
+
+CREATE TABLE leads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name VARCHAR(255),
+    phone VARCHAR(50) NOT NULL,
+    status VARCHAR(50) DEFAULT 'NEW', -- 'NEW', 'CONTACTING', 'QUALIFIED', 'WON', 'LOST'
+    lost_reason TEXT,
+    source_channel_id UUID REFERENCES channels(id),
+    source_post_id UUID REFERENCES posts(id),
+    assigned_user_id UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================================================
+-- 5. BẢNG HỘI THOẠI, TIN NHẮN & BÌNH LUẬN (M03, M04)
+-- ========================================================
+
+CREATE TABLE conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    channel_id UUID REFERENCES channels(id),
+    customer_id UUID REFERENCES customers(id),
+    external_conversation_id VARCHAR(255) NOT NULL,
+    type VARCHAR(20) DEFAULT 'CHAT', -- 'CHAT', 'COMMENT'
+    status VARCHAR(50) DEFAULT 'OPEN', -- 'OPEN', 'PENDING', 'RESOLVED'
+    assigned_user_id UUID REFERENCES users(id),
+    unread_count INT DEFAULT 0,
+    last_message_preview TEXT,
+    last_message_at TIMESTAMPTZ DEFAULT NOW(),
+    sla_due_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_type VARCHAR(20) NOT NULL, -- 'CUSTOMER', 'AGENT', 'SYSTEM'
+    sender_id VARCHAR(255),
+    content TEXT,
+    media_urls JSONB DEFAULT '[]',
+    is_private_reply BOOLEAN DEFAULT FALSE,
+    external_message_id VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Bảng nhãn màu cố định (Quick Tag Bar)
+CREATE TABLE tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    color_code VARCHAR(20) NOT NULL, -- Mã màu HEX: #FF5722, #4CAF50
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE conversation_tags (
+    conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+    tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (conversation_id, tag_id)
+);
+
+-- Mẫu câu trả lời nhanh nhiều khối nội dung
+CREATE TABLE canned_responses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    topic_id UUID,
+    shortcut VARCHAR(50) NOT NULL, -- Phím tắt: '/tuvan'
+    blocks JSONB NOT NULL,         -- Mảng các block: [{order: 1, text: '...', media: '...'}, {order: 2, ...}]
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================================================
+-- 6. BẢNG SẢN PHẨM & ĐƠN HÀNG (M07, M13)
+-- ========================================================
+
+CREATE TABLE products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sku VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    price NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    stock INT NOT NULL DEFAULT 0,
+    image_url TEXT,
+    is_combo BOOLEAN DEFAULT FALSE,
+    status VARCHAR(20) DEFAULT 'ACTIVE',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_code VARCHAR(50) UNIQUE NOT NULL,
+    customer_id UUID REFERENCES customers(id),
+    conversation_id UUID REFERENCES conversations(id),
+    total_amount NUMERIC(12, 2) NOT NULL,
+    discount_amount NUMERIC(12, 2) DEFAULT 0,
+    payment_status VARCHAR(50) DEFAULT 'UNPAID',    -- 'UNPAID', 'PARTIAL', 'PAID'
+    shipping_status VARCHAR(50) DEFAULT 'PENDING',  -- 'PENDING', 'PACKING', 'DELIVERING', 'SUCCESS', 'CANCELLED'
+    shipping_carrier VARCHAR(50) DEFAULT 'VIETTEL_POST',
+    tracking_code VARCHAR(100),                     -- Mã vận đơn ViettelPost
+    delivery_address JSONB NOT NULL,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+    product_id REFERENCES products(id),
+    quantity INT NOT NULL DEFAULT 1,
+    unit_price NUMERIC(12, 2) NOT NULL,
+    total_price NUMERIC(12, 2) NOT NULL
+);
+
+4. DANH MỤC RESTFUL API CORE (ENDPOINTS MATRIX)
+Method
+Endpoint
+Quyền hạn
+Mô tả tính năng
+POST
+/api/v1/channels/{platform}/connect
+Admin
+Khởi tạo luồng xác thực OAuth và kết nối Fanpage/Zalo OA
+GET
+/api/v1/channels
+Agent, Admin
+Lấy danh sách toàn bộ kênh kết nối kèm trạng thái Token
+POST
+/api/v1/channels/{id}/reconnect
+Admin
+Cấp lại token cho kênh khi hết hạn mà không làm mất dữ liệu cũ
+POST
+/api/v1/posts
+Agent, Admin
+Tạo bài viết (status=DRAFT, status=PUBLISHING, status=SCHEDULED)
+POST
+/api/v1/posts/{id}/retry
+Agent, Admin
+Thử lại phát hành bài viết cho các kênh gặp lỗi độc lập
+GET
+/api/v1/conversations
+Agent, Admin
+Lấy danh sách hội thoại kèm bộ lọc nhãn, kênh, trạng thái đọc
+GET
+/api/v1/conversations/{id}/messages
+Agent, Admin
+Lấy dòng thời gian trao đổi 2 chiều giữa khách và tư vấn viên
+POST
+/api/v1/conversations/{id}/messages
+Agent
+Gửi tin nhắn văn bản, ảnh, tài liệu hoặc file ghi âm thoại
+POST
+/api/v1/conversations/{id}/tags
+Agent
+Thao tác bật/tắt nhãn màu từ thanh Quick Tag Bar
+POST
+/api/v1/conversations/{id}/orders
+Agent
+Chốt tạo đơn hàng trực tiếp từ Panel In-chat
+POST
+/api/v1/comments/{id}/private-reply
+Agent
+Gửi tin nhắn Messenger riêng tư từ một bình luận của khách
+GET
+/api/v1/customers/{id}
+Agent, Admin
+Xem hồ sơ Customer 360, tiến trình và link phác đồ học viên
+PUT
+/api/v1/customers/{id}/progress
+Agent, Admin
+Cập nhật tiến trình học viên và tự động đổi nhóm nhân sự phụ trách
+POST
+/api/v1/leads/convert
+Agent
+Bóc tách số điện thoại để chuyển đổi thành Lead hoặc Customer
+GET
+/api/v1/products/search
+Agent
+API tìm kiếm nhanh sản phẩm/combo nhúng vào panel chat ($< 200\text{ms}$)
+PUT
+/api/v1/orders/{id}/shipping/viettelpost
+Admin
+Đẩy thông tin đơn sang ViettelPost và nhận mã vận đơn tự động
+GET
+/api/v1/reports/overview
+Manager, Admin
+Thống kê tổng hợp doanh số, kênh, hiệu quả bài đăng và SLA
+
+5. TIÊU CHÍ NGHIỆM THU TỔNG THỂ (SYSTEM ACCEPTANCE CRITERIA)
+AC 01 - Kết nối & Bảo mật Token:
+Mọi Access Token và Refresh Token phải được mã hóa trước khi lưu vào CSDL.
+Hệ thống có Background Worker tự động làm mới Zalo Refresh Token định kỳ; khi Fanpage đổi mật khẩu và mất kết nối, hệ thống phải cho phép Reconnect mà không được làm mất lịch sử hội thoại, khách hàng hoặc bài viết cũ.
+AC 02 - Đăng tải đa kênh độc lập:
+Khi phát hành cùng lúc lên 3 kênh (Facebook, Instagram, YouTube), nếu 1 kênh gặp lỗi do vi phạm chính sách hoặc định dạng media, 2 kênh còn lại vẫn phải hoàn tất đăng bài bình thường. Hệ thống hiển thị rõ thông báo lỗi của kênh thất bại và cung cấp nút "Thử lại" riêng biệt.
+AC 03 - Trải nghiệm In-chat Commerce (Tạo đơn không rời màn hình):
+Nhân viên tư vấn có thể vừa chat, vừa xem thông tin khách, vừa tìm kiếm sản phẩm và chốt đơn trong panel bên phải chỉ trong tối đa 3 lần nhấp chuột, thời gian hoàn tất đơn $\le 5$ giây mà không bị tải lại trang.
+AC 04 - Đồng bộ nhãn nhanh & Phản hồi thời gian thực:
+Thao tác gắn/bỏ nhãn màu trên thanh Quick Tag Bar phải được cập nhật ngay lập tức sang danh sách hội thoại và đồng bộ qua WebSocket cho các tư vấn viên khác đang cùng xem.
+AC 05 - Tuân thủ cam kết SLA & Cảnh báo:
+Đồng hồ SLA phải tự động đếm ngược theo thời gian thực cho từng tin nhắn mới của khách; khi quá hạn, tin nhắn phải tự động đổi sang màu cảnh báo và kích hoạt thông báo leo thang (Escalation) cho Trưởng nhóm.
+AC 06 - Quản lý học viên & Tiến trình chuyên biệt:
+Cho phép cập nhật tiến trình học viên xuyên suốt 6 giai đoạn; khi đổi tiến trình, quyền tiếp nhận và nhận thông báo phải chuyển giao đúng nhóm nhân sự được cấu hình; hỗ trợ truy cập trực tiếp phác đồ học viên và tra cứu hành trình đơn giáo trình ViettelPost.
+
+---
+
+### Hướng dẫn lưu file:
+1. Nhấn nút **Copy** ở góc trên bên phải của khối mã Markdown trên.
+2. Mở một trình soạn thảo văn bản (như VS Code, Notepad, Obsidian).
+3. Dán nội dung và lưu file với tên: **`SOFTWARE_REQUIREMENTS_SPECIFICATION.md`**.
+

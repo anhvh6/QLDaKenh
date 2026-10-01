@@ -1,0 +1,9 @@
+data/
+test-data/
+node_modules/
+.env
+*.log
+*.pid
+test-results/
+
+integrations/taophacdoT4/

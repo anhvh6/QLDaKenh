@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/anhvh6/taophacdoT4",
+  "revision": "6190d99c2d4be9e40f1a19c53f1441d872e52bd2",
+  "branchAtInspection": "main",
+  "reusedComponents": ["pages/PlanEditor.tsx", "components/Layout.tsx", "components/UI.tsx", "components/DateInput.tsx", "types.ts", "constants.tsx", "utils/date.ts", "utils/search.ts"],
+  "integration": "Dedicated Vite build aliases only data/auth-adjacent editor services to authenticated localhost endpoints. Original App.tsx and production Supabase configuration are not executed.",
+  "output": "public/plan-ui",
+  "databaseMigrationExecuted": false,
+  "remoteDeploymentExecuted": false
+}

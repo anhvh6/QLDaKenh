@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+const out='data/restore-aqtnzvqyljweppklblni';
+const expected=JSON.parse(fs.readFileSync(out+'/source-counts.json','utf8')).filter(t=>t.name.startsWith('public.')||t.name.startsWith('auth.')&&t.name!=='auth.schema_migrations');
+const queries=expected.map(t=>`SELECT '${t.name}' AS name, count(*)::integer AS rows FROM ${t.name}`);
+const sql=`select coalesce(json_agg(x),'[]') from (${queries.join(' UNION ALL ')}) x;`;
+const bin=path.join(process.env.TEMP,'taophacdo-pg17/bin/psql.exe');
+const actual=JSON.parse(execFileSync(bin,['-X','-w','-At','-v','ON_ERROR_STOP=1','-c',sql],{encoding:'utf8'}).trim());
+const checks=expected.map(e=>({...e,actual:actual.find(a=>a.name===e.name)?.rows}));
+const failed=checks.filter(e=>e.actual!==e.rows);
+const result={target:'aqtnzvqyljweppklblni',verifiedAt:new Date().toISOString(),tablesCompared:checks.length,match:failed.length===0,checks};
+fs.writeFileSync(out+'/verification.json',JSON.stringify(result,null,2));
+console.log(JSON.stringify({tablesCompared:checks.length,match:result.match,failed}));
+if(failed.length)process.exit(1);

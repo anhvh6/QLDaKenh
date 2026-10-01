@@ -1,0 +1,11 @@
+import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {execFileSync} from 'node:child_process';
+const checkout=resolve('integrations/taophacdoT4');
+const expected='6190d99c2d4be9e40f1a19c53f1441d872e52bd2';
+if(!existsSync(join(checkout,'pages/PlanEditor.tsx')))throw new Error('Clone anhvh6/taophacdoT4 vào integrations/taophacdoT4 trước. Xem docs/UNIFIED_WORKFLOW.md.');
+const sha=execFileSync('git',['rev-parse','HEAD'],{cwd:checkout,encoding:'utf8'}).trim();
+if(sha!==expected)throw new Error('Source revision khác bản đã kiểm thử: '+sha+'. Review thay đổi trước khi cập nhật manifest.');
+const source=resolve('integrations/plan-workspace'),target=join(checkout,'omni');mkdirSync(target,{recursive:true});
+for(const f of ['index.html','main.tsx','localServices.ts','ephemeralStorage.ts','aiDisabled.ts','style.css','vite.config.ts'])writeFileSync(join(target,f),readFileSync(join(source,f)));
+execFileSync(process.execPath,['node_modules/vite/bin/vite.js','build','--config','omni/vite.config.ts'],{cwd:checkout,stdio:'inherit',windowsHide:true});
