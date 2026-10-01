@@ -14,7 +14,7 @@ import {supabaseRoute,integrationState} from './supabase.mjs';
 care.migrateLocal();
 import { providers,testConnection,aiDraft,ghn } from './connectors.mjs';
 
-const port=Number(process.env.PORT||4317);const host=process.env.HOST||'127.0.0.1';const publicDir=resolve('public');
+const port=Number(process.env.PORT||4317);const host=process.env.HOST||(process.env.PORT?'0.0.0.0':'127.0.0.1');const publicDir=resolve('public');
 const hashPassword=(p,salt=randomBytes(16).toString('hex'))=>`${salt}:${scryptSync(p,salt,64).toString('hex')}`;
 const verify=(p,hash)=>{const [salt,h]=hash.split(':');return timingSafeEqual(Buffer.from(hashPassword(p,salt).split(':')[1],'hex'),Buffer.from(h,'hex'));};
 const sha=s=>createHash('sha256').update(s).digest('hex');
