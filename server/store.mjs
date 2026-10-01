@@ -34,7 +34,7 @@ export function getSupabaseHeaders() {
     const authRes = syncFetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
       method: 'POST',
       headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'anhvh@gmail.com', password: 'Ttdt123a@' })
+      body: JSON.stringify({ email: process.env.SUPABASE_SYSTEM_EMAIL || 'anhvh@gmail.com', password: process.env.SUPABASE_SYSTEM_PASSWORD || 'Ttdt123a@' })
     });
     if (authRes.status !== 200) throw new Error('Supabase Auth Failed');
     const auth = authRes.json();
