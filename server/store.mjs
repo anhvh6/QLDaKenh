@@ -50,40 +50,32 @@ export function getSupabaseHeaders() {
 }
 
 export function all(kind) {
-  const res = syncFetch(`${SUPABASE_URL}/rest/v1/records?kind=eq.${kind}&order=updated_at.desc`, { headers: getSupabaseHeaders() });
-  if (res.status !== 200) throw new Error(res.text());
-  return res.json().map(r => ({...r.data, version: r.version}));
+  return db.prepare('SELECT id, data, version FROM records WHERE kind=? ORDER BY updated_at DESC').all(kind).map(r => ({...JSON.parse(r.data), version: r.version, id: r.id}));
 }
 
 export function get(kind, id) {
-  const res = syncFetch(`${SUPABASE_URL}/rest/v1/records?kind=eq.${kind}&id=eq.${id}`, { headers: getSupabaseHeaders() });
-  if (res.status !== 200) throw new Error(res.text());
-  const rows = res.json();
-  return rows.length ? {...rows[0].data, version: rows[0].version} : null;
+  const row = db.prepare('SELECT data, version FROM records WHERE kind=? AND id=?').get(kind, id);
+  if (!row) return null;
+  return {...JSON.parse(row.data), version: row.version, id};
 }
 
 export function put(kind, data, expected) {
-  const id = data.id || uid(kind); const prev = get(kind, id);
-  if(expected !== undefined && prev?.version !== expected) throw Object.assign(new Error('Dữ liệu đã thay đổi. Vui lòng tải lại trước khi lưu.'),{status:409});
-  const record = {...data, id, createdAt: prev?.createdAt || data.createdAt || now(), updatedAt: now()}; delete record.version;
+  const id = data.id || uid(kind);
+  const prev = get(kind, id);
+  if (expected !== undefined && prev?.version !== expected) throw Object.assign(new Error('Dữ liệu đã thay đổi. Vui lòng tải lại trước khi lưu.'), {status: 409});
+  const record = {...data, id, createdAt: prev?.createdAt || data.createdAt || now(), updatedAt: now()};
+  delete record.version;
   const newVersion = prev ? prev.version + 1 : 1;
-  const res = syncFetch(`${SUPABASE_URL}/rest/v1/records`, {
-    method: 'POST',
-    headers: getSupabaseHeaders(),
-    body: JSON.stringify({ kind, id, data: record, version: newVersion, updated_at: record.updatedAt })
-  });
-  if (res.status > 201) throw new Error(res.text());
+  db.prepare('INSERT OR REPLACE INTO records(kind, id, data, version, updated_at) VALUES(?,?,?,?,?)').run(kind, id, JSON.stringify(record), newVersion, record.updatedAt);
   return get(kind, id);
 }
 
 export function remove(kind, id) {
-  const headers = getSupabaseHeaders();
-  delete headers['Prefer'];
-  syncFetch(`${SUPABASE_URL}/rest/v1/records?kind=eq.${kind}&id=eq.${id}`, { method: 'DELETE', headers });
+  db.prepare('DELETE FROM records WHERE kind=? AND id=?').run(kind, id);
 }
 
 export function transaction(fn) {
-  return fn();
+  return db.transaction(fn)();
 }
 export function audit(actor,action,entity='',detail='') { db.prepare('INSERT INTO audit VALUES(?,?,?,?,?,?)').run(uid('log'),actor,action,entity,typeof detail==='string'?detail:JSON.stringify(detail),now()); }
 export function saveSecret(id,value) { const iv=randomBytes(12); const cipher=createCipheriv('aes-256-gcm',key,iv); const body=Buffer.concat([cipher.update(JSON.stringify(value),'utf8'),cipher.final()]); db.prepare('INSERT OR REPLACE INTO secrets VALUES(?,?)').run(id,Buffer.concat([iv,cipher.getAuthTag(),body]).toString('base64')); }
