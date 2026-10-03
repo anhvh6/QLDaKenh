@@ -1,7 +1,7 @@
 /* Pancake-style UI adjustments */
-body.inbox-page .content { padding: 0; max-width: none; display: flex; flex-direction: column; height: calc(100vh - 82px); }
-body.inbox-page .page-head { display: none; }
-body.inbox-page .toolbar { padding: 12px 16px 0; margin: 0; background: #fff; }
+.content.inbox-page { padding: 0; max-width: none; display: flex; flex-direction: column; height: calc(100vh - 82px); }
+.content.inbox-page .page-head { display: none; }
+.content.inbox-page .toolbar { padding: 12px 16px 0; margin: 0; background: #fff; }
 
 .chat-toolbar,.chat-actions,.chat-compose-tools{display:flex;gap:7px;align-items:center;flex-wrap:wrap;min-width:0}
 .chat-toolbar{padding:8px 16px; background:#fff; margin:0}.chat-toolbar .btn[aria-pressed=true]{background:#e6efe7;border-color:#27634b}
