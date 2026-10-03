@@ -172,6 +172,9 @@ export async function sendMessage(connectionId, externalUserId, text) {
     if (!api) throw new Error('Zalo connection not active');
     
     // Zalo API takes threadId (which is externalUserId for 1-1)
+    await api.sendMessage({ msg: text }, externalUserId, ThreadType.User);
+}
+
 export async function forceSync(connectionId) {
     const api = instances.get(connectionId);
     if (!api) throw new Error('Zalo chưa kết nối hoặc đã mất kết nối.');
