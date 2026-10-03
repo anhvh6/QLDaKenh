@@ -73,10 +73,12 @@ function settingsPage(){const settingsTabs=tabs([['all','Kênh kết nối'],['w
 
     // Vùng các nhóm icon ĐỢI kết nối (Tạo quick connect icon)
     const availableHtml = Object.entries(S.providers).map(([k, v]) => `
-<div class="connection-card" style="text-align:center; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:140px; border:1px dashed var(--line); box-shadow:none" data-action="${k==='zalo_personal'?'quick-zalo-qr':'new-connection'}" data-provider="${k}">
-  <div style="font-size:32px;margin-bottom:10px">${social(k,true)}</div>
-  <h3>${e(v.label)}</h3>
-  <p class="muted small">Nhấn để kết nối</p>
+<div class="connection-card" style="text-align:center; cursor:pointer; display:flex; flex-direction:row; align-items:center; justify-content:flex-start; padding:12px; min-height:60px; border:1px dashed var(--line); box-shadow:none; gap:12px;" data-action="${k==='zalo_personal'?'quick-zalo-qr':'new-connection'}" data-provider="${k}">
+  <div style="font-size:24px;">${social(k,true)}</div>
+  <div style="text-align:left;">
+    <h3 style="margin:0; font-size:14px;">${e(v.label)}</h3>
+    <p class="muted small" style="margin:0; font-size:12px;">Nhấn để kết nối</p>
+  </div>
 </div>
 `).join('');
 

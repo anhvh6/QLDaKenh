@@ -8,7 +8,7 @@ export const providers = {
  devto:{label:'DEV.to',publish:true,message:false,formats:['text'],hint:'API key DEV.to. Nội dung bài dùng Markdown.'},
  blogger:{label:'Blogger',publish:true,message:false,formats:['text'],hint:'Blog ID và Google OAuth access token có quyền Blogger. Token cần cập nhật khi hết hạn.'},
  facebook_personal:{label:'Facebook cá nhân',publish:false,formats:[],hint:'Chuẩn bị nội dung, nhắc giờ và xác nhận đường dẫn sau khi đăng trong ứng dụng gốc.'},
- zalo_personal:{label:'Zalo cá nhân',publish:false,formats:[],hint:'Hỗ trợ đăng thủ công; không thu thập cookie hoặc mật khẩu Zalo.'},
+ zalo_personal:{label:'Zalo cá nhân',publish:false,message:true,formats:[],hint:'Kết nối bằng mã QR. Hỗ trợ nhận/gửi tin nhắn thời gian thực.'},
  zalo:{label:'Zalo OA',publish:false,message:true,formats:[],hint:'OA access token để gửi tin tư vấn khi đủ điều kiện; xuất bản dùng hỗ trợ trong bản này.'},
  tiktok:{label:'TikTok',publish:false,formats:[],hint:'Chế độ hỗ trợ. Cần đối tác/quyền ứng dụng được duyệt trước khi bổ sung Direct Post.'},
  youtube:{label:'YouTube',publish:false,formats:[],hint:'Chế độ hỗ trợ. Upload/OAuth/audit YouTube chưa được triển khai trong bản này.'},

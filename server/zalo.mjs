@@ -188,7 +188,7 @@ export async function disconnect(connectionId) {
         try { api.listener.stop(); } catch(e){}
         instances.delete(connectionId);
     }
-    db.prepare('DELETE FROM secrets WHERE key=?').run(`zalo_session_${connectionId}`);
+    db.prepare('DELETE FROM secrets WHERE id=?').run(`zalo_session_${connectionId}`);
     put('connections', { ...get('connections', connectionId), status: 'disconnected', name: 'Zalo cá nhân (Đã ngắt)' });
     return { success: true, message: 'Đã hủy kết nối Zalo.' };
 }
