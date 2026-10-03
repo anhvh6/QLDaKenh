@@ -246,4 +246,8 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape')closeModal()
 setInterval(async()=>{if(!S||$('.modal')||document.activeElement?.matches('input,textarea,select')||['inbox','phacdo'].includes(route))return;try{await refresh();}catch{}},15000);
 initPlans({get state(){return S;},api,refresh,render,modal,closeModal,toast,navigate});
 initCare({get state(){return S;},api,refresh,render,modal,closeModal,toast});
+let lastScrollY=0;
+function applyScroll(y){const tb=$('.topbar');if(!tb)return;if(y>50&&y>lastScrollY)tb.classList.add('hidden-on-scroll');else if(y<lastScrollY-5||y<=50)tb.classList.remove('hidden-on-scroll');lastScrollY=y;}
+window.addEventListener('scroll',()=>applyScroll(window.scrollY));
+setInterval(()=>{if(route==='phacdo'){const frame=$('.plan-editor-frame');if(frame&&frame.contentWindow){try{const y=frame.contentWindow.scrollY;if(typeof y==='number'&&y!==lastScrollY)applyScroll(y);}catch(e){}}}},100);
 boot();
