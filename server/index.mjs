@@ -114,7 +114,7 @@ const server=http.createServer(async(req,res)=>{try{
  }
  if(path.startsWith('/api/')||path.startsWith('/uploads/')){
   if(!user)domain.fail('Vui lòng đăng nhập.',401);
-  if(req.method!=='GET'&&req.method!=='HEAD'){checkOrigin(req);if(req.headers['x-csrf-token']!==user.csrf)domain.fail('Phiên làm việc không hợp lệ. Tải lại trang.',403);}
+  if(req.method!=='GET'&&req.method!=='HEAD'){checkOrigin(req);if(!path.startsWith('/api/proxy/supabase/')&&req.headers['x-csrf-token']!==user.csrf)domain.fail('Phiên làm việc không hợp lệ. Tải lại trang.',403);}
   if(path==='/api/upload'&&req.method==='POST'){
    domain.permission(user,'assets');const name=decodeURIComponent(req.headers['x-filename']||'media');const mime=String(req.headers['content-type']||'');const types={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','video/mp4':'.mp4','video/webm':'.webm','video/quicktime':'.mov'};if(!types[mime])domain.fail('Hỗ trợ JPG, PNG, WebP, MP4, WebM, MOV.');
    const id=uid('asset');const filename=id+types[mime];const target=join(dataDir,'uploads',filename);let size=0;const sniff=[];
