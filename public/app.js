@@ -208,7 +208,8 @@ document.addEventListener('click',async event=>{const routeEl=event.target.close
    target.disabled=true;target.innerHTML='Đang tạo...';
    try{
     const r=await api(`/connections/${id}/zalo-qr`,{method:'POST',body:{}});
-    modal('Quét mã QR Zalo', `<div style="text-align:center;padding:15px"><p>Mở ứng dụng Zalo trên điện thoại và quét mã bên dưới để kết nối với hệ thống.</p><img src="${r.image}" style="max-width:250px;border-radius:10px;margin:20px auto;display:block;border:1px solid var(--line)"><p class="muted small">Bạn có thể đóng hộp thoại này. Trạng thái sẽ tự cập nhật sau khi quét thành công.</p></div>`);
+    const imgSrc = r.image.startsWith('data:') ? r.image : 'data:image/png;base64,' + r.image;
+    modal('Quét mã QR Zalo', `<div style="text-align:center;padding:15px"><p>Mở ứng dụng Zalo trên điện thoại và quét mã bên dưới để kết nối với hệ thống.</p><img src="${imgSrc}" style="max-width:250px;border-radius:10px;margin:20px auto;display:block;border:1px solid var(--line)"><p class="muted small">Bạn có thể đóng hộp thoại này. Trạng thái sẽ tự cập nhật sau khi quét thành công.</p></div>`);
    }catch(e){toast('Lỗi: '+e.message,true);}
    finally{target.disabled=false;target.innerHTML=icon('image',16)+'Mã QR';}
    return;
