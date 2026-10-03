@@ -13,7 +13,7 @@
 - Tích hợp dùng `zca-js` 2.2.0 và phiên Zalo cá nhân, không phải API chính thức của Zalo OA.
 - `requestOldMessages` chỉ lấy phần lịch sử Zalo trả về cho phiên này. Không bảo đảm lấy toàn bộ lịch sử trên điện thoại; không có chức năng sao lưu/khôi phục điện thoại trong tích hợp này.
 - Bộ đếm tin đồng bộ là số tin đọc từ Zalo, có thể bao gồm tin đã tồn tại. Tin lịch sử không tự kích hoạt workflow, không đánh dấu hàng loạt là chưa đọc.
-- Nội dung văn bản được lưu; ảnh/tệp/nhãn dán hiện mô tả hoặc dấu hiệu loại tin. Chưa tải tệp đính kèm hay sao lưu media.
+- Nội dung văn bản và thông tin media nhận được được lưu; ảnh/video có URL hợp lệ hiển thị trong chat. Có tải lên và gửi ảnh/video từ hộp chat; SDK được cung cấp kích thước ảnh. Chưa sao lưu toàn bộ media từ Zalo và chưa hỗ trợ đầy đủ sticker. Xem docs/PANCAKE_CHAT_PARITY.md.
 - Tránh mở nhiều phiên Zalo Web cho cùng tài khoản. Nếu bị đá phiên, thẻ kênh báo lỗi để kết nối lại.
 
 ## Máy chủ

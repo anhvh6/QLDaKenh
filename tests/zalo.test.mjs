@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {EventEmitter} from 'node:events';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'zalo-'));
@@ -22,6 +22,15 @@ test('Zalo persistence, history, listener and routing',async t=>{
  await t.test('history fetch paginates individual/group cursors and has real completion state',async()=>{const requests=[];api.listener.requestOldMessages=(type,cursor)=>{requests.push([type,cursor]);queueMicrotask(()=>api.listener.emit('old_messages',cursor?[]:[make(String(50+type),{type})],type));};await zalo.syncZaloData('z1',api);assert.deepEqual(requests,[[0,null],[0,'50'],[1,null],[1,'51']]);assert.equal(get('connections','z1').zaloSync.status,'complete');});
  await t.test('sync errors are visible and never report complete',async()=>{api.getAllFriends=async()=>{throw Error('Test failure');};await assert.rejects(zalo.syncZaloData('z1',api));assert.equal(get('connections','z1').zaloSync.status,'failed');});
  await t.test('self echo reconciles pending send; personal sends bypass OA token gate and preserve group type',async()=>{const conv=all('conversations').find(c=>c.connectionId==='z1'&&c.threadType===0);const pending=put('messages',{conversationId:conv.id,text:'Trả lời',direction:'outgoing',status:'sending'});zalo.ingestMessage('z1',make('910',{isSelf:true,data:{...make().data,msgId:'910',content:'Trả lời'}}));assert.equal(get('messages',pending.id).externalId,'910');let sent;api.sendMessage=async(...args)=>{sent=args;return {message:{msgId:'920'}};};const result=await connectors.sendMessage(get('connections','z1'),{externalUserId:'group1',threadType:1},'Test');assert.equal(result.id,'920');assert.equal(sent[2],1);});
+ await t.test('group adapters preserve roles, reject unsafe self-removal and call SDK with correct order',async()=>{
+  api.getOwnId=()=> '100';api.getGroupInfo=async id=>({gridInfoMap:{[id]:{name:'Nhóm kiểm thử',creatorId:'100',adminIds:[],memberIds:['100','200'],totalMember:2}}});api.getGroupMembersInfo=async()=>({profiles:{'100':{id:'100',displayName:'Chủ nhóm'},'200':{id:'200',displayName:'Học viên'}}});
+  const g=await zalo.groupDetails('z1','group1');assert.equal(g.ownRole,'owner');assert.equal(g.members.length,2);
+  let call;api.changeGroupName=async(...args)=>{call=args;return {status:1};};await zalo.changeGroup('z1','group1','rename',{name:'Tên mới'});assert.deepEqual(call,['Tên mới','group1']);
+  api.removeUserFromGroup=async()=>{throw Error('must not call');};await assert.rejects(zalo.changeGroup('z1','group1','remove',{memberIds:['100']}));
+  api.getOwnId=()=> '200';await assert.rejects(zalo.changeGroup('z1','group1','disband'));
+  api.createGroup=async options=>{assert.deepEqual(options.members,['100','200']);return {groupId:'created-group',sucessMembers:['100','200'],errorMembers:[]};};const created=await zalo.newGroup('z1','Nhóm mới',['100','200']);assert.equal(created.threadType,1);assert.equal(created.title,'Nhóm mới');
+ });
+ await t.test('image metadata callback supplies actual dimensions and size for SDK upload',async()=>{const path=join(process.env.DATA_DIR,'pixel.png');const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPZsAAAAASUVORK5CYII=','base64');writeFileSync(path,bytes);const meta=await zalo.imageMetadataGetter(path);assert.equal(meta.width,1);assert.equal(meta.height,1);assert.equal(meta.size,bytes.length);});
  await t.test('disconnect stops ingest and preserves history',async()=>{const count=all('messages').length;await zalo.disconnect('z1');api.listener.emit('message',make('999'));assert.equal(all('messages').length,count);assert.equal(get('connections','z1').status,'disconnected');});
 });
 

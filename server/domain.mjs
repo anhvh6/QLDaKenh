@@ -127,13 +127,14 @@ export function runWorkflows(trigger,entity){for(const w of all('workflows').fil
  if(w.action==='tag'&&entity.conversationId){const conv=get('conversations',entity.conversationId);if(conv)put('conversations',{...conv,tags:[...new Set([...(conv.tags||[]),w.value])]});}
  if(w.action==='notify')notification(w.name,w.value,'inbox');if(w.action==='task')put('tasks',{name:w.value||w.name,status:'open',entityId:entity.id});put('workflows',{...w,runs:(w.runs||0)+1,lastRun:now()});audit('automation',w.name,entity.id);
 }}
-export async function reply(user,id,input){permission(user,'inbox');const conv=get('conversations',id);if(!conv)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);let text=String(input.text||'').trim();if(text.length>5000)fail('Nội dung quá dài.');const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');
- const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z]+$/.test(a.url))fail('Media không hợp lệ.');return a;});
+export async function reply(user,id,input){permission(user,'inbox');const conv=get('conversations',id);if(!conv)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);let text=String(input.text||'').trim();if(text.length>5000)fail('Nội dung quá dài.');const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');if(conv.groupUnavailable&&!input.note)fail('Tài khoản đã rời nhóm hoặc nhóm đã giải tán.');
+ const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z]+$/.test(a.url))fail('Media không hợp lệ.');if(a.connectionId)assertChannel(user,a.connectionId);return a;});
  if(!text&&!assets.length)fail('Nhập nội dung hoặc chọn media.');
  if(assets.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal'&&!input.note)fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
  let quoted=input.quoteId?get('messages',input.quoteId):null;if(input.quoteId&&(!quoted||quoted.conversationId!==id||quoted.direction==='note'))fail('Tin trích dẫn không hợp lệ.');
  const nativeQuote=quoted&&ch.provider==='zalo_personal'&&quoted.quoteSource;
  if(quoted&&!nativeQuote)text='> '+quoted.text.slice(0,1000)+'\n\n'+text;
+ if(text.length>5000)fail('Nội dung kèm trích dẫn vượt 5000 ký tự.');
  const options={...(nativeQuote?{quote:quoted.quoteSource}:{}),...(assets.length?{attachments:assets.map(a=>join(dataDir,'uploads',basename(a.url)))}:{})};
  if(input.version!==conv.version)fail('Hội thoại vừa thay đổi. Tải lại trước khi gửi.',409);
  if(conv.sending)fail('Có một tin nhắn đang gửi. Vui lòng chờ.',409);put('conversations',{...conv,sending:true,assignee:user.id});

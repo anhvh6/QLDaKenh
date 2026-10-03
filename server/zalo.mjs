@@ -1,10 +1,13 @@
 import { Zalo, ThreadType } from 'zca-js';
+import {imageSizeFromFile} from 'image-size/fromFile';
+import {stat} from 'node:fs/promises';
 import { db, put, get, all, now, transaction, saveSecret, secret } from './store.mjs';
 import { runWorkflows } from './domain.mjs';
 import { captureLead } from './taophacdo.mjs';
 
 const instances=new Map(), logins=new Map(), jobs=new Map();
-const client=()=>new Zalo({selfListen:true,checkUpdate:false,logging:false});
+export async function imageMetadataGetter(path){const [dimensions,file]=await Promise.all([imageSizeFromFile(path),stat(path)]);return {width:dimensions.width,height:dimensions.height,size:file.size};}
+const client=()=>new Zalo({selfListen:true,checkUpdate:false,logging:false,imageMetadataGetter});
 function channel(id){const c=get('connections',id);if(!c||c.provider!=='zalo_personal')throw new Error('Không tìm thấy kênh Zalo cá nhân.');return c;}
 function state(id,patch){return put('connections',{...channel(id),...patch});}
 function syncState(id,patch){state(id,{zaloSync:{...channel(id).zaloSync,...patch,updatedAt:now()}});}
@@ -54,12 +57,13 @@ export async function syncZaloData(id,api,options={}){
  const r=instances.get(id);if(!r||r.api!==api)throw new Error('Phiên Zalo không còn hoạt động.');
  r.historyError='';syncState(id,{status:'running',contacts:0,messages:0,error:'',startedAt:now()});let contacts=0,messages=0;
  try{
-  const seen=new Set();for(let page=1;page<=40;page++){
+  const seen=new Set();let friendsComplete=false;for(let page=1;page<=40;page++){
    const friends=await api.getAllFriends(500,page);if(!Array.isArray(friends))throw new Error('Zalo trả danh bạ không hợp lệ.');
    if(instances.get(id)!==r)throw new Error('Phiên Zalo đã dừng.');
    const fresh=friends.filter(f=>!seen.has(String(f.userId)));for(const f of fresh)seen.add(String(f.userId));
-   contacts+=importFriends(id,fresh);syncState(id,{contacts});if(friends.length<500||!fresh.length)break;
+   contacts+=importFriends(id,fresh);syncState(id,{contacts});if(friends.length<500){friendsComplete=true;break;}if(!fresh.length)break;
   }
+  if(friendsComplete)transaction(()=>{for(const c of all('conversations').filter(c=>c.connectionId===id&&c.threadType!==1))put('conversations',{...c,isFriend:seen.has(String(c.externalUserId))});});
   await waitReady(r);let limited=false;
   const cursors=options.older?{...channel(id).zaloSync?.cursors}:{};
   for(const type of [ThreadType.User,ThreadType.Group]){
@@ -112,6 +116,26 @@ export async function groupDetails(id,thread){
  const response=await r.api.getGroupInfo(thread),g=response.gridInfoMap?.[thread];if(!g)throw new Error('Zalo không trả thông tin nhóm.');
  const ids=[...new Set([...(g.memberIds||[]),...(g.memVerList||[]).map(v=>v.split('_')[0])])];const members=[];
  for(let i=0;i<ids.length;i+=100){const result=await r.api.getGroupMembersInfo(ids.slice(i,i+100));for(const [key,p] of Object.entries(result.profiles||{})){const uid=String(p.id||key.split('_')[0]);members.push({id:uid,name:p.displayName||p.zaloName||uid,avatar:p.avatar||'',role:uid===String(g.creatorId)?'owner':(g.adminIds||[]).map(String).includes(uid)?'admin':'member'});}}
- return {name:g.name,description:g.desc||'',memberCount:g.totalMember||members.length,members,syncedAt:now()};
+ const ownId=String(r.api.getOwnId());return {name:g.name,description:g.desc||'',memberCount:g.totalMember||members.length,members,ownId,ownRole:ownId===String(g.creatorId)?'owner':(g.adminIds||[]).map(String).includes(ownId)?'admin':'member',syncedAt:now()};
+}
+export async function changeGroup(id,thread,action,input={}){
+ const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');
+ const details=await groupDetails(id,thread);
+ if(['rename','add','remove','disband'].includes(action)&&!['owner','admin'].includes(details.ownRole))throw new Error('Tài khoản Zalo chưa có quyền quản trị nhóm.');
+ if(action==='disband'&&details.ownRole!=='owner')throw new Error('Chỉ trưởng nhóm Zalo có thể giải tán.');
+ let result;
+ if(action==='rename')result=await r.api.changeGroupName(input.name,thread);
+ else if(action==='add')result=await r.api.addUserToGroup(input.memberIds,thread);
+ else if(action==='remove'){if(input.memberIds.includes(details.ownId))throw new Error('Dùng chức năng Rời nhóm để rời khỏi nhóm.');result=await r.api.removeUserFromGroup(input.memberIds,thread);}
+ else if(action==='leave')result=await r.api.leaveGroup(thread);
+ else if(action==='disband')result=await r.api.disperseGroup(thread);
+ else throw new Error('Thao tác nhóm không hợp lệ.');
+ if(result?.errorMembers?.length||result?.memberError?.length)throw new Error('Zalo chỉ xử lý được một phần thành viên. Đồng bộ nhóm để kiểm tra kết quả trước khi thử lại.');
+ return {ok:true};
+}
+export async function newGroup(id,name,members){
+ const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');
+ const response=await r.api.createGroup({name,members});if(!response.groupId)throw new Error('Zalo không trả mã nhóm. Hãy kiểm tra trên Zalo trước khi tạo lại.');
+ const c=conversation(id,String(response.groupId),ThreadType.Group,name);return put('conversations',{...c,title:name,group:{name,memberCount:(response.sucessMembers||[]).length+1,members:[]},groupWarning:response.errorMembers?.length?'Một số thành viên chưa được thêm. Hãy đồng bộ nhóm.':''});
 }
 export async function disconnect(id){channel(id);const ticket=logins.get(id);logins.delete(id);ticket?.abort?.();const r=instances.get(id);instances.delete(id);r?.api.listener.stop();db.prepare('DELETE FROM secrets WHERE id=?').run(`zalo_session_${id}`);state(id,{status:'disconnected',listenerState:'stopped'});return {success:true,message:'Đã ngắt Zalo; giữ lại danh bạ và lịch sử đã tải.'};}

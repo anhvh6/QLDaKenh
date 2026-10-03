@@ -10,16 +10,18 @@
     "start": "node server/index.mjs",
     "dev": "node --watch server/index.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check server/index.mjs && node --check server/domain.mjs && node --check server/taophacdo.mjs && node --check server/supabase.mjs && node --check public/app.js && node --check public/care.js && node --check server/plan-bridge.mjs && node --check public/plans.js && node --check server/zalo.mjs",
+    "check": "node --check server/index.mjs && node --check server/domain.mjs && node --check server/taophacdo.mjs && node --check server/supabase.mjs && node --check public/app.js && node --check public/care.js && node --check server/plan-bridge.mjs && node --check public/plans.js && node --check server/zalo.mjs && node --check server/chat.mjs && node --check public/inbox.js && node --check public/inbox-model.js",
     "test:ui": "node scripts/ui-check.mjs",
     "build:plan": "node scripts/build-plan.mjs",
-    "test:zalo-ui": "node scripts/test-zalo-ui.mjs"
+    "test:zalo-ui": "node scripts/test-zalo-ui.mjs",
+    "test:chat-ui": "node scripts/test-chat-ui.mjs"
   },
   "description": "taophacdo Social & Care — localhost workspace and existing-schema integration bridge",
   "dependencies": {
     "acorn": "^8.18.0",
     "astring": "^1.9.0",
     "estraverse": "^5.3.0",
+    "image-size": "2.0.4",
     "sync-fetch": "^0.7.1",
     "zca-js": "^2.2.0"
   }
