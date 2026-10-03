@@ -65,9 +65,11 @@ export async function syncZaloData(connectionId, api) {
         
         // Fetch friend list to populate contacts
         const friendsRes = await api.getAllFriends();
-        if (friendsRes && friendsRes.data) {
+        const friendsArray = Array.isArray(friendsRes) ? friendsRes : (friendsRes && friendsRes.data) ? friendsRes.data : null;
+        
+        if (friendsArray) {
             db.transaction(() => {
-                for (const f of friendsRes.data) {
+                for (const f of friendsArray) {
                     const threadId = f.userId ? String(f.userId) : String(f.uid || f.id);
                     if (!threadId || threadId === 'undefined') continue;
                     
@@ -90,7 +92,7 @@ export async function syncZaloData(connectionId, api) {
                     }
                 }
             })();
-            console.log(`Synced ${friendsRes.data.length} friends for ${connectionId}`);
+            console.log(`Synced ${friendsArray.length} friends for ${connectionId}`);
         }
     } catch (e) {
         console.error(`Failed to sync Zalo data for ${connectionId}:`, e.message);
@@ -102,28 +104,28 @@ function setupListener(connectionId, api) {
     
     api.listener.on('message', (message) => {
         try {
-            const isPlainText = typeof message.data.content === 'string';
-            const externalId = message.msgId || Date.now().toString();
+            const isPlainText = typeof message.data?.content === 'string';
+            const externalId = message.data?.msgId || Date.now().toString();
             
             // Check if we already processed this message
             if (db.prepare('SELECT id FROM events WHERE id=?').get(connectionId + externalId)) return;
             
             db.prepare('INSERT INTO events(id, source, received_at, payload) VALUES(?,?,?,?)').run(connectionId + externalId, connectionId, now(), JSON.stringify(message));
             
-            const senderId = message.isSelf ? 'self' : message.senderId;
-            const threadId = message.threadId; // is the user id or group id
+            const threadId = String(message.threadId); // is the user id or group id
 
             // We only process plain text for now, but we can extend this
             let text = isPlainText ? message.data.content : '[Attachment/Sticker]';
 
             // Upsert customer
             let customerId;
-            const existingConv = all('conversations').find(x => x.connectionId === connectionId && x.externalUserId === threadId);
+            const existingConv = all('conversations').find(x => x.connectionId === connectionId && String(x.externalUserId) === threadId);
             let conv = existingConv;
 
             db.transaction(() => {
                 if (!conv) {
-                    const customer = put('customers', { name: `Zalo ${threadId}`, phone: '', tags: [], consent: false, origin: 'zalo' });
+                    const name = message.data?.dName || `Zalo ${threadId}`;
+                    const customer = put('customers', { name, phone: '', tags: [], consent: false, origin: 'zalo' });
                     customerId = customer.id;
                     conv = put('conversations', { customerId, connectionId, externalUserId: threadId, kind: 'message', status: 'open', tags: [], mode: 'api' });
                 } else {
