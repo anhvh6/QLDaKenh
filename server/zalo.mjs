@@ -29,10 +29,10 @@ export async function createQR(connectionId) {
                 saveSecret(`zalo_session_${connectionId}`, { cookie, imei, userAgent });
                 put('connections', { ...get('connections', connectionId), status: 'connected', verifiedAt: now() });
                 qrSessions.delete(connectionId);
-                
                 // Login API
                 zalo.login({ cookie, imei, userAgent }).then(api => {
                     setupListener(connectionId, api);
+                    syncZaloData(connectionId, api);
                 }).catch(e => console.error('Zalo login error:', e));
             }
         }).catch(e => {
@@ -56,6 +56,44 @@ export async function recoverSessions() {
             console.error(`Failed to recover Zalo session for ${c.id}:`, e.message);
             put('connections', { ...c, status: 'error' });
         }
+    }
+}
+
+export async function syncZaloData(connectionId, api) {
+    try {
+        console.log(`Syncing Zalo data for ${connectionId}...`);
+        
+        // Fetch friend list to populate contacts
+        const friendsRes = await api.getAllFriends();
+        if (friendsRes && friendsRes.data) {
+            db.transaction(() => {
+                for (const f of friendsRes.data) {
+                    const threadId = f.userId ? String(f.userId) : String(f.uid || f.id);
+                    if (!threadId || threadId === 'undefined') continue;
+                    
+                    const existingConv = all('conversations').find(x => x.connectionId === connectionId && String(x.externalUserId) === threadId);
+                    if (!existingConv) {
+                        const name = f.displayName || f.zaloName || `Zalo ${threadId}`;
+                        const customer = put('customers', { name, phone: '', tags: [], consent: false, origin: 'zalo' });
+                        put('conversations', { 
+                            customerId: customer.id, 
+                            connectionId, 
+                            externalUserId: threadId, 
+                            kind: 'message', 
+                            status: 'resolved', 
+                            tags: [], 
+                            mode: 'api',
+                            unread: false,
+                            lastMessage: 'Đã đồng bộ liên hệ Zalo',
+                            lastAt: Date.now()
+                        });
+                    }
+                }
+            })();
+            console.log(`Synced ${friendsRes.data.length} friends for ${connectionId}`);
+        }
+    } catch (e) {
+        console.error(`Failed to sync Zalo data for ${connectionId}:`, e.message);
     }
 }
 
