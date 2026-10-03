@@ -10,9 +10,10 @@
     "start": "node server/index.mjs",
     "dev": "node --watch server/index.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check server/index.mjs && node --check server/domain.mjs && node --check server/taophacdo.mjs && node --check server/supabase.mjs && node --check public/app.js && node --check public/care.js && node --check server/plan-bridge.mjs && node --check public/plans.js",
+    "check": "node --check server/index.mjs && node --check server/domain.mjs && node --check server/taophacdo.mjs && node --check server/supabase.mjs && node --check public/app.js && node --check public/care.js && node --check server/plan-bridge.mjs && node --check public/plans.js && node --check server/zalo.mjs",
     "test:ui": "node scripts/ui-check.mjs",
-    "build:plan": "node scripts/build-plan.mjs"
+    "build:plan": "node scripts/build-plan.mjs",
+    "test:zalo-ui": "node scripts/test-zalo-ui.mjs"
   },
   "description": "taophacdo Social & Care — localhost workspace and existing-schema integration bridge",
   "dependencies": {

@@ -67,6 +67,11 @@ export async function continuePublish(c,p) {
  return {externalId:r.id,url};
 }
 export async function sendMessage(c,conv,text) {
+ if(c.provider==='zalo_personal'){
+  if(!conv.externalUserId)throw new Error('Thiếu người nhận Zalo.');
+  const {sendMessage:sendZaloMessage}=await import('./zalo.mjs');
+  return sendZaloMessage(c.id,conv.externalUserId,text,conv.threadType||0);
+ }
  const token=secret(c.id).token;if(!token)throw new Error('Chưa cấu hình token.');if(!conv.externalUserId)throw new Error('Hội thoại chưa có định danh người nhận thực tế.');
  if(c.provider==='facebook'){
   if(conv.kind==='comment'){if(!conv.externalCommentId)throw new Error('Thiếu ID bình luận gốc.');return remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(conv.externalCommentId)}/comments`,json({message:text},token));}
@@ -74,11 +79,6 @@ export async function sendMessage(c,conv,text) {
   return remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(c.accountId)}/messages`,json({recipient:{id:conv.externalUserId},messaging_type:'RESPONSE',message:{text}},token));
  }
  if(c.provider==='zalo')return remote('https://openapi.zalo.me/v3.0/oa/message/cs',{...json({recipient:{user_id:conv.externalUserId},message:{text}}),headers:{'Content-Type':'application/json',access_token:token}});
- if(c.provider==='zalo_personal'){
-  const { sendMessage: sendZaloMessage } = await import('./zalo.mjs');
-  await sendZaloMessage(c.id, conv.externalUserId, text);
-  return { id: Date.now().toString() };
- }
  throw new Error('Connector này chưa hỗ trợ gửi tin thực tế.');
 }
 export async function ghn(path,payload) {const s=secret('shipping');if(!s.token||!s.shopId)throw new Error('Chưa cấu hình GHN token và Shop ID.');return remote(`https://online-gateway.ghn.vn/shiip/public-api/${path}`,{...json(payload),headers:{'Content-Type':'application/json',Token:s.token,ShopId:String(s.shopId)}});}
