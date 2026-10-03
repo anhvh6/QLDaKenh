@@ -74,6 +74,11 @@ export async function sendMessage(c,conv,text) {
   return remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(c.accountId)}/messages`,json({recipient:{id:conv.externalUserId},messaging_type:'RESPONSE',message:{text}},token));
  }
  if(c.provider==='zalo')return remote('https://openapi.zalo.me/v3.0/oa/message/cs',{...json({recipient:{user_id:conv.externalUserId},message:{text}}),headers:{'Content-Type':'application/json',access_token:token}});
+ if(c.provider==='zalo_personal'){
+  const { sendMessage: sendZaloMessage } = await import('./zalo.mjs');
+  await sendZaloMessage(c.id, conv.externalUserId, text);
+  return { id: Date.now().toString() };
+ }
  throw new Error('Connector này chưa hỗ trợ gửi tin thực tế.');
 }
 export async function ghn(path,payload) {const s=secret('shipping');if(!s.token||!s.shopId)throw new Error('Chưa cấu hình GHN token và Shop ID.');return remote(`https://online-gateway.ghn.vn/shiip/public-api/${path}`,{...json(payload),headers:{'Content-Type':'application/json',Token:s.token,ShopId:String(s.shopId)}});}
