@@ -66,11 +66,11 @@ export async function continuePublish(c,p) {
  let url='';try{const meta=await remote(`${base}/${r.id}?fields=permalink`,{headers:{Authorization:`Bearer ${token}`}});url=meta.permalink||'';}catch{}
  return {externalId:r.id,url};
 }
-export async function sendMessage(c,conv,text) {
+export async function sendMessage(c,conv,text,options={}) {
  if(c.provider==='zalo_personal'){
   if(!conv.externalUserId)throw new Error('Thiếu người nhận Zalo.');
   const {sendMessage:sendZaloMessage}=await import('./zalo.mjs');
-  return sendZaloMessage(c.id,conv.externalUserId,text,conv.threadType||0);
+  return sendZaloMessage(c.id,conv.externalUserId,text,conv.threadType||0,options);
  }
  const token=secret(c.id).token;if(!token)throw new Error('Chưa cấu hình token.');if(!conv.externalUserId)throw new Error('Hội thoại chưa có định danh người nhận thực tế.');
  if(c.provider==='facebook'){

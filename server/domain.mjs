@@ -1,3 +1,5 @@
+import {join,basename} from 'node:path';
+import {dataDir} from './store.mjs';
 import { all,get,put,remove,transaction,audit,notification,now,uid,secret,saveSecret,db } from './store.mjs';
 import {syncPlanHandoff} from './plan-bridge.mjs';
 import {captureLead,syncPaymentOrder,enrollmentFromOrder,assertChannel} from './taophacdo.mjs';
@@ -125,13 +127,20 @@ export function runWorkflows(trigger,entity){for(const w of all('workflows').fil
  if(w.action==='tag'&&entity.conversationId){const conv=get('conversations',entity.conversationId);if(conv)put('conversations',{...conv,tags:[...new Set([...(conv.tags||[]),w.value])]});}
  if(w.action==='notify')notification(w.name,w.value,'inbox');if(w.action==='task')put('tasks',{name:w.value||w.name,status:'open',entityId:entity.id});put('workflows',{...w,runs:(w.runs||0)+1,lastRun:now()});audit('automation',w.name,entity.id);
 }}
-export async function reply(user,id,input){permission(user,'inbox');const conv=get('conversations',id);if(!conv)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);const text=required(input.text,'Nội dung',5000);const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');
+export async function reply(user,id,input){permission(user,'inbox');const conv=get('conversations',id);if(!conv)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);let text=String(input.text||'').trim();if(text.length>5000)fail('Nội dung quá dài.');const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');
+ const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z]+$/.test(a.url))fail('Media không hợp lệ.');return a;});
+ if(!text&&!assets.length)fail('Nhập nội dung hoặc chọn media.');
+ if(assets.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal'&&!input.note)fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
+ let quoted=input.quoteId?get('messages',input.quoteId):null;if(input.quoteId&&(!quoted||quoted.conversationId!==id||quoted.direction==='note'))fail('Tin trích dẫn không hợp lệ.');
+ const nativeQuote=quoted&&ch.provider==='zalo_personal'&&quoted.quoteSource;
+ if(quoted&&!nativeQuote)text='> '+quoted.text.slice(0,1000)+'\n\n'+text;
+ const options={...(nativeQuote?{quote:quoted.quoteSource}:{}),...(assets.length?{attachments:assets.map(a=>join(dataDir,'uploads',basename(a.url)))}:{})};
  if(input.version!==conv.version)fail('Hội thoại vừa thay đổi. Tải lại trước khi gửi.',409);
  if(conv.sending)fail('Có một tin nhắn đang gửi. Vui lòng chờ.',409);put('conversations',{...conv,sending:true,assignee:user.id});
- let msg=put('messages',{conversationId:id,direction:input.note?'note':'outgoing',text,status:'sending',actor:user.id});
- try{let result;if(input.note)result={};else if(ch.mode==='demo')result={demo:true};else {if(ch.status!=='connected')fail('Kênh chưa được kết nối thực tế.');result=await sendMessage(ch,conv,text);}
+ let msg=put('messages',{conversationId:id,direction:input.note?'note':'outgoing',text,attachments:assets.map(({url,name,type})=>({url,name,type})),quoteId:quoted?.id||null,status:'sending',actor:user.id});
+ try{let result;if(input.note)result={};else if(ch.mode==='demo')result={demo:true};else {if(ch.status!=='connected')fail('Kênh chưa được kết nối thực tế.');result=await sendMessage(ch,conv,text,options);}
  msg=put('messages',{...msg,status:input.note?'internal':ch.mode==='demo'?'demo':'accepted',externalId:result.message_id||result.id||null});
- const current=get('conversations',id);put('conversations',{...current,sending:false,lastMessage:input.note?current.lastMessage:text,lastAt:now(),unread:input.note?current.unread:false,waitingSince:input.note?current.waitingSince:null,slaAlerted:input.note?current.slaAlerted:false,firstResponseSeconds:!input.note&&current.waitingSince?Math.round((Date.now()-Date.parse(current.waitingSince))/1000):current.firstResponseSeconds,assignee:user.id});audit(user.id,input.note?'note_added':'message_sent',id);return msg;
+ const current=get('conversations',id);put('conversations',{...current,sending:false,lastMessage:input.note?current.lastMessage:text,lastAt:input.note?current.lastAt:now(),unread:input.note?current.unread:false,waitingSince:input.note?current.waitingSince:null,slaAlerted:input.note?current.slaAlerted:false,firstResponseSeconds:!input.note&&current.waitingSince?Math.round((Date.now()-Date.parse(current.waitingSince))/1000):current.firstResponseSeconds,assignee:user.id});audit(user.id,input.note?'note_added':'message_sent',id);return msg;
  }catch(e){put('messages',{...msg,status:e.unknown?'unknown':'failed',error:e.message});put('conversations',{...get('conversations',id),sending:false});throw e;}
 }
 export function ingestDemo(user,input){permission(user,'inbox');assertChannel(user,input.connectionId);const ch=get('connections',input.connectionId);if(ch?.mode!=='demo')fail('Chỉ tạo tương tác mẫu trên kênh mẫu.');const c=get('customers',input.customerId);if(!c)fail('Chọn khách hàng.');const text=required(input.text,'Tin nhắn');const conv=put('conversations',{customerId:c.id,connectionId:ch.id,kind:input.kind||'message',status:'open',unread:true,assignee:'',lastMessage:text,lastAt:now(),tags:[],mode:'demo',productId:input.productId||null});const msg=put('messages',{conversationId:conv.id,direction:'incoming',text,status:'demo'});runWorkflows('message_received',{...msg,conversationId:conv.id});captureLead(get('conversations',conv.id),msg);return get('conversations',conv.id);}

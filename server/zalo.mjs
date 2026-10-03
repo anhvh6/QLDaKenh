@@ -16,6 +16,7 @@ function conversation(id,thread,type=0,name){
 }
 function timestamp(value){const n=Number(value);const d=new Date(Number.isFinite(n)&&n>0?(n<1e12?n*1000:n):value);return Number.isFinite(d.getTime())?d.toISOString():now();}
 function messageText(data){if(typeof data.content==='string')return data.content;const c=data.content||{};return [c.title,c.description].filter(x=>typeof x==='string'&&x).join('\n')||`[${data.msgType||'Tệp đính kèm / nhãn dán'}]`;}
+function mediaOf(data){const c=data.content;if(!c||typeof c!=='object')return [];const url=c.href||c.hdUrl||c.normalUrl||c.thumb;if(typeof url!=='string'||!/^https:\/\//i.test(url))return [];return [{url,name:String(c.title||data.msgType||'Tệp Zalo'),type:/photo|image/i.test(data.msgType)?'image':/video/i.test(data.msgType)?'video':'file'}];}
 export function ingestMessage(id,message,{history=false}={}){
  channel(id);const data=message?.data,thread=String(message?.threadId||''),externalId=String(data?.msgId||'');
  if(!data||!thread||!externalId)throw new Error('Tin nhắn Zalo thiếu định danh.');
@@ -27,7 +28,8 @@ export function ingestMessage(id,message,{history=false}={}){
   // The self echo may arrive before sendMessage resolves; match only the pending send in this conversation.
   const pending=message.isSelf&&!history?db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.direction')='outgoing' AND json_extract(data,'$.status')='sending' AND json_extract(data,'$.text')=?").all(conv.id,text):[];
   const previous=pending.length===1?get('messages',pending[0].id):null;
-  const msg=put('messages',{...previous,conversationId:conv.id,direction:message.isSelf?'outgoing':'incoming',text,externalId,externalClientId:String(data.cliMsgId||''),senderId:String(data.uidFrom||''),senderName:String(data.dName||''),messageType:data.msgType||'text',status:message.isSelf?'sent':'received',createdAt:at,sentAt:at,history});
+  const quoteSource=Object.fromEntries(['content','msgType','propertyExt','uidFrom','msgId','cliMsgId','ts','ttl'].map(k=>[k,data[k]]));
+  const msg=put('messages',{...previous,conversationId:conv.id,direction:message.isSelf?'outgoing':'incoming',text,externalId,externalClientId:String(data.cliMsgId||''),senderId:String(data.uidFrom||''),senderName:String(data.dName||''),messageType:data.msgType||'text',attachments:mediaOf(data),quoteSource,status:message.isSelf?'sent':'received',createdAt:at,sentAt:at,history});
   const latest=Date.parse(at)>=Date.parse(conv.lastAt||0);
   put('conversations',{...conv,...(latest?{lastMessage:text,lastAt:at}:{}),...(!history&&!message.isSelf?{unread:true,status:'open',lastInboundAt:at,waitingSince:conv.waitingSince||at}:{}),...(message.isSelf&&!history&&latest?{waitingSince:null,slaAlerted:false}:{})});
   db.prepare('INSERT OR IGNORE INTO events(id,source,received_at,payload) VALUES(?,?,?,?)').run(`zalo:${id}:${type}:${thread}:${externalId}`,id,now(),JSON.stringify({messageId:msg.id,history}));
@@ -104,5 +106,12 @@ export async function createQR(id){
 async function resume(id){const sess=secret(`zalo_session_${id}`);if(!sess.cookie)throw new Error('Chưa có phiên Zalo. Hãy quét QR.');const api=await client().login(sess);return setupListener(id,api);}
 export async function recoverSessions(){for(const c of all('connections').filter(c=>c.provider==='zalo_personal'&&c.mode==='api'&&c.status!=='disconnected')){try{await resume(c.id);}catch{state(c.id,{status:'error',listenerError:'Không khôi phục được phiên. Hãy quét QR lại.'});}}}
 export async function forceSync(id,options={}){channel(id);const r=instances.get(id)||await resume(id);startSync(id,r,options);return {success:true,message:'Đã bắt đầu đồng bộ danh bạ và lịch sử. Xem tiến độ trên thẻ kênh.',sync:channel(id).zaloSync};}
-export async function sendMessage(id,thread,text,type=ThreadType.User){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');const result=await r.api.sendMessage({msg:text},thread,type);return {id:String(result.message?.msgId||''),clientId:String(result.message?.cliMsgId||'')};}
+export async function sendMessage(id,thread,text,type=ThreadType.User,options={}){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');const result=await r.api.sendMessage({msg:text,...options},thread,type);return {id:String(result.message?.msgId||result.attachment?.[0]?.msgId||''),clientId:String(result.message?.cliMsgId||'')};}
+export async function groupDetails(id,thread){
+ const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');
+ const response=await r.api.getGroupInfo(thread),g=response.gridInfoMap?.[thread];if(!g)throw new Error('Zalo không trả thông tin nhóm.');
+ const ids=[...new Set([...(g.memberIds||[]),...(g.memVerList||[]).map(v=>v.split('_')[0])])];const members=[];
+ for(let i=0;i<ids.length;i+=100){const result=await r.api.getGroupMembersInfo(ids.slice(i,i+100));for(const [key,p] of Object.entries(result.profiles||{})){const uid=String(p.id||key.split('_')[0]);members.push({id:uid,name:p.displayName||p.zaloName||uid,avatar:p.avatar||'',role:uid===String(g.creatorId)?'owner':(g.adminIds||[]).map(String).includes(uid)?'admin':'member'});}}
+ return {name:g.name,description:g.desc||'',memberCount:g.totalMember||members.length,members,syncedAt:now()};
+}
 export async function disconnect(id){channel(id);const ticket=logins.get(id);logins.delete(id);ticket?.abort?.();const r=instances.get(id);instances.delete(id);r?.api.listener.stop();db.prepare('DELETE FROM secrets WHERE id=?').run(`zalo_session_${id}`);state(id,{status:'disconnected',listenerState:'stopped'});return {success:true,message:'Đã ngắt Zalo; giữ lại danh bạ và lịch sử đã tải.'};}
