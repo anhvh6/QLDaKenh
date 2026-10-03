@@ -75,7 +75,16 @@ export function remove(kind, id) {
 }
 
 export function transaction(fn) {
-  return db.transaction(fn)();
+  let inTx = false;
+  try { db.exec('BEGIN'); inTx = true; } catch (e) { /* already in transaction */ }
+  try {
+    const res = fn();
+    if (inTx) db.exec('COMMIT');
+    return res;
+  } catch (err) {
+    if (inTx) db.exec('ROLLBACK');
+    throw err;
+  }
 }
 export function audit(actor,action,entity='',detail='') { db.prepare('INSERT INTO audit VALUES(?,?,?,?,?,?)').run(uid('log'),actor,action,entity,typeof detail==='string'?detail:JSON.stringify(detail),now()); }
 export function saveSecret(id,value) { const iv=randomBytes(12); const cipher=createCipheriv('aes-256-gcm',key,iv); const body=Buffer.concat([cipher.update(JSON.stringify(value),'utf8'),cipher.final()]); db.prepare('INSERT OR REPLACE INTO secrets VALUES(?,?)').run(id,Buffer.concat([iv,cipher.getAuthTag(),body]).toString('base64')); }
