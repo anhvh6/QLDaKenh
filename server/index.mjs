@@ -1,3 +1,4 @@
+import {chatRoute} from './chat.mjs';
 import http from 'node:http';
 import { readFileSync,createReadStream,createWriteStream,existsSync,statSync,unlinkSync,readdirSync } from 'node:fs';
 import { join,resolve,extname,basename,sep } from 'node:path';
@@ -26,11 +27,12 @@ async function body(req,limit=2e6){let n=0;const chunks=[];for await(const b of 
 function userFor(req){const token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hub_session='))?.slice(12);if(!token)return null;const s=db.prepare('SELECT u.id,u.email,u.name,u.role,s.csrf FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1').get(sha(token),Date.now());return s||null;}
 function login(res,user){const token=randomBytes(32).toString('hex');const csrf=randomBytes(24).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(sha(token),user.id,csrf,Date.now()+7*86400000);res.setHeader('Set-Cookie',`hub_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800`);return {...user,csrf,password:undefined};}
 const throttles=new Map();const busy=new Set();
-function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host)domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
+function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host&&origin.host!==req.headers['x-forwarded-host'])domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
 const generic=/^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req,res,url,user,input){const path=url.pathname;const method=req.method;
  const planResult=await planRoute(path,method,input,user,url);if(planResult!==undefined)return planResult;
  const integrated=await supabaseRoute(path,method,input,user);if(integrated!==undefined)return integrated;
+ const chatResult=await chatRoute(path,method,input,user);if(chatResult!==undefined)return chatResult;
  const careResult=await care.careRoute(path,method,input,user);if(careResult!==undefined)return careResult;
  // Enforce team/customer scope on object routes, including writes by guessed IDs.
  const object=path.match(/^\/api\/(conversations|contents|publications|orders|shipments|customers)\/([^/]+)/);
@@ -73,7 +75,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  if(path==='/api/shipping/quote'&&method==='POST'){domain.permission(user,'shipping');const o=get('orders',input.orderId);if(!o)domain.fail('Không tìm thấy đơn.');return ghn('v2/shipping-order/fee',{service_type_id:2,to_district_id:domain.number(input.toDistrict,'Mã quận/huyện',1),to_ward_code:domain.required(input.toWard,'Mã phường/xã',100),weight:o.items.reduce((s,i)=>s+(get('products',i.productId).weight||500)*i.quantity,0),insurance_value:o.subtotal,length:20,width:15,height:10});}
  if(path.match(/^\/api\/conversations\/[^/]+\/messages$/)&&method==='POST')return domain.reply(user,path.split('/')[3],input);
  if(path==='/api/conversations/demo'&&method==='POST')return domain.ingestDemo(user,input);
- if(path.match(/^\/api\/conversations\/[^/]+$/)&&method==='PATCH'){domain.permission(user,'inbox');const c=get('conversations',path.split('/')[3]);if(!c)domain.fail('Không tìm thấy.',404);if(input.status&&!['open','pending','resolved'].includes(input.status))domain.fail('Trạng thái không hợp lệ.');const p={...c};for(const key of ['status','assignee','unread','tags'])if(input[key]!==undefined)p[key]=input[key];return put('conversations',p,input.version);}
+ if(path.match(/^\/api\/conversations\/[^/]+$/)&&method==='PATCH'){domain.permission(user,'inbox');const c=get('conversations',path.split('/')[3]);if(!c)domain.fail('Không tìm thấy.',404);if(input.status&&!['open','pending','resolved'].includes(input.status))domain.fail('Trạng thái không hợp lệ.');const p={...c};care.assertChannel(user,c.connectionId);for(const key of ['status','assignee','unread','tags'])if(input[key]!==undefined)p[key]=input[key];return put('conversations',p,input.version);}
  if(path.match(/^\/api\/connections\/[^/]+\/test$/)&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const c=get('connections',path.split('/')[3]);if(!c)domain.fail('Không tìm thấy kênh.',404);if(c.mode!=='api')domain.fail('Kênh này không ở chế độ API.');const r=await testConnection(c);put('connections',{...c,status:'connected',verifiedAt:now(),remoteName:r.name||r.username||r.data?.name||c.name});return {ok:true,message:'Token đọc được thông tin tài khoản. Quyền xuất bản/nhắn tin vẫn được API kiểm tra ở từng thao tác.'};}
  if(path.match(/^\/api\/connections\/[^/]+\/zalo-qr$/)&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);return await zalo.createQR(path.split('/')[3]);}
  if(path.match(/^\/api\/connections\/[^/]+\/sync-zalo$/)&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền.',403);return await zalo.forceSync(path.split('/')[3],{older:input.older===true});}
