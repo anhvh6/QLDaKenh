@@ -172,5 +172,20 @@ export async function sendMessage(connectionId, externalUserId, text) {
     if (!api) throw new Error('Zalo connection not active');
     
     // Zalo API takes threadId (which is externalUserId for 1-1)
-    await api.sendMessage({ msg: text }, externalUserId, ThreadType.User);
+export async function forceSync(connectionId) {
+    const api = instances.get(connectionId);
+    if (!api) throw new Error('Zalo chưa kết nối hoặc đã mất kết nối.');
+    await syncZaloData(connectionId, api);
+    return { success: true, message: 'Đã đồng bộ xong dữ liệu.' };
+}
+
+export async function disconnect(connectionId) {
+    const api = instances.get(connectionId);
+    if (api) {
+        try { api.listener.stop(); } catch(e){}
+        instances.delete(connectionId);
+    }
+    db.prepare('DELETE FROM secrets WHERE key=?').run(`zalo_session_${connectionId}`);
+    put('connections', { ...get('connections', connectionId), status: 'disconnected', name: 'Zalo cá nhân (Đã ngắt)' });
+    return { success: true, message: 'Đã hủy kết nối Zalo.' };
 }
