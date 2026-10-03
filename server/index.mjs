@@ -46,6 +46,17 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   state.users=db.prepare('SELECT id,name,email,role,active FROM users').all();state.careSettings=get('settings','care')||{slaMinutes:3};state.taophacdo=user.role==='owner'?integrationState(user):null;return care.scopeState(state,user);
  }
  if(path==='/api/logout'&&method==='POST'){db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id,user.csrf);res.setHeader('Set-Cookie','hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');return {ok:true};}
+ if(path.startsWith('/api/proxy/supabase/')){
+  const targetUrl = 'https://aqtnzvqyljweppklblni.supabase.co' + req.url.substring('/api/proxy/supabase'.length);
+  const sKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxdG56dnF5bGp3ZXBwa2xibG5pIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDg1MDc0NiwiZXhwIjoyMTA2NDI2NzQ2fQ.ccwHd3CyqQcFii9UKT0iKPGOUcw7AA467B4L2zhvee0';
+  const opts = { method: req.method, headers: { 'apikey': sKey, 'Authorization': 'Bearer ' + sKey, 'Content-Type': req.headers['content-type']||'application/json', 'Prefer': req.headers['prefer']||'' } };
+  if(['POST','PATCH','PUT','DELETE'].includes(req.method)){ if(Object.keys(input).length) opts.body = JSON.stringify(input); }
+  const r = await fetch(targetUrl, opts);
+  res.writeHead(r.status, { 'Content-Type': r.headers.get('content-type')||'application/json' });
+  const ab = await r.arrayBuffer();
+  res.end(Buffer.from(ab));
+  return;
+ }
  if(path==='/api/users'&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const email=domain.required(input.email,'Email',200).toLowerCase();if(!['manager','editor','support','warehouse','viewer'].includes(input.role))domain.fail('Vai trò không hợp lệ.');if((input.password||'').length<10)domain.fail('Mật khẩu cần ít nhất 10 ký tự.');try{const id=uid('user');db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run(id,email,domain.required(input.name,'Tên',150),input.role,hashPassword(input.password));audit(user.id,'user_created',id);return {id};}catch(e){if(e.code?.startsWith('ERR_SQLITE'))domain.fail('Email đã tồn tại.');throw e;}}
  if(path.match(/^\/api\/users\/[^/]+$/)&&method==='PATCH'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const id=path.split('/').pop();if(id===user.id)domain.fail('Không thể khóa tài khoản đang sử dụng.');db.prepare('UPDATE users SET active=? WHERE id=? AND role!=?').run(input.active?1:0,id,'owner');db.prepare('DELETE FROM sessions WHERE user_id=?').run(id);return {ok:true};}
  if(path==='/api/password'&&method==='POST'){const u=db.prepare('SELECT * FROM users WHERE id=?').get(user.id);if(!verify(input.current||'',u.password))domain.fail('Mật khẩu hiện tại không đúng.');if((input.password||'').length<10)domain.fail('Mật khẩu mới cần ít nhất 10 ký tự.');db.prepare('UPDATE users SET password=? WHERE id=?').run(hashPassword(input.password),user.id);db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);return {ok:true};}
