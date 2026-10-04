@@ -31,6 +31,12 @@ test('Zalo persistence, history, listener and routing',async t=>{
   api.createGroup=async options=>{assert.deepEqual(options.members,['100','200']);return {groupId:'created-group',sucessMembers:['100','200'],errorMembers:[]};};const created=await zalo.newGroup('z1','Nhóm mới',['100','200']);assert.equal(created.threadType,1);assert.equal(created.title,'Nhóm mới');
  });
  await t.test('image metadata callback supplies actual dimensions and size for SDK upload',async()=>{const path=join(process.env.DATA_DIR,'pixel.png');const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPZsAAAAASUVORK5CYII=','base64');writeFileSync(path,bytes);const meta=await zalo.imageMetadataGetter(path);assert.equal(meta.width,1);assert.equal(meta.height,1);assert.equal(meta.size,bytes.length);});
+ await t.test('friend requests stay pending and removal uses the exact SDK recipient',async()=>{
+  let isFr=0,call;api.getUserInfo=async id=>({changed_profiles:{[id]:{userId:id,isFr}},unchanged_profiles:{}});api.sendFriendRequest=async(...args)=>{call=args;return '';};
+  const pending=await zalo.friendAction('z1','friend1','request','Chào bạn');assert.deepEqual(call,['Chào bạn','friend1']);assert.equal(pending.isFriend,false);assert.equal(pending.friendRequestPending,true);
+  isFr=1;assert.deepEqual(await zalo.friendAction('z1','friend1','sync'),{isFriend:true,friendRequestPending:false});api.removeFriend=async id=>{call=id;return '';};assert.equal((await zalo.friendAction('z1','friend1','remove')).isFriend,false);assert.equal(call,'friend1');
+  const c=all('conversations').find(c=>c.externalUserId==='friend1'&&c.connectionId==='z1'&&c.threadType===0),p=get('customers',c.customerId);put('customers',{...p,name:'Tên tự đặt',nameEditedLocally:true});zalo.importFriends('z1',[{userId:'friend1',displayName:'Tên Zalo gốc'}]);assert.equal(get('customers',p.id).name,'Tên tự đặt');
+ });
  await t.test('disconnect stops ingest and preserves history',async()=>{const count=all('messages').length;await zalo.disconnect('z1');api.listener.emit('message',make('999'));assert.equal(all('messages').length,count);assert.equal(get('connections','z1').status,'disconnected');});
 });
 

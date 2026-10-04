@@ -1,3 +1,4 @@
+import {defaultNameSettings} from '../public/chat-names.js';
 import {chatRoute} from './chat.mjs';
 import http from 'node:http';
 import { readFileSync,createReadStream,createWriteStream,existsSync,statSync,unlinkSync,readdirSync } from 'node:fs';
@@ -45,6 +46,8 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
+  state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
+  state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:o&&(o.status==='cancelled'||o.paid<o.total)?'REVOKED':p.customer?.status};});
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
   if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
   state.integrations={ai:!!secret('ai').token,aiModel:secret('ai').model||'',ghn:!!secret('shipping').token};
@@ -106,7 +109,7 @@ async function webhook(req,res,url){const id=url.pathname.split('/').pop();const
 }
 const server=http.createServer(async(req,res)=>{try{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
- const url=new URL(req.url,'http://localhost');const path=url.pathname;if(path.startsWith('/plan-ui/')){res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");}const user=userFor(req);
+ const url=new URL(req.url,'http://localhost');const path=url.pathname;if(path.startsWith('/plan-ui/')||path.startsWith('/plan-editor/')){res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");}const user=userFor(req);
  if(path==='/api/health')return json(res,{ok:true,service:'Moc Hub'});
  if(path.startsWith('/api/webhooks/'))return await webhook(req,res,url);
  if(path==='/api/events'&&req.method==='GET'){if(!user)domain.fail('Vui lòng đăng nhập.',401);res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});let revision=db.prepare('SELECT sum(version) AS n FROM records').get().n;res.write('event: ready\ndata: {}\n\n');const timer=setInterval(()=>{if(!userFor(req)){clearInterval(timer);res.end();return;}const next=db.prepare('SELECT sum(version) AS n FROM records').get().n;if(next!==revision){revision=next;res.write('event: changed\ndata: {}\n\n');}else res.write(': keepalive\n\n');},2000);req.on('close',()=>clearInterval(timer));return;}

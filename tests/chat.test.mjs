@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {filterThreads,defaultFilters,safeLink} from '../public/inbox-model.js';
+import {defaultNameSettings,nameStatuses} from '../public/chat-names.js';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'chat-'));
 const {put,get,db,all}=await import('../server/store.mjs');
 const {chatRoute,patchChat}=await import('../server/chat.mjs');
@@ -57,3 +58,37 @@ test('filters combine type, labels, staff, phone, date, unread and full-message 
  assert.deepEqual(filterThreads(S,'','all',{...defaultFilters,archive:'archived'}).map(c=>c.id),['archive']);assert.equal(filterThreads(S,'','all',{...defaultFilters,phone:'no'}).length,1);
 });
 test('unsafe link protocols and credential-bearing URLs are not rendered',()=>{assert.equal(safeLink('javascript:alert(1)'), '');assert.equal(safeLink('https://user:pass@example.com'), '');assert.equal(safeLink('https://example.com/a'),'https://example.com/a');});
+test('display rename is revision checked and synchronizes the learner name without changing group customers',async()=>{
+ const {editorData}=await import('../server/plan-bridge.mjs');create('rename-person');let c=get('conversations','rename-person'),p=get('customers',c.customerId);
+ await assert.rejects(chatRoute('/api/chat/conversations/rename-person/rename','POST',{name:'Tên mới',version:c.version,customerVersion:0},owner),{status:409});
+ await chatRoute('/api/chat/conversations/rename-person/rename','POST',{name:'Tên học viên mới',version:c.version,customerVersion:p.version},owner);
+ assert.equal(get('customers','p1').name,'Tên học viên mới');assert.equal(editorData(owner,'draft:p1').customer.customer_name,'Tên học viên mới');
+ c=create('rename-group',{threadType:1,customerId:'p2'});p=get('customers','p2');await chatRoute('/api/chat/conversations/rename-group/rename','POST',{name:'Nhóm tên mới',version:c.version},owner);
+ assert.equal(get('conversations',c.id).title,'Nhóm tên mới');assert.equal(get('customers','p2').name,p.name);
+ await assert.rejects(chatRoute('/api/chat/conversations/two/rename','POST',{name:'Không được',version:get('conversations','two').version},support),{status:403});
+});
+test('name rules validate owner access, revision, colors and manual status IDs',async()=>{
+ const cfg={...structuredClone(defaultNameSettings),rules:[{id:'vip',label:'Khách ưu tiên',condition:'manual',color:'#6941C6',enabled:true},...defaultNameSettings.rules]};
+ await assert.rejects(chatRoute('/api/chat/name-settings','PUT',cfg,support),{status:403});
+ await assert.rejects(chatRoute('/api/chat/name-settings','PUT',{...cfg,rules:[{...cfg.rules[0],color:'red;display:none'}]},owner));
+ const saved=await chatRoute('/api/chat/name-settings','PUT',cfg,owner);assert.equal(saved.version,1);
+ await assert.rejects(chatRoute('/api/chat/name-settings','PUT',cfg,owner),{status:409});
+ const c=get('conversations','one'),p=get('customers',c.customerId);
+ await assert.rejects(chatRoute('/api/chat/conversations/one/name-statuses','POST',{statusIds:['active'],version:c.version,customerVersion:p.version},support));
+ const result=await chatRoute('/api/chat/conversations/one/name-statuses','POST',{statusIds:['vip'],version:c.version,customerVersion:p.version},support);assert.deepEqual(result.chatStatusIds,['vip']);
+});
+test('name status priority handles deposits, expiration boundaries, unknown friendship and manual overrides',()=>{
+ const time=Date.parse('2026-10-04T10:00:00+07:00'),S={customers:[{id:'p',name:'QA'}],connections:[{id:'z',provider:'zalo_personal'}],orders:[{customerId:'p',total:100,paid:20,status:'confirmed'}],chatPlanSummaries:[],journeys:[],plan_handoffs:[]},c={customerId:'p',connectionId:'z',threadType:0};
+ assert.equal(nameStatuses(S,c,defaultNameSettings,time)[0].id,'deposit');assert.ok(!nameStatuses(S,c,defaultNameSettings,time).some(r=>r.id==='not-friend'));
+ S.chatPlanSummaries=[{customerId:'p',startDate:'2026-09-01',endDate:'2026-10-04',status:'ACTIVE'}];assert.equal(nameStatuses(S,c,defaultNameSettings,time)[0].id,'expiring');
+ S.chatPlanSummaries[0].endDate='2026-10-03';assert.equal(nameStatuses(S,c,defaultNameSettings,time)[0].id,'expired');
+ S.chatPlanSummaries[0].endDate='2026-10-30';assert.equal(nameStatuses(S,c,defaultNameSettings,time)[0].id,'active');S.chatPlanSummaries[0].status='REVOKED';assert.ok(!nameStatuses(S,c,defaultNameSettings,time).some(r=>r.id==='active'));
+ const cfg={...defaultNameSettings,rules:[{id:'vip',label:'VIP',condition:'manual',color:'#123456',enabled:true},...defaultNameSettings.rules]};S.customers[0].chatStatusIds=['vip'];assert.equal(nameStatuses(S,c,cfg,time)[0].id,'vip');assert.deepEqual(nameStatuses(S,{...c,threadType:1},cfg,time),[]);
+});
+test('friend actions cannot use demo channels, bypass confirmation or mutate a foreign channel',async()=>{
+ create('friend',{externalUserId:'123'});const version=get('conversations','friend').version;
+ await assert.rejects(chatRoute('/api/chat/conversations/friend/friend','POST',{version,action:'request',confirm:true},owner));
+ put('connections',{id:'friend-api',provider:'zalo_personal',mode:'api',status:'connected'});const c=create('friend-real',{connectionId:'friend-api',externalUserId:'123'});
+ await assert.rejects(chatRoute('/api/chat/conversations/friend-real/friend','POST',{version:c.version,action:'request'},owner),/xác nhận/);
+ await assert.rejects(chatRoute('/api/chat/conversations/friend-real/friend','POST',{version:c.version,action:'sync'},support),{status:403});
+});

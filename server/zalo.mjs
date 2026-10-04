@@ -42,7 +42,7 @@ export function ingestMessage(id,message,{history=false}={}){
 }
 export function importFriends(id,friends){
  if(!Array.isArray(friends))throw new Error('Zalo trả danh bạ không hợp lệ.');
- return transaction(()=>{let count=0;for(const f of friends){const thread=String(f.userId||f.uid||f.id||'');if(!thread)continue;const conv=conversation(id,thread,ThreadType.User,f.displayName||f.zaloName);const c=get('customers',conv.customerId);put('customers',{...c,name:f.displayName||f.zaloName||c.name,zaloAvatar:f.avatar||c.zaloAvatar,zaloUserId:thread});count++;}return count;});
+ return transaction(()=>{let count=0;for(const f of friends){const thread=String(f.userId||f.uid||f.id||'');if(!thread)continue;const conv=conversation(id,thread,ThreadType.User,f.displayName||f.zaloName);const c=get('customers',conv.customerId);put('customers',{...c,name:c.nameEditedLocally?c.name:(f.displayName||f.zaloName||c.name),zaloAvatar:f.avatar||c.zaloAvatar,zaloUserId:thread});count++;}return count;});
 }
 function waitReady(r){if(r.ready)return Promise.resolve();return new Promise((resolve,reject)=>{const t=setTimeout(()=>{r.api.listener.off('cipher_key',ready);reject(new Error('Chưa nhận khóa đồng bộ từ Zalo. Thử lại khi kết nối ổn định.'));},15000);const ready=()=>{clearTimeout(t);resolve();};r.api.listener.once('cipher_key',ready);});}
 function historyPage(r,type,cursor){return new Promise((resolve,reject)=>{
@@ -63,7 +63,7 @@ export async function syncZaloData(id,api,options={}){
    const fresh=friends.filter(f=>!seen.has(String(f.userId)));for(const f of fresh)seen.add(String(f.userId));
    contacts+=importFriends(id,fresh);syncState(id,{contacts});if(friends.length<500){friendsComplete=true;break;}if(!fresh.length)break;
   }
-  if(friendsComplete)transaction(()=>{for(const c of all('conversations').filter(c=>c.connectionId===id&&c.threadType!==1))put('conversations',{...c,isFriend:seen.has(String(c.externalUserId))});});
+  if(friendsComplete)transaction(()=>{for(const c of all('conversations').filter(c=>c.connectionId===id&&c.threadType!==1))put('conversations',{...c,isFriend:seen.has(String(c.externalUserId)),...(seen.has(String(c.externalUserId))?{friendRequestPending:false}:{})});});
   await waitReady(r);let limited=false;
   const cursors=options.older?{...channel(id).zaloSync?.cursors}:{};
   for(const type of [ThreadType.User,ThreadType.Group]){
@@ -137,5 +137,19 @@ export async function newGroup(id,name,members){
  const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');
  const response=await r.api.createGroup({name,members});if(!response.groupId)throw new Error('Zalo không trả mã nhóm. Hãy kiểm tra trên Zalo trước khi tạo lại.');
  const c=conversation(id,String(response.groupId),ThreadType.Group,name);return put('conversations',{...c,title:name,group:{name,memberCount:(response.sucessMembers||[]).length+1,members:[]},groupWarning:response.errorMembers?.length?'Một số thành viên chưa được thêm. Hãy đồng bộ nhóm.':''});
+}
+export async function friendAction(id,thread,action,message=''){
+ const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');
+ if(!thread)throw new Error('Hội thoại chưa có mã người dùng Zalo.');
+ const result=await r.api.getUserInfo(thread),p=result.changed_profiles?.[thread]||result.unchanged_profiles?.[thread]||Object.values(result.changed_profiles||{}).find(p=>String(p.userId)===thread);
+ if(!p||![0,1].includes(p.isFr))throw new Error('Zalo chưa trả trạng thái kết bạn. Hãy đồng bộ lại.');
+ const isFriend=Number(p.isFr)===1;
+ if(action==='sync')return {isFriend,...(isFriend?{friendRequestPending:false}:{})};
+ if(action==='request'){
+  if(isFriend)return {isFriend:true,friendRequestPending:false};
+  await r.api.sendFriendRequest(message,thread);return {isFriend:false,friendRequestPending:true};
+ }
+ if(action==='remove'){if(isFriend)await r.api.removeFriend(thread);return {isFriend:false,friendRequestPending:false};}
+ throw new Error('Thao tác kết bạn không hợp lệ.');
 }
 export async function disconnect(id){channel(id);const ticket=logins.get(id);logins.delete(id);ticket?.abort?.();const r=instances.get(id);instances.delete(id);r?.api.listener.stop();db.prepare('DELETE FROM secrets WHERE id=?').run(`zalo_session_${id}`);state(id,{status:'disconnected',listenerState:'stopped'});return {success:true,message:'Đã ngắt Zalo; giữ lại danh bạ và lịch sử đã tải.'};}
