@@ -1,3 +1,5 @@
+import {botRoute,botTick,botState,recoverBotJobs} from './chatbot.mjs';
+import {mediaRoute,usageFor} from './media.mjs';
 import {defaultNameSettings} from '../public/chat-names.js';
 import {chatRoute} from './chat.mjs';
 import http from 'node:http';
@@ -31,6 +33,8 @@ const throttles=new Map();const busy=new Set();
 function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host&&origin.host!==req.headers['x-forwarded-host'])domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
 const generic=/^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req,res,url,user,input){const path=url.pathname;const method=req.method;
+ const botResult=await botRoute(path,method,input,user);if(botResult!==undefined)return botResult;
+ const mediaResult=await mediaRoute(path,method,input,user);if(mediaResult!==undefined)return mediaResult;
  const planResult=await planRoute(path,method,input,user,url);if(planResult!==undefined)return planResult;
  const integrated=await supabaseRoute(path,method,input,user);if(integrated!==undefined)return integrated;
  const chatResult=await chatRoute(path,method,input,user);if(chatResult!==undefined)return chatResult;
@@ -46,6 +50,8 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
+  Object.assign(state,botState(user));
+  state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
   state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:o&&(o.status==='cancelled'||o.paid<o.total)?'REVOKED':p.customer?.status};});
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
@@ -130,7 +136,7 @@ const server=http.createServer(async(req,res)=>{try{
    const conversationId=url.searchParams.get('conversationId');let chatConnection=null;if(conversationId){domain.permission(user,'inbox');const conv=get('conversations',conversationId);if(!conv||conv.kind==='comment')domain.fail('Hội thoại không hợp lệ.',404);care.assertChannel(user,conv.connectionId);chatConnection=conv.connectionId;}else domain.permission(user,'assets');const name=decodeURIComponent(req.headers['x-filename']||'media');const mime=String(req.headers['content-type']||'');const types={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','video/mp4':'.mp4','video/webm':'.webm','video/quicktime':'.mov'};if(!types[mime])domain.fail('Hỗ trợ JPG, PNG, WebP, MP4, WebM, MOV.');
    const id=uid('asset');const filename=id+types[mime];const target=join(dataDir,'uploads',filename);let size=0;const sniff=[];
    const limiter=new Transform({transform(chunk,enc,cb){size+=chunk.length;if(size>500*1024*1024)return cb(Object.assign(new Error('File vượt 500 MB.'),{status:413}));if(sniff.reduce((s,b)=>s+b.length,0)<32)sniff.push(chunk.subarray(0,32));cb(null,chunk);}});
-   try{await pipeline(req,limiter,createWriteStream(target,{flags:'wx'}));const b=Buffer.concat(sniff);const valid=mime==='image/png'?b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):mime==='image/jpeg'?b[0]===255&&b[1]===216:mime==='image/webp'?b.toString('ascii',0,4)==='RIFF'&&b.toString('ascii',8,12)==='WEBP':mime==='video/webm'?b.subarray(0,4).equals(Buffer.from([26,69,223,163])):b.toString('ascii',4,8)==='ftyp';if(!valid)domain.fail('Nội dung file không khớp loại media.');const asset=put('assets',{id,connectionId:chatConnection,conversationId,uploadedBy:user.id,name:basename(name).slice(0,200),mime,size,url:'/uploads/'+filename,type:mime.startsWith('video')?'video':'image'});return json(res,asset,201);}catch(e){if(existsSync(target))unlinkSync(target);throw e;}
+   try{await pipeline(req,limiter,createWriteStream(target,{flags:'wx'}));const b=Buffer.concat(sniff);const valid=mime==='image/png'?b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):mime==='image/jpeg'?b[0]===255&&b[1]===216:mime==='image/webp'?b.toString('ascii',0,4)==='RIFF'&&b.toString('ascii',8,12)==='WEBP':mime==='video/webm'?b.subarray(0,4).equals(Buffer.from([26,69,223,163])):b.toString('ascii',4,8)==='ftyp';if(!valid)domain.fail('Nội dung file không khớp loại media.');const asset=put('assets',{id,connectionId:chatConnection,conversationId,uploadedBy:user.id,active:true,categoryIds:[],tags:[],scopes:['chat','post','template'],description:'',name:basename(name).slice(0,200),mime,size,url:'/uploads/'+filename,type:mime.startsWith('video')?'video':'image'});return json(res,asset,201);}catch(e){if(existsSync(target))unlinkSync(target);throw e;}
   }
   if(path.startsWith('/uploads/')){const asset=all('assets').find(a=>a.url===path);if(asset?.connectionId)care.assertChannel(user,asset.connectionId);return serveFile(req,res,join(dataDir,'uploads',basename(path)),true);}
   let input={};if(!['GET','HEAD'].includes(req.method))input=(await body(req)).value;
@@ -146,5 +152,6 @@ function serveFile(req,res,file,privateFile){if(!existsSync(file)||!statSync(fil
 domain.recoverJobs();for(const o of all('orders'))syncPlanHandoff(o);for(const r of all('template_runs').filter(r=>['sending','pending'].includes(r.status)))put('template_runs',{...r,status:r.status==='sending'?'unknown':'failed',error:'Máy chủ đã khởi động lại; kiểm tra trước khi tiếp tục.'});
 setInterval(()=>{try{care.serviceTick();}catch(e){console.error('Care worker:',e.message);}},15000).unref();setInterval(()=>domain.tick().catch(e=>console.error('Scheduler:',e.message)),5000).unref();
 setInterval(()=>db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now()),3600000).unref();
+recoverBotJobs();setInterval(()=>botTick().catch(e=>console.error('Chatbot:',e.message)),2000).unref();
 server.listen(port,host,()=>console.log(`Mộc Hub: http://${host==='0.0.0.0'?'localhost':host}:${port}\nDatabase: ${join(dataDir,'hub.sqlite')}`));
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>{db.close();process.exit(0);}));

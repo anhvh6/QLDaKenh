@@ -8,7 +8,7 @@ export function fail(message,status=400){throw Object.assign(new Error(message),
 export function required(v,label,max=10000){if(typeof v!=='string'||!v.trim()||v.length>max)fail(`${label} không hợp lệ.`);return v.trim();}
 export function number(v,label,min=0,max=1e12){const n=Number(v);if(!Number.isFinite(n)||n<min||n>max||!Number.isInteger(n))fail(`${label} không hợp lệ.`);return n;}
 export const kinds=['connections','contents','publications','assets','campaigns','customers','products','orders','shipments','conversations','messages','templates','knowledge','workflows','notifications','tasks','payments','returns','stock','settings'];
-export function permission(user,action){const sets={owner:['*'],manager:['*'],editor:['read','content','assets','campaigns'],support:['read','inbox','customers','orders','tasks'],warehouse:['read','shipping','products'],viewer:['read']};if(!(sets[user.role]||[]).some(x=>x==='*'||x===action))fail('Bạn không có quyền thực hiện thao tác này.',403);}
+export function permission(user,action){const sets={owner:['*'],manager:['*'],editor:['read','content','assets','campaigns'],support:['read','assets','inbox','customers','orders','tasks'],warehouse:['read','shipping','products'],viewer:['read']};if(!(sets[user.role]||[]).some(x=>x==='*'||x===action))fail('Bạn không có quyền thực hiện thao tác này.',403);}
 const area={connections:'admin',contents:'content',campaigns:'campaigns',customers:'customers',products:'products',templates:'inbox',knowledge:'admin',workflows:'admin',tasks:'tasks',notifications:'read',settings:'admin'};
 export function editRecord(user,kind,id,input){
  if(!area[kind])fail('Dữ liệu này phải cập nhật qua quy trình nghiệp vụ.');permission(user,area[kind]);if(area[kind]==='admin'&&user.role!=='owner')fail('Chỉ chủ hệ thống được cấu hình mục này.',403);
@@ -23,7 +23,7 @@ export function editRecord(user,kind,id,input){
  if(kind==='customers'){data.createdBy=prev?.createdBy||user.id;data.customer_id=prev?.customer_id||'LOCAL-'+uid('customer');if(prev?.origin==='taophacdo')for(const k of ['customer_id','is_customized','video_date','ma_vd','start_date','end_date','san_pham','gia_tien','status'])data[k]=prev[k];required(data.name,'Tên khách',200);data.tags=Array.isArray(data.tags)?data.tags.slice(0,20):[];data.consent=data.consent===true;}
  if(kind==='contents'){
   required(data.title,'Tên nội dung',250);data.caption=String(data.caption||'').slice(0,30000);if(!['text','image','video'].includes(data.type))fail('Loại nội dung không hợp lệ.');
-  data.channels=(data.channels||[]).filter(x=>get('connections',x));data.assets=(data.assets||[]).filter(x=>get('assets',x));data.status='draft';data.approval='pending';
+  data.channels=(data.channels||[]).filter(x=>get('connections',x));data.assets=(data.assets||[]).map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['post']).includes('post'))fail('Media không còn dùng cho đăng bài.');if(a.connectionId)assertChannel(user,a.connectionId);return id;});data.status='draft';data.approval='pending';
   // Editing an already scheduled content does not silently mutate the frozen publication.
  }
  if(kind==='connections'){
@@ -32,7 +32,7 @@ export function editRecord(user,kind,id,input){
   data.status=data.mode==='demo'?'demo':data.mode==='assisted'?'assisted':'configured';data.verifiedAt=null;
  }
  if(['campaigns','templates','workflows','tasks'].includes(kind))required(data.name||data.title,'Tên',250);
- if(kind==='templates')required(data.text,'Nội dung mẫu');
+ if(kind==='templates'){data.usageInstructions=String(data.usageInstructions||'').slice(0,5000);data.enabled=data.enabled!==false;required(data.text,'Nội dung mẫu');if(!Array.isArray(data.assetIds||[])||(data.assetIds||[]).length>10)fail('Tối đa 10 media cho mẫu.');for(const id of data.assetIds||[]){const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['template']).includes('template'))fail('Media không còn dùng cho mẫu trả lời.');if(a.connectionId)assertChannel(user,a.connectionId);}}
  if(kind==='knowledge'){required(data.title,'Tiêu đề',250);required(data.body,'Nội dung',30000);}
  if(kind==='workflows'){
   if(!['message_received','shipping_failed','order_confirmed'].includes(data.trigger))fail('Sự kiện không hợp lệ.');
@@ -128,7 +128,7 @@ export function runWorkflows(trigger,entity){for(const w of all('workflows').fil
  if(w.action==='notify')notification(w.name,w.value,'inbox');if(w.action==='task')put('tasks',{name:w.value||w.name,status:'open',entityId:entity.id});put('workflows',{...w,runs:(w.runs||0)+1,lastRun:now()});audit('automation',w.name,entity.id);
 }}
 export async function reply(user,id,input){permission(user,'inbox');const conv=get('conversations',id);if(!conv)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);let text=String(input.text||'').trim();if(text.length>5000)fail('Nội dung quá dài.');const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');if(conv.groupUnavailable&&!input.note)fail('Tài khoản đã rời nhóm hoặc nhóm đã giải tán.');
- const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z]+$/.test(a.url))fail('Media không hợp lệ.');if(a.connectionId)assertChannel(user,a.connectionId);return a;});
+ const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['chat']).includes('chat')||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z]+$/.test(a.url))fail('Media không hợp lệ.');if(a.connectionId)assertChannel(user,a.connectionId);return a;});
  if(!text&&!assets.length)fail('Nhập nội dung hoặc chọn media.');
  if(assets.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal'&&!input.note)fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
  let quoted=input.quoteId?get('messages',input.quoteId):null;if(input.quoteId&&(!quoted||quoted.conversationId!==id||quoted.direction==='note'))fail('Tin trích dẫn không hợp lệ.');
@@ -138,7 +138,7 @@ export async function reply(user,id,input){permission(user,'inbox');const conv=g
  const options={...(nativeQuote?{quote:quoted.quoteSource}:{}),...(assets.length?{attachments:assets.map(a=>join(dataDir,'uploads',basename(a.url)))}:{})};
  if(input.version!==conv.version)fail('Hội thoại vừa thay đổi. Tải lại trước khi gửi.',409);
  if(conv.sending)fail('Có một tin nhắn đang gửi. Vui lòng chờ.',409);put('conversations',{...conv,sending:true,assignee:user.id});
- let msg=put('messages',{conversationId:id,direction:input.note?'note':'outgoing',text,attachments:assets.map(({url,name,type})=>({url,name,type})),quoteId:quoted?.id||null,status:'sending',actor:user.id});
+ let msg=put('messages',{conversationId:id,direction:input.note?'note':'outgoing',senderType:user.botId?'ai':'staff',botId:user.botId||null,botRunId:user.botRunId||null,text,attachments:assets.map(({id,url,name,type})=>({assetId:id,url,name,type})),quoteId:quoted?.id||null,status:'sending',actor:user.id});
  try{let result;if(input.note)result={};else if(ch.mode==='demo')result={demo:true};else {if(ch.status!=='connected')fail('Kênh chưa được kết nối thực tế.');result=await sendMessage(ch,conv,text,options);}
  msg=put('messages',{...msg,status:input.note?'internal':ch.mode==='demo'?'demo':'accepted',externalId:result.message_id||result.id||null});
  const current=get('conversations',id);put('conversations',{...current,sending:false,lastMessage:input.note?current.lastMessage:text,lastAt:input.note?current.lastAt:now(),unread:input.note?current.unread:false,waitingSince:input.note?current.waitingSince:null,slaAlerted:input.note?current.slaAlerted:false,firstResponseSeconds:!input.note&&current.waitingSince?Math.round((Date.now()-Date.parse(current.waitingSince))/1000):current.firstResponseSeconds,assignee:user.id});audit(user.id,input.note?'note_added':'message_sent',id);return msg;

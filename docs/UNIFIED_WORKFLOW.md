@@ -55,7 +55,8 @@ Các điểm cần lưu ý khi thực hiện bước CSDL:
     ↓ syncPlanHandoff()
 plan_handoffs: orderId ↔ customerId ↔ canonicalId
     ↓ API có session, CSRF, scope, kiểm tra tiền tại mỗi thao tác
-/plan-ui/ → PlanEditor gốc + localServices adapter
+/plan-editor/ → PlanEditor gốc + localServices adapter (từ chat)
+/plan-ui/ → trang quản lý phác đồ tổng thể
     ↓ Lưu với version, giá/mã khách do server kiểm soát
 study_plans + CRM + journeys + note hội thoại (một transaction)
 ```
@@ -78,7 +79,7 @@ Các file chính:
 - `integrations/plan-workspace/*`: wrapper/adapter/config được duy trì trong workspace.
 - `integrations/plan-workspace/SOURCE.json`: nguồn và revision.
 - `integrations/taophacdoT4/`: checkout upstream đã tải, được ignore để không đưa các env trong repo vào mã bàn giao.
-- `public/plan-ui/`: bundle đã build sẵn. `npm start` không cần build lại hay cài React.
+- `public/plan-editor/`: bundle trình soạn từ chat đã build sẵn. `npm start` không cần build lại hay cài React.
 
 ## Build lại editor khi phát triển
 
@@ -93,7 +94,7 @@ cd ../..
 npm run build:plan
 ```
 
-Nếu checkout đã có thì bỏ qua clone; không reset một checkout có thay đổi chưa lưu. Script chỉ build khi revision khớp manifest, sao chép adapter vào thư mục `omni` trong checkout, rồi xuất đúng `public/plan-ui`. Không dùng `npm run build` của repo với env production.
+Nếu checkout đã có thì bỏ qua clone; không reset một checkout có thay đổi chưa lưu. Script chỉ build khi revision khớp manifest, sao chép adapter vào thư mục `omni` trong checkout, rồi xuất đúng `public/plan-editor`. Không dùng `npm run build` của repo với env production.
 
 ## Bước 2 — sau khi thống nhất CSDL
 

@@ -4,6 +4,7 @@ import {mkdtempSync,mkdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {filterThreads,defaultFilters,safeLink} from '../public/inbox-model.js';
 import {defaultNameSettings,nameStatuses} from '../public/chat-names.js';
+import {progressFor} from '../public/learner-progress.js';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'chat-'));
 const {put,get,db,all}=await import('../server/store.mjs');
 const {chatRoute,patchChat}=await import('../server/chat.mjs');
@@ -91,4 +92,27 @@ test('friend actions cannot use demo channels, bypass confirmation or mutate a f
  put('connections',{id:'friend-api',provider:'zalo_personal',mode:'api',status:'connected'});const c=create('friend-real',{connectionId:'friend-api',externalUserId:'123'});
  await assert.rejects(chatRoute('/api/chat/conversations/friend-real/friend','POST',{version:c.version,action:'request'},owner),/xác nhận/);
  await assert.rejects(chatRoute('/api/chat/conversations/friend-real/friend','POST',{version:c.version,action:'sync'},support),{status:403});
+});
+test('learner progress validates deposits, appointments, consultation and payment exceptions',async()=>{
+ const c=create('progress');const path='/api/chat/conversations/progress/progress';
+ const data=extra=>({customerVersion:get('customers','p1').version,...extra});
+ await assert.rejects(chatRoute(path,'POST',data({stage:'DEPOSIT',depositAmount:100}),support),/kiểm tra/);
+ await chatRoute(path,'POST',data({stage:'DEPOSIT',depositAmount:100,paymentConfirmed:true}),support);assert.equal(get('customers','p1').learnerProgress.stage,'DEPOSIT');
+ await assert.rejects(chatRoute(path,'POST',data({stage:'APPOINTMENT'}),support),/lịch/);
+ await chatRoute(path,'POST',data({stage:'APPOINTMENT',appointmentAt:'2026-10-06T10:00:00+07:00'}),support);
+ await assert.rejects(chatRoute(path,'POST',data({stage:'CONSULTED'}),support),/kết quả/);
+ await chatRoute(path,'POST',data({stage:'CONSULTED',note:'Đã tư vấn nhu cầu và khóa học'}),support);
+ await assert.rejects(chatRoute(path,'POST',data({stage:'PAID',courseFee:1000,paidAmount:900,paymentConfirmed:true}),support),/ít hơn/);
+ await chatRoute(path,'POST',data({stage:'PAID',courseFee:1000,paidAmount:900,paymentConfirmed:true,paidOverride:true,note:'Ưu đãi được duyệt'}),support);
+ assert.equal(get('customers','p1').learnerProgress.stage,'PAID');assert.equal(get('customers','p1').learnerProgress.depositAmount,100);
+ await assert.rejects(chatRoute(path,'POST',data({stage:'STUDYING'}),support),/phác đồ/);
+ await assert.rejects(chatRoute(path,'POST',{customerVersion:0,stage:'NEW'},support),{status:409});
+ assert.ok(all('journey_events').some(e=>e.source==='chat_progress'&&e.to==='PAID'));
+ const group=create('progress-group',{threadType:1});await assert.rejects(chatRoute('/api/chat/conversations/'+group.id+'/progress','POST',data({stage:'NEW'}),owner),/nhóm/);
+});
+test('learner progress follows active plan expiry and extension without resetting returning customers',()=>{
+ const S={journeys:[],orders:[],chatNameSettings:{expiringDays:5},chatPlanSummaries:[{customerId:'p',startDate:'2026-09-01',endDate:'2026-10-08',status:'ACTIVE'}]},p={id:'p',learnerProgress:{stage:'CONSULTED'}};
+ assert.equal(progressFor(S,p,Date.parse('2026-10-05T12:00:00+07:00')).stage,'EXPIRING');assert.equal(progressFor(S,p,Date.parse('2026-10-09T00:00:00+07:00')).stage,'EXPIRED');
+ S.chatPlanSummaries[0].endDate='2026-11-08';assert.equal(progressFor(S,p,Date.parse('2026-10-09T00:00:00+07:00')).stage,'STUDYING');
+ S.chatPlanSummaries[0].status='REVOKED';assert.equal(progressFor(S,p).stage,'CONSULTED');assert.equal(progressFor({journeys:[],orders:[]},p).stage,'CONSULTED');
 });

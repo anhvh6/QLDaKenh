@@ -1,0 +1,21 @@
+import {createRequire} from 'node:module';
+import {spawn,execFileSync} from 'node:child_process';
+import {mkdirSync,mkdtempSync,writeFileSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url),{chromium}=require('C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+mkdirSync('test-data',{recursive:true});mkdirSync('test-results',{recursive:true});
+const env={...process.env,PORT:'4409',DATA_DIR:mkdtempSync(join(resolve('test-data'),'chat-name-ui-'))},base='http://127.0.0.1:4409';
+const server=spawn(process.execPath,['server/index.mjs'],{env,stdio:'pipe',windowsHide:true});let browser,page;
+try{
+ for(let i=0;i<80;i++){try{await fetch(base+'/api/health');break;}catch{await new Promise(r=>setTimeout(r,100));}}
+ browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const context=await browser.newContext({viewport:{width:1440,height:900}});await context.grantPermissions(['clipboard-read','clipboard-write']);page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base);await page.getByLabel('Tên của bạn',{exact:true}).fill('Name QA');await page.getByLabel('Email',{exact:true}).fill('name-qa@example.test');await page.getByLabel('Mật khẩu (tối thiểu 10 ký tự)',{exact:true}).fill('NameUITest2026!');await page.getByRole('button',{name:'Tạo không gian làm việc'}).click();await page.locator('.sidebar').waitFor();
+
+
+ await page.goto(base+'/#chatbot');await page.locator('[data-bot=connection]').first().click();await page.locator('#bot-connection-form [name=name]').fill('AI QA');await page.locator('#bot-connection-form [name=model]').fill('qa-model');await page.locator('#bot-connection-form [name=apiKey]').fill('test-key-not-real');await page.locator('#bot-connection-form [type=submit]').click();await page.getByText('AI QA',{exact:true}).first().waitFor();
+ await page.locator('[data-bot=template]').first().click();await page.locator('#bot-template-form [name=name]').fill('Lời chào QA');await page.locator('#bot-template-form [name=text]').fill('Xin chào {{name}}');await page.locator('#bot-template-form [name=usageInstructions]').fill('Dùng khi khách chào hỏi');await page.locator('#bot-template-form [type=submit]').click();await page.getByText('Lời chào QA',{exact:true}).waitFor();
+ await page.locator('[data-bot=bot]').first().click();await page.locator('#bot-bot-form [name=name]').fill('Bot QA');await page.locator('#bot-bot-form [name=stages][value=NEW]').check();await page.locator('#bot-bot-form [name=stages][value=DEPOSIT]').check();await page.locator('#bot-bot-form [name=channels]').first().check();await page.locator('#bot-bot-form [name=templateIds]').first().check();await page.locator('#bot-bot-form [type=submit]').click();await page.getByText('Bot QA',{exact:true}).waitFor();
+ for(const width of [1440,390]){await page.setViewportSize({width,height:900});await page.screenshot({path:'test-results/chatbot-'+width+'.png',fullPage:true,animations:'disabled'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
+ await page.goto(base+'/#inbox');await page.locator('[data-action=open-conversation]').first().click();await page.locator('[data-bot=info]').waitFor();await page.locator('[data-bot=info]').click();await page.getByText('Thông tin chatbot',{exact:true}).waitFor();assert.deepEqual(errors,[]);console.log('Chatbot UI passed: connection, template instructions, OR stages, bot config, icon info, PC/mobile');
+}catch(error){await page?.screenshot({path:'test-results/chatbot-failure.png',fullPage:true});throw error;}finally{await browser?.close();server.kill();}

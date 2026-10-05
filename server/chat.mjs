@@ -1,3 +1,4 @@
+import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
 import {permission,fail,required} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
@@ -28,6 +29,21 @@ export function patchChat(user,id,input){
 export async function chatRoute(path,method,input,user){
  if(!path.startsWith('/api/chat/'))return;
  permission(user,'inbox');
+ const progressMatch=path.match(/^\/api\/chat\/conversations\/([^/]+)\/progress$/);
+ if(progressMatch&&method==='POST'){
+  const c=chatConversation(user,progressMatch[1]);if(c.threadType===1)fail('Chọn hồ sơ học viên cụ thể, không gán tiến trình cho cả nhóm.');
+  const p=get('customers',c.customerId);if(!p)fail('Không tìm thấy khách.',404);if(input.customerVersion!==p.version)fail('Hồ sơ đã thay đổi. Mở lại tiến trình.',409);
+  if(!learnerStages[input.stage])fail('Tiến trình không hợp lệ.');const note=String(input.note||'').trim();if(note.length>2000)fail('Ghi chú quá dài.');
+  const current=progressFor({journeys:all('journeys'),orders:all('orders'),chatPlanSummaries:all('study_plans').map(r=>{const o=get('orders',r.lastOrderId);return {customerId:r.customerId,startDate:r.customer?.start_date,endDate:r.customer?.end_date,status:o&&(o.status==='cancelled'||o.paid<o.total)?'REVOKED':r.customer?.status};}),chatNameSettings:get('settings','chat-names')},p);
+  if(['STUDYING','EXPIRING','EXPIRED'].includes(input.stage)&&(current.source!=='plan'||current.stage!==input.stage))fail('Bước học phải khớp phác đồ đã kích hoạt và thời hạn. Hãy cập nhật phác đồ trước.');
+  if(current.source==='plan'&&input.stage!==current.stage)fail('Phác đồ đang xác định tiến trình. Cập nhật phác đồ trước khi chuyển bước.');
+  const next={stage:input.stage,source:'staff',updatedBy:user.id,updatedAt:now(),note};
+  if(input.stage==='DEPOSIT'){const amount=Number(input.depositAmount);if(!Number.isInteger(amount)||amount<=0||amount>1e12)fail('Nhập số tiền cọc hợp lệ.');if(input.paymentConfirmed!==true)fail('Xác nhận đã kiểm tra giao dịch đặt cọc.');next.depositAmount=amount;next.paymentReference=String(input.paymentReference||'').slice(0,200);}
+  if(input.stage==='APPOINTMENT'){const at=Date.parse(input.appointmentAt);if(!Number.isFinite(at))fail('Nhập lịch tư vấn cụ thể.');next.appointmentAt=new Date(at).toISOString();}
+  if(input.stage==='CONSULTED'&&!note)fail('Ghi nhận kết quả tư vấn trước khi chuyển bước.');
+  if(input.stage==='PAID'){const amount=Number(input.paidAmount),fee=Number(input.courseFee);if(!Number.isInteger(amount)||amount<0||!Number.isInteger(fee)||fee<=0||fee>1e12||amount>1e12)fail('Nhập học phí và số tiền đã kiểm tra.');if(input.paymentConfirmed!==true)fail('Xác nhận đã kiểm tra thanh toán.');if(amount<fee&&(input.paidOverride!==true||!note))fail('Số tiền ít hơn học phí: chọn Đã thanh toán đủ và ghi lý do chính sách.');next.paidAmount=amount;next.courseFee=fee;next.paidOverride=amount<fee;next.paymentReference=String(input.paymentReference||'').slice(0,200);}
+  return transaction(()=>{const result=put('customers',{...p,learnerProgress:{...p.learnerProgress,...next}},p.version);put('journey_events',{customerId:p.id,from:current.stage,to:input.stage,actor:user.id,reason:note,source:'chat_progress'});audit(user.id,'learner_progress_updated',p.id,{from:current.stage,to:input.stage});return result;});
+ }
  if(path==='/api/chat/name-settings'&&method==='PUT'){
   if(user.role!=='owner')fail('Chỉ chủ hệ thống được cấu hình màu tên.',403);
   const prev=get('settings','chat-names');if(input.version!==(prev?.version||0))fail('Cấu hình đã thay đổi. Hãy tải lại.',409);
