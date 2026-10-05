@@ -55,3 +55,11 @@ SQL đã rà soát cấu trúc, chưa được thực thi trên PostgreSQL/Supab
 `npm test`, `npm run check`, `npm run test:chatbot-ui`, `npm run test:chat-names-ui`.
 
 Backend kiểm tra OR, xung đột, quyền, giữ khóa bí mật, chọn mẫu, chống trùng/history, chuyển nhân viên, recovery unknown, output ngoài bộ mẫu và nhân viên trả lời khi AI đang tạo phản hồi. UI kiểm tra cấu hình, mẫu, checkbox OR, icon và PC/mobile.
+
+## Bản sửa Gemini 05/10/2026
+
+- Model Gemini dùng API ID do `models.list` trả về, lọc `supportedGenerationMethods=generateContent`; tải danh sách từ khóa mới hoặc khóa đã lưu, có phân trang.
+- Chấp nhận `models/<id>` và loại prefix trước khi gọi API. Từ chối tên hiển thị có dấu cách như `Gemini 3.6` để tránh gửi URL sai.
+- Gemini không dùng trường OpenAI Project/Organization; giao diện ẩn và backend bỏ qua các giá trị này.
+- Lỗi provider giữ HTTP status phù hợp và thông tin lỗi đã che khóa; phân biệt quota, quyền, model, timeout và safety/empty response. Không hiển thị phần thinking.
+- Quy trình sửa cấu hình: sửa kết nối → Gemini → nhập API key hoặc giữ khóa đã lưu → Tải danh sách model → chọn model → Lưu → Kiểm tra kết nối.
