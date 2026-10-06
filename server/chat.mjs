@@ -2,7 +2,7 @@ import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
 import {permission,fail,required} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
-import {groupDetails,changeGroup,newGroup,friendAction} from './zalo.mjs';
+import {groupDetails,changeGroup,newGroup,friendAction,openPhoneConversation} from './zalo.mjs';
 import {defaultNameSettings,nameConditions} from '../public/chat-names.js';
 const groupJobs=new Set();
 const friendJobs=new Set();
@@ -74,6 +74,7 @@ export async function chatRoute(path,method,input,user){
   const key=c.connectionId+':'+c.externalUserId;if(friendJobs.has(key))fail('Đang cập nhật quan hệ Zalo.',409);friendJobs.add(key);
   try{const result=await friendAction(c.connectionId,c.externalUserId,input.action,String(input.message||'').slice(0,250));const current=get('conversations',c.id);const updated=put('conversations',{...current,...result,friendSyncedAt:now()});audit(user.id,'zalo_friend_'+input.action,c.id);return updated;}finally{friendJobs.delete(key);}
  }
+ if(path==='/api/chat/open-phone'&&method==='POST'){permission(user,'inbox');assertChannel(user,input.connectionId);const ch=get('connections',input.connectionId);if(!ch)fail('Không tìm thấy kênh',404);const raw=String(input.phone||'').replace(/[\s().-]/g,'');const country=String(input.countryCode||'84');if(!/^\d{1,3}$/.test(country)||!/^\+?\d{8,15}$/.test(raw))fail('Số điện thoại không hợp lệ');const phone=raw.startsWith('+')?raw.slice(1):raw.startsWith('0')?country+raw.slice(1):raw.startsWith(country)?raw:country+raw;const canonical=v=>{let n=String(v||'').replace(/\D/g,'');return n.startsWith('0')?'84'+n.slice(1):n;};const existing=all('conversations').find(c=>c.connectionId===ch.id&&c.kind!=='comment'&&c.threadType!==1&&canonical(get('customers',c.customerId)?.phone||get('customers',c.customerId)?.sdt)===phone);if(existing)return existing;if(ch.provider!=='zalo_personal'||ch.mode!=='api'||ch.status!=='connected')fail('Chưa tìm thấy số này trong danh bạ kênh. Tìm tài khoản mới theo số điện thoại hiện hỗ trợ kênh Zalo cá nhân đã kết nối.');const c=await openPhoneConversation(ch.id,phone);audit(user.id,'chat_open_by_phone',c.id);return c;}
  if(path==='/api/chat/groups'&&method==='POST'){
   if(!['owner','manager'].includes(user.role))fail('Cần quyền quản lý để tạo nhóm Zalo.',403);
   assertChannel(user,input.connectionId);const ch=get('connections',input.connectionId);if(ch?.provider!=='zalo_personal'||ch.mode!=='api')fail('Chọn kênh Zalo API.');
