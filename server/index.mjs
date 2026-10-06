@@ -50,8 +50,8 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
-  Object.assign(state,botState(user));
-  state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a)}));
+  Object.assign(state,botState(user,state));
+  state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a,state.messages,state.publications)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
   state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:o&&(o.status==='cancelled'||o.paid<o.total)?'REVOKED':p.customer?.status};});
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};

@@ -8,7 +8,7 @@ export const defaultNameSettings={id:'chat-names',version:0,expiringDays:7,rules
  {id:'friend',label:'Đã kết bạn Zalo',condition:'zalo_friend',color:'#175CD3',enabled:true},
  {id:'not-friend',label:'Chưa kết bạn Zalo',condition:'zalo_not_friend',color:'#9C2A6B',enabled:true}
 ]};
-export const chatName=(c,p)=>c.threadType===1?(c.title||c.group?.name||p?.name||'Nhóm'):(p?.name||c.title||'Chưa có tên');
+export const chatName=(c,p)=>c.threadType===1?(c.localGroupName&&c.title?c.title:c.group?.name||c.title||p?.name||'Nhóm'):(p?.name||c.title||'Chưa có tên');
 export function nameStatuses(S,c,config=S.chatNameSettings||defaultNameSettings,time=Date.now()){
  if(c.threadType===1)return [];
  const p=S.customers.find(p=>p.id===c.customerId)||{},ch=S.connections.find(ch=>ch.id===c.connectionId),j=(S.journeys||[]).find(j=>j.customerId===p.id);

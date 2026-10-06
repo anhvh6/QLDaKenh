@@ -1,7 +1,7 @@
 import {all,get,put,audit} from './store.mjs';
 import {permission,fail,required} from './domain.mjs';
 import {assertChannel,permittedChannels} from './taophacdo.mjs';
-export function usageFor(a){const events=[...all('messages').filter(m=>m.direction==='outgoing'&&['accepted','sent','delivered'].includes(m.status)&&(m.attachments||[]).some(x=>x.assetId===a.id||x.url===a.url)),...all('publications').filter(p=>['published','manually_confirmed'].includes(p.status)&&(p.assets||[]).includes(a.id))];return {count:events.length,lastAt:events.map(x=>x.publishedAt||x.createdAt).sort().at(-1)||null};}
+export function usageFor(a,messages=all('messages'),publications=all('publications')){const events=[...messages.filter(m=>m.direction==='outgoing'&&['accepted','sent','delivered'].includes(m.status)&&(m.attachments||[]).some(x=>x.assetId===a.id||x.url===a.url)),...publications.filter(p=>['published','manually_confirmed'].includes(p.status)&&(p.assets||[]).includes(a.id))];return {count:events.length,lastAt:events.map(x=>x.publishedAt||x.createdAt).sort().at(-1)||null};}
 export function mediaReferences(id){return ['contents','publications','templates'].flatMap(kind=>all(kind).filter(r=>(r.assets||r.assetIds||[]).includes(id)||(r.blocks||[]).some(b=>(b.assetIds||[]).includes(id))).map(r=>({kind,id:r.id,name:r.name||r.title||r.id})));}
 export async function mediaRoute(path,method,input,user){
  const m=path.match(/^\/api\/media\/(assets|categories)(?:\/([^/]+))?$/);if(!m)return;

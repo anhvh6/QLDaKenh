@@ -39,10 +39,10 @@ async function refresh(renderNow=true){S=await api('/state');$('#care-updates')?
 let updatingInbox=false;
 async function refreshInbox(){
  if(updatingInbox)return;updatingInbox=true;const previousRoute=route;
- try{const next=await api('/state');if(route!==previousRoute)return;
+ try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute)return;
  const form=$('#reply-form'),active=document.activeElement;
- if(!form||$('.modal-backdrop')||active?.closest('[data-care-form="inline-order"]'))return;
- const values=[...form.elements].map(el=>({name:el.name,value:el.value,checked:el.checked}));
+ if($('.modal-backdrop')||active?.closest('[data-care-form="inline-order"]'))return;
+ if(!form){S=next;render();return;}const values=[...form.elements].map(el=>({name:el.name,value:el.value,checked:el.checked}));
  const focus=active?.closest('#reply-form')?{name:active.name,start:active.selectionStart,end:active.selectionEnd}:null;
  const chat=$('.chat-messages'),top=chat?.scrollTop||0,atBottom=!chat||chat.scrollHeight-chat.clientHeight-top<60;
  selectedConversation=form.dataset.id;S=next;$('#care-updates')?.remove();render();const newForm=$('#reply-form');
