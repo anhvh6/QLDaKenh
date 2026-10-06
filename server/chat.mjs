@@ -1,6 +1,6 @@
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
-import {permission,fail,required} from './domain.mjs';
+import {permission,fail,required,reply} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
 import {groupDetails,changeGroup,newGroup,friendAction,openPhoneConversation} from './zalo.mjs';
 import {defaultNameSettings,nameConditions} from '../public/chat-names.js';
@@ -27,6 +27,14 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){
+ const retryMatch=path.match(/^\/api\/chat\/messages\/([^/]+)\/retry$/);
+ if(retryMatch&&method==='POST'){
+  const m=get('messages',retryMatch[1]);if(!m)fail('Không tìm thấy tin nhắn.',404);
+  const c=chatConversation(user,m.conversationId);
+  if(m.version!==input.version)fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
+  if(m.direction!=='outgoing'||m.status!=='failed'||m.retryMessageId)fail('Chỉ gửi lại tin đã thất bại rõ ràng và chưa được gửi lại.',409);
+  return reply(user,c.id,{version:c.version,text:m.text,assetIds:(m.attachments||[]).map(a=>a.assetId),retryOf:m.id});
+ }
  if(!path.startsWith('/api/chat/'))return;
  permission(user,'inbox');
  const progressMatch=path.match(/^\/api\/chat\/conversations\/([^/]+)\/progress$/);

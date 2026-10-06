@@ -20,11 +20,11 @@ export function chatMessages(messages,conv,S){
   const day=new Date(m.createdAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}),header=day!==lastDay?`<div class="chat-day">${e(day)}</div>`:'';lastDay=day;
   const quote=S.messages.find(x=>x.id===m.quoteId),attachments=(m.attachments||[]).map(a=>{const url=safeLink(a.url);if(!url)return '';return `<a class="chat-attachment" href="${e(url)}" target="_blank" rel="noopener noreferrer">${a.type==='image'?`<img src="${e(url)}" alt="${e(a.name||'Ảnh')}" loading="lazy" referrerpolicy="no-referrer">`:a.type==='video'?`<span>▶ ${e(a.name||'Video')}</span>`:`<span>📎 ${e(a.name||'Tệp')}</span>`}</a>`;}).join('');
   const state={internal:'Ghi chú nội bộ',accepted:'API đã nhận',received:'Đã nhận',sent:'Đã gửi',sending:'Đang gửi',failed:'Gửi lỗi',unknown:'Cần kiểm tra trên Zalo',demo:'Mô phỏng'}[m.status]||m.status;
-  return header+`<div class="bubble-wrap ${e(m.direction)}" data-message="${e(m.id)}" ${messageQuery&&!normalize(m.text).includes(normalize(messageQuery))?'hidden':''}>
+  return header+`<div class="bubble-wrap ${e(m.direction)} ${m.status==='failed'?'message-failed':''}" data-message="${e(m.id)}" ${messageQuery&&!normalize(m.text).includes(normalize(messageQuery))?'hidden':''}>
   ${m.senderType==='ai'?`<small class="message-sender">AI · ${e(S.chatbots?.find(b=>b.id===m.botId)?.name||'Chatbot')}</small>`:''}${m.senderType!=='ai'&&(conv.threadType===1||m.direction==='incoming')?`<strong class="message-sender">${e(m.senderName||(m.direction==='incoming'?(conv.threadType===1?'Thành viên':S.customers.find(p=>p.id===conv.customerId)?.name):S.users.find(u=>u.id===m.actor)?.name)||(m.direction==='incoming'?'Khách':'Bạn'))}</strong>`:''}
   <div class="bubble">${quote?`<button type="button" class="quote-block" data-chat="jump" data-id="${e(quote.id)}">↪ ${e(quote.text?.slice(0,200))}</button>`:''}<span>${e(m.text)}</span>${attachments}</div>
   <small>${e(date(m.createdAt))} · ${e(state)}${m.error?' · '+e(m.error):''}${m.pinned?' · 📌 Ghim nội bộ':''}</small>
-  <div class="message-tools">${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b('Sao chép','copy',m.id)}${b(m.pinned?'Bỏ ghim':'Ghim','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
+  <div class="message-tools">${m.status==='failed'&&m.direction==='outgoing'&&!m.retryMessageId?b('↻ Gửi lại','retry-message',m.id,'aria-label="Gửi lại tin nhắn lỗi"'):m.retryMessageId?'<small>Đã tạo lượt gửi lại</small>':''}${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b('Sao chép','copy',m.id)}${b(m.pinned?'Bỏ ghim':'Ghim','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
  }).join('');
 }
 function filterDialog(){const S=H.state;H.modal('Lọc hội thoại',`<form id="chat-filter-form"><div class="chat-filter-grid">
@@ -109,6 +109,7 @@ export function initInbox(host){H=host;initChatNameControls(host);
   const checkbox=event.target.closest('[data-chat-select]');if(checkbox){event.stopImmediatePropagation();checkbox.checked?selected.add(checkbox.dataset.chatSelect):selected.delete(checkbox.dataset.chatSelect);redraw();return;}
   const el=event.target.closest('[data-chat]');if(!el)return;event.preventDefault();event.stopImmediatePropagation();const {chat:action,id}=el.dataset;rememberInboxDraft();const c=active();
   try{
+   if(action==='retry-message'){el.disabled=true;const m=H.state.messages.find(m=>m.id===id);try{await H.api('/chat/messages/'+id+'/retry',{method:'POST',body:{version:m.version}});H.toast('Đã gửi lại tin nhắn');}finally{await H.refresh();}return;}
    if(action==='more-threads'){threadLimit+=150;return redraw();}if(action==='filters')return filterDialog();
    if(action==='reset'){F=structuredClone(defaultFilters);persistFilters();H.closeModal();return redraw();}
    if(action==='selection-mode'){selectionMode=!selectionMode;selected.clear();return redraw();}if(action==='select-all'){selectionMode=true;for(const row of document.querySelectorAll('.conversation-item')){if(selected.size>=100)break;selected.add(row.dataset.id);}return redraw();}
