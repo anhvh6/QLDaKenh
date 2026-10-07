@@ -2,7 +2,7 @@ import {initBot,chatbotPage,enhanceBot,handoffPage} from './chatbot-ui.js';
 import {initMedia,mediaLibrary} from './media-library.js';
 import {attachLibraryMedia} from './inbox.js';
 import {chatNameSettingsPage} from './chat-names.js';
-import {initInbox,inboxThreads,chatMessages,enhanceInbox,compactChatHead,rememberInboxDraft} from './inbox.js';
+import {initInbox,inboxThreads,chatMessages,enhanceInbox,compactChatHead,rememberInboxDraft,inboxInteractionActive} from './inbox.js';
 import { icon } from './icons.js';
 import {initPlans,planPage,planOrderCTA} from './plans.js';
 import {initCare,carePage,enhanceCare} from './care.js';
@@ -38,8 +38,8 @@ function toast(text,error=false){const t=document.createElement('div');t.classNa
 async function refresh(renderNow=true){S=await api('/state');$('#care-updates')?.remove();if(renderNow)render();}
 let updatingInbox=false;
 async function refreshInbox(){
- if(updatingInbox)return;updatingInbox=true;const previousRoute=route;
- try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute)return;
+ if(updatingInbox||inboxInteractionActive())return;updatingInbox=true;const previousRoute=route;
+ try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute||inboxInteractionActive())return;
  const form=$('#reply-form'),active=document.activeElement;
  if($('.modal-backdrop')||active?.closest('[data-care-form="inline-order"]'))return;
  if(!form){S=next;render();return;}const values=[...form.elements].map(el=>({name:el.name,value:el.value,checked:el.checked}));

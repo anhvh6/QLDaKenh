@@ -12,7 +12,8 @@ export async function saveCustomer(customer: any,tasks: any[]=[]) {const result=
 export const api={
  getPlanEditorData:async()=>({...context,template:null,templateTasks:[]}),
  getPlan:async(_id: string,date:string,group?:string)=>call('master?date='+encodeURIComponent(date||'')+'&group='+encodeURIComponent(group||'')),
- getCustomers:async()=>context?[context.customer]:[],
+ getCustomers:async()=>call('sources'),
+ getCopySource:async(id:string)=>call('source?id='+encodeURIComponent(id)),
  upsertCustomer:async()=>{throw new Error('Dùng nút Lưu của phác đồ. Không xóa/khôi phục hồ sơ gốc ở bước đồng bộ luồng.');}
 };
 export const customPlanService={getCustomPlan:async()=>context?.tasks||[]};

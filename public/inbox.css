@@ -62,3 +62,5 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 @media(max-width:760px){.content.inbox-page .chat-head.chat-head-compact,.content.inbox-page .chat-head-compact:has(.learner-progress-text){min-height:58px;padding:5px 7px;gap:4px}.chat-head-compact .chat-name-copy{font-size:13px}.chat-head-meta .chat-assigned{display:none}.chat-head-meta .learner-progress-text{max-width:100px}.chat-head-compact .chat-name-icons{gap:2px}.chat-head-compact .chat-name-icon{width:25px;height:25px;min-height:25px}.chat-head-compact>.row:first-child{gap:3px}}
 .chat-head-compact>.care-profile-open{flex-shrink:0;min-height:30px;padding:4px 8px;font-size:11px}.chat-head-compact .chat-head-meta{overflow:hidden}
 @media(max-width:760px){.chat-head-compact>.care-profile-open{font-size:10px;padding:4px}.chat-head-compact .chat-name-icons [data-care=profile]{display:none}}
+
+.conversation-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}

@@ -62,3 +62,8 @@ export async function supabaseRoute(path,method,input,user){if(!path.startsWith(
  return undefined;
 }
 export function importRows(user,table,rows){return transaction(()=>{let imported=0;for(const row of rows){const prev=get(table,row.id);if(prev&&prev.origin!=='taophacdo')fail('Xung đột ID với dữ liệu localhost.');put(table,mapRow(table,row,prev||{}));imported++;if(table==='courses'){const id='course-product-'+row.id;const p=get('products',id);put('products',{...p,id,courseId:row.id,id_sp:'COURSE:'+row.id,sku:'COURSE:'+row.id,name:row.name,price:Number(row.fee||0),cost:0,stock:0,reserved:0,weight:0,productType:'course',active:row.status===1,origin:'taophacdo_course'});}}const run=put('sync_runs',{table,count:imported,mode:'read_only_import',actor:user.id});audit(user.id,'taophacdo_import',table,{count:imported});return run;});}
+
+export async function readPlanSources(){
+ if(process.env.PLAN_REMOTE_CATALOG==='0')return [];
+ const out=[];for(let offset=0;offset<20000;offset+=500){const batch=await remote(config(),'/rest/v1/customers?select=customer_id,customer_name,sdt,start_date,duration_days&order=customer_id.asc&offset='+offset+'&limit=500');if(!Array.isArray(batch))fail('Danh sách phác đồ không hợp lệ.');out.push(...batch);if(batch.length<500)return out;}fail('Danh sách phác đồ vượt giới hạn tải.');
+}
