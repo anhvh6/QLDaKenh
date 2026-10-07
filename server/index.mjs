@@ -1,3 +1,4 @@
+import {filterDeletedChats} from './chat-delete.mjs';
 import {learnerRoute} from './learner-profile.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {botRoute,botTick,botState,recoverBotJobs} from './chatbot.mjs';
@@ -53,6 +54,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
+  filterDeletedChats(state);
   Object.assign(state,botState(user,state));
   state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a,state.messages,state.publications)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
@@ -87,7 +89,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  if(path==='/api/shipping/quote'&&method==='POST'){domain.permission(user,'shipping');const o=get('orders',input.orderId);if(!o)domain.fail('Không tìm thấy đơn.');return ghn('v2/shipping-order/fee',{service_type_id:2,to_district_id:domain.number(input.toDistrict,'Mã quận/huyện',1),to_ward_code:domain.required(input.toWard,'Mã phường/xã',100),weight:o.items.reduce((s,i)=>s+(get('products',i.productId).weight||500)*i.quantity,0),insurance_value:o.subtotal,length:20,width:15,height:10});}
  if(path.match(/^\/api\/conversations\/[^/]+\/messages$/)&&method==='POST')return domain.reply(user,path.split('/')[3],input);
  if(path==='/api/conversations/demo'&&method==='POST')return domain.ingestDemo(user,input);
- if(path.match(/^\/api\/conversations\/[^/]+$/)&&method==='PATCH'){domain.permission(user,'inbox');const c=get('conversations',path.split('/')[3]);if(!c)domain.fail('Không tìm thấy.',404);if(input.status&&!['open','pending','resolved'].includes(input.status))domain.fail('Trạng thái không hợp lệ.');const p={...c};care.assertChannel(user,c.connectionId);for(const key of ['status','assignee','unread','tags'])if(input[key]!==undefined)p[key]=input[key];return put('conversations',p,input.version);}
+ if(path.match(/^\/api\/conversations\/[^/]+$/)&&method==='PATCH'){domain.permission(user,'inbox');const c=get('conversations',path.split('/')[3]);if(!c||c.deletedAt)domain.fail('Không tìm thấy.',404);if(input.status&&!['open','pending','resolved'].includes(input.status))domain.fail('Trạng thái không hợp lệ.');const p={...c};care.assertChannel(user,c.connectionId);for(const key of ['status','assignee','unread','tags'])if(input[key]!==undefined)p[key]=input[key];return put('conversations',p,input.version);}
  if(path.match(/^\/api\/connections\/[^/]+\/test$/)&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const c=get('connections',path.split('/')[3]);if(!c)domain.fail('Không tìm thấy kênh.',404);if(c.mode!=='api')domain.fail('Kênh này không ở chế độ API.');const r=await testConnection(c);put('connections',{...c,status:'connected',verifiedAt:now(),remoteName:r.name||r.username||r.data?.name||c.name});return {ok:true,message:'Token đọc được thông tin tài khoản. Quyền xuất bản/nhắn tin vẫn được API kiểm tra ở từng thao tác.'};}
  if(path.match(/^\/api\/connections\/[^/]+\/zalo-qr$/)&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);return await zalo.createQR(path.split('/')[3]);}
  if(path.match(/^\/api\/connections\/[^/]+\/sync-zalo$/)&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền.',403);return await zalo.forceSync(path.split('/')[3],{older:input.older===true});}
@@ -113,7 +115,7 @@ async function webhook(req,res,url){const id=url.pathname.split('/').pop();const
  const {raw,value}=await body(req);const signature=req.headers['x-hub-signature-256']||'';if(!sec.appSecret)domain.fail('Chưa có App Secret.',403);const expected='sha256='+createHmac('sha256',sec.appSecret).update(raw).digest('hex');if(signature.length!==expected.length||!timingSafeEqual(Buffer.from(signature),Buffer.from(expected)))domain.fail('Chữ ký không hợp lệ.',403);
  transaction(()=>{for(const entry of value.entry||[])for(const event of entry.messaging||[]){if(!event.message?.text||event.message.is_echo||String(event.recipient?.id)!==String(c.accountId))continue;const eventId=event.message.mid;if(!eventId||db.prepare('SELECT id FROM events WHERE id=?').get(id+eventId))continue;
   db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(id+eventId,id,now(),JSON.stringify(event));let conv=all('conversations').find(x=>x.connectionId===id&&x.kind==='message'&&x.externalUserId===event.sender.id);if(!conv){const customer=put('customers',{name:'Khách Facebook '+String(event.sender.id).slice(-6),phone:'',tags:[],consent:false});conv=put('conversations',{customerId:customer.id,connectionId:id,externalUserId:event.sender.id,kind:'message',status:'open',tags:[],mode:'api'});}
-  const msg=put('messages',{conversationId:conv.id,direction:'incoming',text:event.message.text,externalId:eventId,status:'received'});put('conversations',{...conv,unread:true,status:'open',lastMessage:event.message.text,lastAt:now(),lastInboundAt:new Date(event.timestamp||Date.now()).toISOString()});domain.runWorkflows('message_received',msg);care.captureLead(get('conversations',conv.id),msg);
+  const msg=put('messages',{conversationId:conv.id,direction:'incoming',text:event.message.text,externalId:eventId,status:'received'});put('conversations',{...conv,deletedAt:null,archived:conv.deletedAt?false:conv.archived,unread:true,status:'open',lastMessage:event.message.text,lastAt:now(),lastInboundAt:new Date(event.timestamp||Date.now()).toISOString()});domain.runWorkflows('message_received',msg);care.captureLead(get('conversations',conv.id),msg);
  }care.ingestComments(c,value.entry);});json(res,{ok:true});
 }
 const server=http.createServer(async(req,res)=>{try{

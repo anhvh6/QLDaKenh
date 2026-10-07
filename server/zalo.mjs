@@ -34,7 +34,7 @@ export function ingestMessage(id,message,{history=false}={}){
   const quoteSource=Object.fromEntries(['content','msgType','propertyExt','uidFrom','msgId','cliMsgId','ts','ttl'].map(k=>[k,data[k]]));
   const msg=put('messages',{...previous,conversationId:conv.id,direction:message.isSelf?'outgoing':'incoming',text,externalId,externalClientId:String(data.cliMsgId||''),senderId:String(data.uidFrom||''),senderName:String(data.dName||get('zalo_profiles',id+':'+String(data.uidFrom||''))?.name||''),messageType:data.msgType||'text',attachments:mediaOf(data),quoteSource,status:message.isSelf?'sent':'received',createdAt:at,sentAt:at,history});
   const latest=Date.parse(at)>=Date.parse(conv.lastAt||0);
-  put('conversations',{...conv,...(latest?{lastMessage:text,lastAt:at}:{}),...(!history&&!message.isSelf?{unread:true,status:'open',lastInboundAt:at,waitingSince:conv.waitingSince||at}:{}),...(message.isSelf&&!history&&latest?{waitingSince:null,slaAlerted:false}:{})});
+  put('conversations',{...conv,...(latest?{lastMessage:text,lastAt:at}:{}),...(!history&&!message.isSelf?{deletedAt:null,archived:conv.deletedAt?false:conv.archived,unread:true,status:'open',lastInboundAt:at,waitingSince:conv.waitingSince||at}:{}),...(message.isSelf&&!history&&latest?{waitingSince:null,slaAlerted:false}:{})});
   db.prepare('INSERT OR IGNORE INTO events(id,source,received_at,payload) VALUES(?,?,?,?)').run(`zalo:${id}:${type}:${thread}:${externalId}`,id,now(),JSON.stringify({messageId:msg.id,history}));
   if(!history&&!message.isSelf){runWorkflows('message_received',msg);captureLead(get('conversations',conv.id),msg);}
   return true;

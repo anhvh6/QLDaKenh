@@ -37,6 +37,16 @@ test('Zalo persistence, history, listener and routing',async t=>{
   isFr=1;assert.deepEqual(await zalo.friendAction('z1','friend1','sync'),{isFriend:true,friendRequestPending:false});api.removeFriend=async id=>{call=id;return '';};assert.equal((await zalo.friendAction('z1','friend1','remove')).isFriend,false);assert.equal(call,'friend1');
   const c=all('conversations').find(c=>c.externalUserId==='friend1'&&c.connectionId==='z1'&&c.threadType===0),p=get('customers',c.customerId);put('customers',{...p,name:'Tên tự đặt',nameEditedLocally:true});zalo.importFriends('z1',[{userId:'friend1',displayName:'Tên Zalo gốc'}]);assert.equal(get('customers',p.id).name,'Tên tự đặt');
  });
+ await t.test('deleted chat stays hidden on history sync and reopens only for fresh incoming messages',async()=>{
+  const {deleteChats,filterDeletedChats}=await import('../server/chat-delete.mjs');
+  const c=all('conversations').find(c=>c.connectionId==='z1'&&c.threadType===0);
+  deleteChats({id:'owner',role:'owner'},{confirm:true,items:[{id:c.id,version:c.version}]});
+  assert.ok(get('conversations',c.id).deletedAt);
+  zalo.ingestMessage('z1',make('deleted-history'),{history:true});assert.ok(get('conversations',c.id).deletedAt);
+  const at=Date.now()+1000;zalo.ingestMessage('z1',make('after-delete',{data:{...make().data,msgId:'after-delete',content:'Tin mới sau xóa',ts:String(at)}}));
+  assert.equal(get('conversations',c.id).deletedAt,null);assert.equal(get('conversations',c.id).archived,false);
+  const state=filterDeletedChats({conversations:[get('conversations',c.id)],messages:all('messages')});assert.deepEqual(state.messages.map(m=>m.externalId),['after-delete']);
+ });
  await t.test('disconnect stops ingest and preserves history',async()=>{const count=all('messages').length;await zalo.disconnect('z1');api.listener.emit('message',make('999'));assert.equal(all('messages').length,count);assert.equal(get('connections','z1').status,'disconnected');});
 });
 

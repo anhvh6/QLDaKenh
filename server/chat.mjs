@@ -1,3 +1,4 @@
+import {deleteChats} from './chat-delete.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
@@ -10,7 +11,7 @@ const friendJobs=new Set();
 
 export function chatConversation(user,id){
  permission(user,'inbox');const c=get('conversations',id);
- if(!c||c.kind==='comment')fail('Không tìm thấy hội thoại chat.',404);
+ if(!c||c.deletedAt||c.kind==='comment')fail('Không tìm thấy hội thoại chat.',404);
  assertChannel(user,c.connectionId);return c;
 }
 export function patchChat(user,id,input){
@@ -28,14 +29,15 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){
+ if(path==='/api/chat/delete'&&method==='POST')return deleteChats(user,input);
  let taskMatch=path.match(/^\/api\/chat\/conversations\/([^/]+)\/(task-staff|staff-tasks)$/);
  if(taskMatch){const c=chatConversation(user,taskMatch[1]);const staff=db.prepare('SELECT id,name,role,active FROM users WHERE active=1').all().filter(u=>['owner','manager','support'].includes(u.role)).filter(u=>{try{assertChannel(u,c.connectionId);return true;}catch{return false;}});
  if(taskMatch[2]==='task-staff'&&method==='GET')return {users:staff.map(({id,name})=>({id,name}))};
- if(taskMatch[2]==='staff-tasks'&&method==='POST'){if(input.version!==c.version)fail('Hội thoại vừa thay đổi, hãy tải lại.',409);if(!staff.some(u=>u.id===input.assignedStaffId))fail('Nhân viên không có quyền xử lý kênh này.',403);const message=input.messageId?get('messages',input.messageId):null;if(input.messageId&&(!message||message.conversationId!==c.id||!['incoming','outgoing','note'].includes(message.direction)))fail('Tin nhắn nhắc việc phải thuộc hội thoại này.');const text=String(input.text||'').trim();if(text.length>5000||(!text&&!message))fail('Nhập nội dung cần xử lý.');const task=put('staff_handoffs',{source:'mention',conversationId:c.id,customerId:c.customerId,assignedStaffId:input.assignedStaffId,actor:user.id,messageId:message?.id||null,questions:message?[{id:message.id,text:message.text,createdAt:message.createdAt}]:[],reason:text||'Xử lý tin nhắn được nhắc',status:'open'});audit(user.id,'mention_task_created',task.id);return task;}}
+ if(taskMatch[2]==='staff-tasks'&&method==='POST'){if(input.version!==c.version)fail('Hội thoại vừa thay đổi, hãy tải lại.',409);if(!staff.some(u=>u.id===input.assignedStaffId))fail('Nhân viên không có quyền xử lý kênh này.',403);const message=input.messageId?get('messages',input.messageId):null;if(input.messageId&&(!message||message.deletedAt||message.conversationId!==c.id||!['incoming','outgoing','note'].includes(message.direction)))fail('Tin nhắn nhắc việc phải thuộc hội thoại này.');const text=String(input.text||'').trim();if(text.length>5000||(!text&&!message))fail('Nhập nội dung cần xử lý.');const task=put('staff_handoffs',{source:'mention',conversationId:c.id,customerId:c.customerId,assignedStaffId:input.assignedStaffId,actor:user.id,messageId:message?.id||null,questions:message?[{id:message.id,text:message.text,createdAt:message.createdAt}]:[],reason:text||'Xử lý tin nhắn được nhắc',status:'open'});audit(user.id,'mention_task_created',task.id);return task;}}
 
  const retryMatch=path.match(/^\/api\/chat\/messages\/([^/]+)\/retry$/);
  if(retryMatch&&method==='POST'){
-  const m=get('messages',retryMatch[1]);if(!m)fail('Không tìm thấy tin nhắn.',404);
+  const m=get('messages',retryMatch[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);
   const c=chatConversation(user,m.conversationId);
   if(m.version!==input.version)fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
   if(m.direction!=='outgoing'||m.status!=='failed'||m.retryMessageId)fail('Chỉ gửi lại tin đã thất bại rõ ràng và chưa được gửi lại.',409);
@@ -141,7 +143,7 @@ export async function chatRoute(path,method,input,user){
  }
  match=path.match(/^\/api\/chat\/messages\/([^/]+)$/);
  if(match&&method==='PATCH'){
-  const m=get('messages',match[1]);if(!m)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);
+  const m=get('messages',match[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);
   if(input.version!==m.version)fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
   if(typeof input.pinned!=='boolean')fail('Trạng thái ghim không hợp lệ.');
   return put('messages',{...m,pinned:input.pinned,pinnedBy:input.pinned?user.id:null},input.version);

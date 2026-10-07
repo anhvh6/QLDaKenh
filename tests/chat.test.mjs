@@ -121,3 +121,33 @@ test('learner progress follows active plan expiry and extension without resettin
 test('open conversation by phone normalizes VN prefix, reuses channel identity and rejects invalid numbers',async()=>{const {chatRoute}=await import('../server/chat.mjs');const {put,db}=await import('../server/store.mjs');const user={id:'phone-owner',role:'owner'};put('connections',{id:'phone-channel',provider:'facebook',mode:'demo',status:'connected'});put('customers',{id:'phone-customer',phone:'0901234567'});put('conversations',{id:'phone-thread',connectionId:'phone-channel',customerId:'phone-customer',kind:'message',threadType:0});const result=await chatRoute('/api/chat/open-phone','POST',{connectionId:'phone-channel',countryCode:'84',phone:'0901234567'},user);assert.equal(result.id,'phone-thread');await assert.rejects(chatRoute('/api/chat/open-phone','POST',{connectionId:'phone-channel',phone:'invalid'},user),/không hợp lệ/);await assert.rejects(chatRoute('/api/chat/open-phone','POST',{connectionId:'phone-channel',phone:'0919999999'},user),/Chưa tìm thấy/);});
 
 test('retry failed outgoing message once, preserving history and blocking unknown outcomes',async()=>{const c=create('retry-ui');const m=put('messages',{conversationId:c.id,direction:'outgoing',text:'Retry body',status:'failed',error:'Rejected'});const r=await chatRoute('/api/chat/messages/'+m.id+'/retry','POST',{version:m.version},owner);assert.equal(r.text,'Retry body');assert.equal(r.retryOf,m.id);assert.equal(get('messages',m.id).retryMessageId,r.id);assert.equal(get('messages',m.id).status,'failed');await assert.rejects(chatRoute('/api/chat/messages/'+m.id+'/retry','POST',{version:get('messages',m.id).version},owner),/chưa được gửi lại/);const unknown=put('messages',{conversationId:c.id,direction:'outgoing',text:'Unknown',status:'unknown'});await assert.rejects(chatRoute('/api/chat/messages/'+unknown.id+'/retry','POST',{version:unknown.version},owner),/thất bại rõ ràng/);await assert.rejects(chatRoute('/api/chat/messages/'+m.id+'/retry','POST',{version:m.version},viewer));});
+const {deleteChats,filterDeletedChats}=await import('../server/chat-delete.mjs');
+test('delete chats requires confirmation, authorization and atomic current versions',()=>{
+ create('delete-a');create('delete-b',{connectionId:'b'});
+ const items=[{id:'delete-a',version:1},{id:'delete-b',version:1}];
+ assert.throws(()=>deleteChats(owner,{items}),/Xác nhận/);
+ assert.throws(()=>deleteChats(viewer,{items,confirm:true}),{status:403});
+ assert.throws(()=>deleteChats(support,{items,confirm:true}),{status:403});
+ assert.throws(()=>deleteChats(owner,{items:[items[0],{...items[1],version:0}],confirm:true}),{status:409});
+ assert.equal(get('conversations','delete-a').deletedAt,undefined);
+ assert.throws(()=>deleteChats(owner,{items:[items[0],items[0]],confirm:true}),/lặp/);
+ put('messages',{conversationId:'delete-b',status:'sending'});
+ assert.throws(()=>deleteChats(owner,{items,confirm:true}),{status:409});
+ assert.equal(get('conversations','delete-a').deletedAt,undefined);
+});
+test('deleting chat hides history, cancels jobs and tasks, keeps customer and orders',()=>{
+ create('delete-ready');const old=put('messages',{id:'delete-old',conversationId:'delete-ready',text:'old',direction:'incoming',createdAt:'2026-01-01T00:00:00.000Z'});
+ put('orders',{id:'keep-order',customerId:'p1',total:100});
+ put('chatbot_jobs',{id:'delete-job',conversationId:'delete-ready',status:'running'});
+ put('staff_handoffs',{id:'delete-task',conversationId:'delete-ready',status:'open'});
+ put('chat_reminders',{id:'delete-reminder',conversationId:'delete-ready',status:'pending'});
+ assert.deepEqual(deleteChats(owner,{confirm:true,items:[{id:'delete-ready',version:1}]}).deletedIds,['delete-ready']);
+ assert.ok(get('customers','p1'));assert.equal(get('orders','keep-order').total,100);
+ assert.equal(get('chatbot_jobs','delete-job').status,'cancelled');assert.equal(get('staff_handoffs','delete-task').status,'resolved');assert.equal(get('chat_reminders','delete-reminder').status,'cancelled');
+ let c=get('conversations','delete-ready');assert.ok(c.deletedAt);assert.ok(get('messages',old.id).deletedAt);
+ let state=filterDeletedChats({conversations:[c],messages:all('messages')});assert.equal(state.conversations.length,0);assert.equal(state.messages.length,0);
+ assert.throws(()=>patchChat(owner,c.id,{version:c.version,unread:false}),{status:404});
+ c=put('conversations',{...c,deletedAt:null,archived:false});
+ const fresh=put('messages',{conversationId:c.id,direction:'incoming',text:'new',createdAt:new Date(Date.parse(c.clearedBefore)+1000).toISOString()});
+ state=filterDeletedChats({conversations:[c],messages:[get('messages',old.id),fresh,{conversationId:c.id,createdAt:'2026-01-01T00:00:00.000Z',history:true}]});assert.deepEqual(state.messages.map(m=>m.id),[fresh.id]);
+});
