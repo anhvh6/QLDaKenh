@@ -8,7 +8,7 @@ export async function call(action: string, body?: any) {
  const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Không thể tải phác đồ'); return data;
 }
 export async function initialize() {const b=await fetch('/api/bootstrap').then(r=>r.json());if(!b.user)throw new Error('Đăng nhập workspace trước khi mở phác đồ.');csrf=b.user.csrf;context=hydrate(await call('editor'));return context;}
-export async function saveCustomer(customer: any,tasks: any[]=[]) {const result=await call('save',{customer,tasks,version:context.version});context.version=result.planVersion;context.customer=result;context.tasks=tasks;window.parent.postMessage({type:'taophacdo:plan-saved',handoffId},location.origin);return result;}
+export async function saveCustomer(customer: any,tasks: any[]=[]) {const result=await call('save',{customer,tasks:customer.is_customized?tasks:[],version:context.version});context.version=result.planVersion;context.customer=result;context.tasks=tasks;window.parent.postMessage({type:'taophacdo:plan-saved',handoffId},location.origin);return result;}
 export const api={
  getPlanEditorData:async()=>({...context,template:null,templateTasks:[]}),
  getPlan:async(_id: string,date:string,group?:string)=>call('master?date='+encodeURIComponent(date||'')+'&group='+encodeURIComponent(group||'')),
