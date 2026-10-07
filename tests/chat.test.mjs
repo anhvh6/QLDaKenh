@@ -1,3 +1,4 @@
+process.env.PLAN_REMOTE_CATALOG='0';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync} from 'node:fs';
@@ -63,7 +64,7 @@ test('display rename is revision checked and synchronizes the learner name witho
  const {editorData}=await import('../server/plan-bridge.mjs');create('rename-person');let c=get('conversations','rename-person'),p=get('customers',c.customerId);
  await assert.rejects(chatRoute('/api/chat/conversations/rename-person/rename','POST',{name:'Tên mới',version:c.version,customerVersion:0},owner),{status:409});
  await chatRoute('/api/chat/conversations/rename-person/rename','POST',{name:'Tên học viên mới',version:c.version,customerVersion:p.version},owner);
- assert.equal(get('customers','p1').name,'Tên học viên mới');assert.equal(editorData(owner,'draft:p1').customer.customer_name,'Tên học viên mới');
+ assert.equal(get('customers','p1').name,'Tên học viên mới');assert.equal((await editorData(owner,'draft:p1')).customer.customer_name,'Tên học viên mới');
  c=create('rename-group',{threadType:1,customerId:'p2'});p=get('customers','p2');await chatRoute('/api/chat/conversations/rename-group/rename','POST',{name:'Nhóm tên mới',version:c.version},owner);
  assert.equal(get('conversations',c.id).title,'Nhóm tên mới');assert.equal(get('customers','p2').name,p.name);
  await assert.rejects(chatRoute('/api/chat/conversations/two/rename','POST',{name:'Không được',version:get('conversations','two').version},support),{status:403});
