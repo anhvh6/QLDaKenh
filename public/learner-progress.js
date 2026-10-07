@@ -7,5 +7,6 @@ export function progressFor(S,p,time=Date.now()){
  const valid=plans.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.startDate||'')&&/^\d{4}-\d{2}-\d{2}$/.test(r.endDate||'')&&r.endDate>=r.startDate&&Date.parse(r.startDate+'T00:00:00+07:00')<=time).sort((a,b)=>b.endDate.localeCompare(a.endDate));
  const plan=valid[0];if(plan){const end=Date.parse(plan.endDate+'T23:59:59.999+07:00');days=Math.ceil((end-time)/86400000);stage=end<time?'EXPIRED':days<=(S.chatNameSettings?.expiringDays||5)?'EXPIRING':'STUDYING';source='plan';}
  else if(!p.learnerProgress&&stage==='NEW'&&(S.orders||[]).some(o=>o.customerId===p.id&&o.status!=='cancelled'&&o.total>0&&o.paid>=o.total&&(o.items||[]).some(i=>i.productType==='course'))){stage='PAID';source='payment';}
+ if(p.learnerProgress?.manualOverride&&learnerStages[p.learnerProgress.stage])stage=p.learnerProgress.stage;
  return {stage:learnerStages[stage]?stage:'NEW',source,days,startDate:plan?.startDate,endDate:plan?.endDate};
 }

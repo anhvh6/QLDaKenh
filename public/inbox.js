@@ -203,3 +203,5 @@ export function initInbox(host){H=host;initMessageHold();window.addEventListener
 }
 
 export function attachLibraryMedia(conversationId,assetId){const d=draft(conversationId);if(d.assetIds.length>=10)throw Error('Tối đa 10 media');if(!d.assetIds.includes(assetId))d.assetIds.push(assetId);saveDrafts();}
+
+export function insertChatText(conversationId,text){const d=draft(conversationId),form=$('#reply-form');if(form?.dataset.id===conversationId)d.text=form.elements.text.value;d.text+=(d.text?'\n':'')+text;saveDrafts();if(form?.dataset.id===conversationId){form.elements.text.value=d.text;form.elements.text.focus();form.elements.text.dispatchEvent(new Event('input',{bubbles:true}));}}

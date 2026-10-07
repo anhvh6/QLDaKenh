@@ -1,3 +1,4 @@
+import {studyPlanStatus} from './plan-access.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
 import {permission,fail,required,reply} from './domain.mjs';
@@ -47,7 +48,7 @@ export async function chatRoute(path,method,input,user){
   const c=chatConversation(user,progressMatch[1]);if(c.threadType===1)fail('Chọn hồ sơ học viên cụ thể, không gán tiến trình cho cả nhóm.');
   const p=get('customers',c.customerId);if(!p)fail('Không tìm thấy khách.',404);if(input.customerVersion!==p.version)fail('Hồ sơ đã thay đổi. Mở lại tiến trình.',409);
   if(!learnerStages[input.stage])fail('Tiến trình không hợp lệ.');const note=String(input.note||'').trim();if(note.length>2000)fail('Ghi chú quá dài.');
-  const current=progressFor({journeys:all('journeys'),orders:all('orders'),chatPlanSummaries:all('study_plans').map(r=>{const o=get('orders',r.lastOrderId);return {customerId:r.customerId,startDate:r.customer?.start_date,endDate:r.customer?.end_date,status:o&&(o.status==='cancelled'||o.paid<o.total)?'REVOKED':r.customer?.status};}),chatNameSettings:get('settings','chat-names')},p);
+  const current=progressFor({journeys:all('journeys'),orders:all('orders'),chatPlanSummaries:all('study_plans').map(r=>{const o=get('orders',r.lastOrderId);return {customerId:r.customerId,startDate:r.customer?.start_date,endDate:r.customer?.end_date,status:studyPlanStatus(r,o)};}),chatNameSettings:get('settings','chat-names')},p);
   if(['STUDYING','EXPIRING','EXPIRED'].includes(input.stage)&&(current.source!=='plan'||current.stage!==input.stage))fail('Bước học phải khớp phác đồ đã kích hoạt và thời hạn. Hãy cập nhật phác đồ trước.');
   if(current.source==='plan'&&input.stage!==current.stage)fail('Phác đồ đang xác định tiến trình. Cập nhật phác đồ trước khi chuyển bước.');
   const next={stage:input.stage,source:'staff',updatedBy:user.id,updatedAt:now(),note};

@@ -1,3 +1,5 @@
+import {learnerRoute} from './learner-profile.mjs';
+import {studyPlanStatus} from './plan-access.mjs';
 import {botRoute,botTick,botState,recoverBotJobs} from './chatbot.mjs';
 import {mediaRoute,usageFor} from './media.mjs';
 import {defaultNameSettings} from '../public/chat-names.js';
@@ -38,6 +40,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  const planResult=await planRoute(path,method,input,user,url);if(planResult!==undefined)return planResult;
  const integrated=await supabaseRoute(path,method,input,user);if(integrated!==undefined)return integrated;
  const chatResult=await chatRoute(path,method,input,user);if(chatResult!==undefined)return chatResult;
+ const learnerResult=await learnerRoute(path,method,input,user);if(learnerResult!==undefined)return learnerResult;
  const careResult=await care.careRoute(path,method,input,user);if(careResult!==undefined)return careResult;
  // Enforce team/customer scope on object routes, including writes by guessed IDs.
  const object=path.match(/^\/api\/(conversations|contents|publications|orders|shipments|customers)\/([^/]+)/);
@@ -53,7 +56,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   Object.assign(state,botState(user,state));
   state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a,state.messages,state.publications)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
-  state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:o&&(o.status==='cancelled'||o.paid<o.total)?'REVOKED':p.customer?.status};});
+  state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,o)};});
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
   if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
   state.integrations={ai:!!secret('ai').token,aiModel:secret('ai').model||'',ghn:!!secret('shipping').token};
