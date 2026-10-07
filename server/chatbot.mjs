@@ -19,6 +19,13 @@ export function botStatus(c){const stage=stageFor(c),route=get('chatbot_routes',
 function revision(p,input){if(p&&input.version!==p.version)fail('Dữ liệu đã thay đổi, hãy tải lại.',409);}
 export const callProvider=requestProvider;
 export async function botRoute(path,method,input,user){if(!path.startsWith('/api/chatbot'))return;permission(user,'read');
+ if(path==='/api/chatbot/templates/bulk-delete'&&method==='POST'){canConfigure(user);return transaction(()=>{
+ const rows=input.templates;if(!Array.isArray(rows)||!rows.length||rows.length>10000||rows.some(r=>!r||typeof r.id!=='string')||new Set(rows.map(r=>r.id)).size!==rows.length)fail('Chọn các câu trả lời cần xóa.');
+ for(const row of rows){const t=get('templates',row.id);if(!t)fail('Câu trả lời đã thay đổi, hãy tải lại.',409);revision(t,row);}
+ const ids=new Set(rows.map(r=>r.id)),bots=all('chatbots').filter(b=>(b.templateIds||[]).some(id=>ids.has(id)));
+ for(const bot of bots){const remaining=bot.templateIds.filter(id=>!ids.has(id));put('chatbots',{...bot,templateIds:remaining,enabled:remaining.length?bot.enabled:false},bot.version);if(!remaining.length)for(const route of all('chatbot_routes').filter(r=>r.botId===bot.id))put('chatbot_routes',{...route,botId:null});for(const job of all('chatbot_jobs').filter(j=>!remaining.length&&j.botId===bot.id&&['waiting','running'].includes(j.status)))put('chatbot_jobs',{...job,status:'cancelled'});}
+ for(const row of rows)remove('templates',row.id);audit(user.id,'chatbot_templates_deleted','templates',{templateIds:[...ids],botIds:bots.map(b=>b.id)});return {deleted:rows.length};
+ });}
  if(path.startsWith('/api/chatbot/templates/excel/'))return templateExcelRoute(path,method,input,user);
  const resume=path.match(/^\/api\/chatbot\/conversations\/([^/]+)\/resume$/);
  if(resume&&method==='POST'){permission(user,'inbox');return transaction(()=>{

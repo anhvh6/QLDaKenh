@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdirSync,mkdtempSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'template-delete-'));
+const {put,get}=await import('../server/store.mjs');
+const {botRoute}=await import('../server/chatbot.mjs');
+const owner={id:'owner',role:'owner'},path='/api/chatbot/templates/bulk-delete';
+test('bulk deletion is atomic, owner-only, removes references and preserves sent history',async()=>{
+ const a=put('templates',{name:'A',text:'Approved A'}),b=put('templates',{name:'B',text:'Approved B'});
+ const bot=put('chatbots',{enabled:true,templateIds:[a.id,b.id]});
+ put('chatbot_routes',{id:'NEW:ch',botId:bot.id});put('chatbot_jobs',{id:'waiting',botId:bot.id,status:'waiting'});
+ put('messages',{id:'sent',text:'Approved A',status:'sent',templateId:a.id});put('assets',{id:'media',name:'Keep'});
+ await assert.rejects(botRoute(path,'POST',{templates:[a]}, {id:'staff',role:'support'}),/chủ hệ thống/);
+ await assert.rejects(botRoute(path,'POST',{templates:[a,{id:b.id,version:999}]},owner),/thay đổi/);
+ assert.ok(get('templates',a.id));assert.deepEqual(get('chatbots',bot.id).templateIds,[a.id,b.id]);
+ assert.equal((await botRoute(path,'POST',{templates:[a]},owner)).deleted,1);
+ assert.equal(get('templates',a.id),null);assert.deepEqual(get('chatbots',bot.id).templateIds,[b.id]);assert.equal(get('chatbots',bot.id).enabled,true);assert.equal(get('chatbot_jobs','waiting').status,'waiting');
+ await botRoute(path,'POST',{templates:[b]},owner);
+ assert.equal(get('chatbots',bot.id).enabled,false);assert.equal(get('chatbot_routes','NEW:ch').botId,null);assert.equal(get('chatbot_jobs','waiting').status,'cancelled');
+ assert.equal(get('messages','sent').text,'Approved A');assert.ok(get('assets','media'));
+});
