@@ -10,7 +10,7 @@ try{for(let i=0;i<60;i++){try{await fetch(base+'/api/health');break;}catch{await
  await page.goto(base+'/#inbox');const rows=page.locator('.conversation-item');await rows.first().click();const initial=await page.locator('#reply-form').getAttribute('data-id');
  assert.equal(await page.locator('[data-chat-select]').count(),0);
  const height=await page.locator('.chat-head').evaluate(el=>el.getBoundingClientRect().height);assert.ok(height<=64,'desktop header '+height);
- await page.locator('.chat-actions summary').click();await page.locator('.chat-head [data-care=toggle-panel]').waitFor({state:'visible'});await page.locator('.chat-actions summary').click();
+ await page.locator('.chat-actions summary').click();await page.locator('.chat-head .care-profile-open').waitFor({state:'visible'});await page.locator('.chat-actions summary').click();
  const ids=[await rows.nth(0).getAttribute('data-id'),await rows.nth(1).getAttribute('data-id')];
  const box=await rows.nth(1).boundingBox();await page.mouse.move(box.x+80,box.y+20);await page.mouse.down();await page.mouse.move(box.x+105,box.y+20);await page.waitForTimeout(700);await page.mouse.up();assert.equal(await page.locator('[data-chat-select]').count(),0);await rows.first().click();
  await page.mouse.move(box.x+80,box.y+20);await page.mouse.down();await page.waitForTimeout(700);await page.mouse.up();await page.locator('.chat-bulk').waitFor();assert.equal(await page.locator('[data-chat-select]:checked').count(),1);assert.equal(await page.locator('#reply-form').getAttribute('data-id'),initial);
