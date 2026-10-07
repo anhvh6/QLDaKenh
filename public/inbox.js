@@ -22,9 +22,9 @@ export function chatMessages(messages,conv,S){
   const state={internal:'Ghi chú nội bộ',accepted:'API đã nhận',received:'Đã nhận',sent:'Đã gửi',sending:'Đang gửi',failed:'Gửi lỗi',unknown:'Cần kiểm tra trên Zalo',demo:'Mô phỏng'}[m.status]||m.status;
   return header+`<div class="bubble-wrap ${e(m.direction)} ${m.status==='failed'?'message-failed':''} ${(S.chatMentions||[]).some(t=>t.messageId===m.id)?'message-task-pending':''}" data-message="${e(m.id)}" ${messageQuery&&!normalize(m.text).includes(normalize(messageQuery))?'hidden':''}>
   ${m.senderType==='ai'?`<small class="message-sender">AI · ${e(S.chatbots?.find(b=>b.id===m.botId)?.name||'Chatbot')}</small>`:''}${m.senderType!=='ai'&&(conv.threadType===1||m.direction==='incoming')?`<strong class="message-sender">${e(m.senderName||(m.direction==='incoming'?(conv.threadType===1?'Thành viên':S.customers.find(p=>p.id===conv.customerId)?.name):S.users.find(u=>u.id===m.actor)?.name)||(m.direction==='incoming'?'Khách':'Bạn'))}</strong>`:''}
-  <div class="bubble">${quote?`<button type="button" class="quote-block" data-chat="jump" data-id="${e(quote.id)}">↪ ${e(quote.text?.slice(0,200))}</button>`:''}<span>${e(m.text)}</span>${attachments}</div>
+  <div class="bubble" title="Nhấn giữ để sao chép">${quote?`<button type="button" class="quote-block" data-chat="jump" data-id="${e(quote.id)}">↪ ${e(quote.text?.slice(0,200))}</button>`:''}<span>${e(m.text)}</span>${attachments}</div>
   <small>${e(date(m.createdAt))} · ${e(state)}${m.error?' · '+e(m.error):''}${m.pinned?' · 📌 Ghim nội bộ':''}</small>
-  <div class="message-tools">${m.status==='failed'&&m.direction==='outgoing'&&!m.retryMessageId?b('↻ Gửi lại','retry-message',m.id,'aria-label="Gửi lại tin nhắn lỗi"'):m.retryMessageId?'<small>Đã tạo lượt gửi lại</small>':''}${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b('Sao chép','copy',m.id)}${b(m.pinned?'Bỏ ghim':'Ghim','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
+  <div class="message-tools">${m.status==='failed'&&m.direction==='outgoing'&&!m.retryMessageId?b('↻ Gửi lại','retry-message',m.id,'aria-label="Gửi lại tin nhắn lỗi"'):m.retryMessageId?'<small>Đã tạo lượt gửi lại</small>':''}${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b(m.pinned?'Bỏ ghim':'Ghim','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
  }).join('');
 }
 function filterDialog(){const S=H.state;H.modal('Lọc hội thoại',`<form id="chat-filter-form"><div class="chat-filter-grid">
@@ -79,7 +79,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;
  const tags=form.querySelector('.quick-tag-bar');if(tags){const wrap=document.createElement('details');wrap.className='chat-menu chat-tag-menu';wrap.innerHTML='<summary>Nhãn ▾</summary><div class="chat-menu-panel"></div>';wrap.querySelector('div').append(tags);form.append(wrap);}
  const composeRow=form.querySelector('textarea').nextElementSibling;composeRow.classList.add('chat-compose-row');
  composeRow.querySelector('[data-action="reply-templates"]')?.remove();
- composeRow.querySelector('.row').insertAdjacentHTML('afterbegin',`<div class="chat-compose-tools">${b('Mẫu','templates')}${b('📎','choose-media','','aria-label="Đính kèm ảnh hoặc video"')}${menu('Thêm ▾',b('☺ Emoji','emoji')+b('Xóa nháp','clear-draft')+'<label><input id="chat-enter-send" type="checkbox" '+(sessionStorage.getItem('chat-enter-send')==='true'?'checked':'')+'>Enter để gửi</label>')}</div>`);
+ composeRow.querySelector('.row').insertAdjacentHTML('afterbegin',`<div class="chat-compose-tools">${b('Mẫu','templates')}${b('📎','choose-media','','aria-label="Đính kèm ảnh hoặc video"')}${menu('Thêm ▾',b('☺ Emoji','emoji')+b('Xóa nháp','clear-draft'))}</div>`);
  if(tags)composeRow.querySelector('.row').append(form.querySelector('.chat-tag-menu'));
  const head=$('.chat-head');head.classList.add('chat-head-compact');head.insertAdjacentHTML('beforeend',`<div class="chat-actions">${menu('Hội thoại ▾','<h4>Chăm sóc</h4>'+b('Phân công','assign',c.id)+b('Nhắc hẹn','reminders',c.id)+'<h4>Nội dung</h4>'+b('Ảnh / tệp / link','files',c.id)+(c.threadType===1?b('Thành viên nhóm','group',c.id):b('Lịch sử khách','customer-history',c.customerId))+'<label class="chat-message-search">Tìm trong chat<input id="chat-message-search" class="input" value="'+e(searchIn)+'" placeholder="Nội dung tin nhắn…"></label><h4>Trạng thái</h4>'+b(c.pinned?'Bỏ ghim':'Ghim hội thoại','pin',c.id)+b(c.unread?'Đánh dấu đã đọc':'Đánh dấu chưa đọc','read',c.id)+b(c.archived?'Bỏ lưu trữ':'Lưu trữ','archive',c.id))}</div>`);
 
@@ -92,7 +92,21 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;
 }
 async function bulk(patch){const items=[...selected].map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));await H.api('/chat/bulk',{method:'POST',body:{items,patch}});selected.clear();H.closeModal();await H.refresh();}
 function insertText(text){const c=active(),d=draft(c.id);rememberInboxDraft();d.text+=(d.text?'\n':'')+text;H.closeModal();paint();$('#reply-form textarea').focus();}
-export function initInbox(host){H=host;window.addEventListener('chat:jump-message',event=>{jumpTarget=event.detail;jumpUntil=Date.now()+3000;requestAnimationFrame(()=>jumpToMessage(jumpTarget));});initChatNameControls(host);
+async function copyMessage(id){
+ const text=H.state.messages.find(m=>m.id===id)?.text;if(!text)return;
+ try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);H.toast('Đã sao chép');return;}}catch{}
+ const focused=document.activeElement,box=document.createElement('textarea');box.value=text;box.style.cssText='position:fixed;left:-9999px;top:0';document.body.append(box);box.select();let copied=false;try{copied=document.execCommand('copy');}catch{}box.remove();focused?.focus({preventScroll:true});
+ if(copied)H.toast('Đã sao chép');else H.modal('Sao chép nội dung',`<textarea class="input" rows="8" readonly>${e(text)}</textarea><p>Chọn nội dung rồi nhấn Ctrl+C.</p>`);
+}
+function initMessageHold(){
+ let hold=null,suppressUntil=0;const cancel=()=>{if(hold)clearTimeout(hold.timer);hold=null;};
+ document.addEventListener('pointerdown',event=>{cancel();const bubble=event.target.closest('.bubble-wrap[data-message] .bubble');if(H.route()!=='inbox'||!bubble||event.button!==0||event.target.closest('a,button,input,video'))return;const id=bubble.closest('[data-message]').dataset.message,conversationId=active()?.id;hold={x:event.clientX,y:event.clientY,pointerId:event.pointerId,timer:setTimeout(()=>{if(H.route()!=='inbox'||active()?.id!==conversationId){cancel();return;}suppressUntil=Date.now()+1000;cancel();void copyMessage(id);},600)};});
+ document.addEventListener('pointermove',event=>{if(hold&&(event.pointerId!==hold.pointerId||Math.hypot(event.clientX-hold.x,event.clientY-hold.y)>10))cancel();});
+ for(const type of ['pointerup','pointercancel','scroll'])document.addEventListener(type,cancel,true);
+ document.addEventListener('contextmenu',event=>{if(event.target.closest('.bubble-wrap .bubble')&&(hold||Date.now()<suppressUntil))event.preventDefault();});
+ document.addEventListener('click',event=>{if(Date.now()<suppressUntil&&event.target.closest('.bubble-wrap .bubble')){event.preventDefault();event.stopPropagation();}},true);
+}
+export function initInbox(host){H=host;initMessageHold();window.addEventListener('chat:jump-message',event=>{jumpTarget=event.detail;jumpUntil=Date.now()+3000;requestAnimationFrame(()=>jumpToMessage(jumpTarget));});initChatNameControls(host);
  document.addEventListener('click',event=>{if(H.route()!=='inbox')return;for(const m of document.querySelectorAll('.chat-menu[open]'))if(!m.contains(event.target))m.open=false;});
  document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.chat-menu[open]').forEach(m=>m.open=false);});
  function load(){if(!H.state?.user)return;try{F={...structuredClone(defaultFilters),...JSON.parse(sessionStorage.getItem('chat-filters:'+H.state.user.id)||'{}')};for(const [id,d] of JSON.parse(sessionStorage.getItem(storageKey())||'[]'))drafts.set(id,{...freshDraft(),...d});}catch{F=structuredClone(defaultFilters);}}
@@ -106,7 +120,7 @@ export function initInbox(host){H=host;window.addEventListener('chat:jump-messag
   if(el.id==='chat-member-search')document.querySelectorAll('[data-member]').forEach(row=>row.hidden=!row.dataset.member.includes(normalize(el.value)));
   if(el.id==='chat-template-search')document.querySelectorAll('[data-template-search]').forEach(row=>row.hidden=!row.dataset.templateSearch.includes(normalize(el.value)));
  });
- document.addEventListener('change',event=>{if(event.target.name==='connectionId'&&event.target.closest('#chat-new-phone-form'))filterContacts();if(event.target.id==='chat-upload'){uploadMedia([...event.target.files],active().id);}if(event.target.id==='chat-new-group-channel'){$('#chat-new-members').innerHTML=memberCheckboxes(event.target.value);}if(event.target.id==='chat-enter-send')sessionStorage.setItem('chat-enter-send',String(event.target.checked));if(event.target.name==='note'&&event.target.closest('#reply-form'))rememberInboxDraft();});
+ document.addEventListener('change',event=>{if(event.target.name==='connectionId'&&event.target.closest('#chat-new-phone-form'))filterContacts();if(event.target.id==='chat-upload'){uploadMedia([...event.target.files],active().id);}if(event.target.id==='chat-new-group-channel'){$('#chat-new-members').innerHTML=memberCheckboxes(event.target.value);}if(event.target.name==='note'&&event.target.closest('#reply-form'))rememberInboxDraft();});
  document.addEventListener('click',async event=>{
   const checkbox=event.target.closest('[data-chat-select]');if(checkbox){event.stopImmediatePropagation();checkbox.checked?selected.add(checkbox.dataset.chatSelect):selected.delete(checkbox.dataset.chatSelect);redraw();return;}
   const el=event.target.closest('[data-chat]');if(!el)return;event.preventDefault();event.stopImmediatePropagation();const {chat:action,id}=el.dataset;rememberInboxDraft();const c=active();
@@ -144,7 +158,7 @@ export function initInbox(host){H=host;window.addEventListener('chat:jump-messag
    if(action==='mention-staff'){const d=draft(c.id),person=mentionStaff.get(c.id)?.find(u=>u.id===id);if(!person)return;d.assignedStaffId=id;d.mentionName=person.name;d.text='#'+person.name+' '+(d.mentionBody||'');d.mentionBody='';saveDrafts();$('#reply-form textarea').value=d.text;showMentionChoices();$('#reply-form textarea').focus();return;}if(action==='quote'){draft(c.id).quoteId=id;paint();$('#reply-form textarea').focus();return;}
    if(action==='clear-quote'){draft(c.id).quoteId='';return paint();}
    if(action==='clear-draft'){drafts.set(c.id,freshDraft());$('#reply-form textarea').value='';$('#reply-form [name=note]').checked=false;saveDrafts();return paint();}
-   if(action==='copy'){const text=H.state.messages.find(m=>m.id===id)?.text||'';if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);H.toast('Đã sao chép');}else H.modal('Sao chép nội dung',`<textarea class="input" rows="8" readonly>${e(text)}</textarea><p>Chọn nội dung rồi nhấn Ctrl+C.</p>`);return;}
+   if(action==='copy'){await copyMessage(id);return;}
    if(action==='pin-message'){const m=H.state.messages.find(m=>m.id===id);const r=await H.api('/chat/messages/'+id,{method:'PATCH',body:{pinned:!m.pinned,version:m.version}});Object.assign(m,r);return redraw();}
    if(action==='jump'){H.closeModal();searchIn='';paint();const row=[...document.querySelectorAll('[data-message]')].find(r=>r.dataset.message===id);row?.scrollIntoView({block:'center'});row?.classList.add('chat-highlight');return;}
    if(action==='forward'){const m=H.state.messages.find(m=>m.id===id);return H.modal('Chuyển tiếp dưới dạng bản nháp',`<form id="chat-forward-form" data-id="${e(id)}">${sel('Hội thoại nhận','target',H.state.conversations.filter(x=>x.kind!=='comment'&&x.id!==c.id).map(x=>[x.id,x.title||H.state.customers.find(p=>p.id===x.customerId)?.name||x.id]),'')}<p>${e(m.text.slice(0,500))}</p><p class="help-text">Chỉ đưa văn bản vào bản nháp của hội thoại đích để bạn kiểm tra và bấm Gửi. Không chuyển tiếp ghi chú nội bộ hoặc tự gửi tệp.</p><button class="btn primary">Mở bản nháp</button></form>`);}
@@ -178,7 +192,10 @@ export function initInbox(host){H=host;window.addEventListener('chat:jump-messag
  },true);
  document.addEventListener('paste',event=>{if(H.route()!=='inbox'||!event.target.closest('#reply-form'))return;const files=[...(event.clipboardData?.files||[])].filter(f=>f.type.startsWith('image/'));if(files.length){event.preventDefault();uploadMedia(files,active().id);}});
  document.addEventListener('keydown',event=>{if(H.route()!=='inbox'||$('.modal-backdrop')||event.isComposing)return;
-  if(event.target.matches('#reply-form textarea')&&event.key==='Enter'&&!event.shiftKey&&!$('#chat-mention-choices')?.hidden&&$('#chat-mention-choices [data-chat=mention-staff]')){event.preventDefault();$('#chat-mention-choices [data-chat=mention-staff]').click();return;}if(event.target.matches('#reply-form textarea')&&event.key==='Enter'&&!event.shiftKey&&$('#chat-enter-send')?.checked){event.preventDefault();$('#reply-form').requestSubmit();}
+  if(event.target.matches('#reply-form textarea')&&event.key==='Enter'){
+   if(event.altKey){event.preventDefault();event.target.setRangeText('\n',event.target.selectionStart,event.target.selectionEnd,'end');event.target.dispatchEvent(new Event('input',{bubbles:true}));return;}
+   if(!event.shiftKey){event.preventDefault();if(event.repeat)return;const choice=$('#chat-mention-choices:not([hidden]) [data-chat=mention-staff]');if(choice){choice.click();return;}$('#reply-form').requestSubmit();}
+  }
   if(event.altKey&&['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();const rows=[...document.querySelectorAll('.conversation-item')],index=rows.findIndex(r=>r.dataset.id===active()?.id);const next=rows[index+(event.key==='ArrowUp'?-1:1)];if(next)H.openConversation(next.dataset.id);}
   if(event.altKey&&event.key.toLowerCase()==='i'){event.preventDefault();$('.chat-side')?.classList.toggle('care-side-open');}
  });
