@@ -1,4 +1,5 @@
 import {poolIds,configuredConnections,connectionHealth,pooledCall,trackedCall} from './ai-pool.mjs';
+import {templateExcelRoute} from './template-excel.mjs';
 import {normalizeModel,listModels,requestProvider} from './ai-provider.mjs';
 import {all as readAll,get as readGet,put,remove,secret,saveSecret,db,now,transaction,audit,uid} from './store.mjs';
 import {permission,fail,required,reply} from './domain.mjs';
@@ -18,6 +19,7 @@ export function botStatus(c){const stage=stageFor(c),route=get('chatbot_routes',
 function revision(p,input){if(p&&input.version!==p.version)fail('Dữ liệu đã thay đổi, hãy tải lại.',409);}
 export const callProvider=requestProvider;
 export async function botRoute(path,method,input,user){if(!path.startsWith('/api/chatbot'))return;permission(user,'read');
+ if(path.startsWith('/api/chatbot/templates/excel/'))return templateExcelRoute(path,method,input,user);
  const resume=path.match(/^\/api\/chatbot\/conversations\/([^/]+)\/resume$/);
  if(resume&&method==='POST'){permission(user,'inbox');return transaction(()=>{
   const c=get('conversations',resume[1]);if(!c)fail('Không tìm thấy hội thoại',404);assertChannel(user,c.connectionId);revision(c,input);

@@ -70,3 +70,9 @@ Kết nối lỗi 429 nghỉ 60 giây, 401/403/404 nghỉ 5 phút, lỗi khác n
 Xóa một kết nối bỏ nó khỏi nhóm bot, giữ bot hoạt động nếu còn kết nối; không còn thì tắt bot, bỏ route và hủy công việc chưa gửi. Lịch sử giữ nguyên. Tất cả kết nối đều lỗi hoặc đang nghỉ: chuyển nhân viên. Runtime hiện lưu SQLite; migration 20261006_ai_connection_pool.sql là cấu trúc Supabase bổ sung, chưa được áp dụng/kiểm thử trực tiếp. Khi làm adapter Supabase, trước xóa phải cập nhật mc_chatbots.ai_connection_id sang kết nối còn lại hoặc null và tắt bot không còn kết nối.
 
 Lỗi AI tạm thời 408/429/502/503/504: worker giữ job waiting, thử lại tối đa 3 lần sau 15/30/60 giây (kèm jitter và thời gian nghỉ kết nối nếu dài hơn), vẫn chuyển sang pool dự phòng trước. Hết số lần thử thì chuyển nhân viên. Lỗi 400/401/403/404 và kết quả sai mẫu không tự thử lại. Không tự thử lại bước gửi tin có kết quả không rõ. Gợi ý thủ công không có tác vụ gửi tự động; bấm lại khi kết nối phục hồi.
+
+### Nhập/xuất câu trả lời mẫu bằng Excel
+
+Chủ hệ thống dùng nút **Nhập Excel / Xuất Excel** trong Câu trả lời mẫu. Hộp nhập có nút tải mẫu .xlsx, chọn file và xem trước kết quả từng dòng. Chọn bộ chatbot để gắn các mẫu mới, hoặc chỉ thêm vào thư viện. Nhập chỉ thêm mới; tên trùng được bỏ qua; file có dòng lỗi phải sửa trước khi nhập. File tối đa 1 MB, 1000 dòng; nội dung giải nén tối đa 20 MB. Không hỗ trợ công thức hoặc file có mật khẩu.
+
+Sheet `Cau tra loi` gồm tên, nội dung, hướng dẫn AI sử dụng, mã media cách nhau dấu ; và Bật Có/Không. Ba cột đầu bắt buộc; tối đa 10 media/mẫu, media phải tồn tại và dùng được cho mẫu. Excel giữ tham chiếu tới thư viện hiện có. Xuất được tất cả câu trả lời hoặc riêng một bộ chatbot. API owner-only `/api/chatbot/templates/excel/{sample,export,preview,import}`; dữ liệu dùng bảng/records templates và templateIds hiện có, không cần migration mới.
