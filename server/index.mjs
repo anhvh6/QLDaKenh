@@ -59,6 +59,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a,state.messages,state.publications)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
   state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,o)};});
+  state.savedPlanSummaries=all('study_plans').map(p=>({id:p.id,customerId:p.customerId,handoffId:p.handoffId||'draft:'+p.customerId,name:p.customer?.customer_name||get('customers',p.customerId)?.name||'Học viên',phone:p.customer?.sdt||'',startDate:p.customer?.start_date,endDate:p.customer?.end_date,durationDays:p.customer?.duration_days||0,group:p.customer?.ma_vd||'',amount:Number(p.customer?.gia_tien||0),updatedAt:p.updatedAt,version:p.version,status:studyPlanStatus(p,get('orders',p.lastOrderId))})).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
   if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
   state.integrations={ai:!!secret('ai').token,aiModel:secret('ai').model||'',ghn:!!secret('shipping').token};
