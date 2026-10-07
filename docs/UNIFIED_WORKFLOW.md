@@ -110,3 +110,7 @@ Thay `localServices`/server bridge bằng adapter dùng phiên Supabase Auth c�
 Trong **Chat & chăm sóc → Hồ sơ / Đơn → Thông tin khách**, nút **Tạo phác đồ** mở thẳng PlanEditor ở chế độ tạo mới nếu học viên chưa có phác đồ local. Điền sẵn thông tin khách và đơn; phác đồ đã lưu mở ở chế độ chỉnh sửa để tránh tạo trùng. Nút **Trở lại cuộc trò chuyện** quay về inbox.
 
 Khách chưa xác nhận đủ tiền vẫn mở được biểu mẫu để soạn trước, nhưng chưa lưu/phát hành phác đồ. Bản soạn này chưa lưu trên máy chủ; cần xác nhận đủ tiền ở Đơn hàng rồi mở lại trình tạo phác đồ. Giao diện ghi rõ điều kiện này. API kiểm tra phạm vi khách cả khi mở bản soạn.
+
+## Sửa dữ liệu trình tạo phác đồ từ chat (07/10/2026)
+Trình soạn đọc danh mục sản phẩm và bài tập Supabase theo phiên đăng nhập máy chủ, phân trang và cache 60 giây. Nếu nguồn lỗi, hiển thị cảnh báo và bản sao nội bộ. PLAN_REMOTE_CATALOG=0 dùng danh mục nội bộ (cho kiểm thử). Nội dung học viên đã nhập được giữ lại; hồ sơ taophacdo đọc thêm note/chewing/sidebar của đúng customer_id khi chưa có bản lưu workspace. Giá trị mặc định của trình gốc chỉ áp dụng cho phác đồ mới; ưu tiên khóa học, không ghi đè sản phẩm đơn đã có. Master/preview/save dùng cùng nguồn danh mục. Vite adapter chuẩn hóa đường dẫn để tránh hai instance context trên Windows. Liên kết QL Phác đồ reset trình soạn về #phacdo; nút trên portal có CSS tương ứng ở trang cha.
+Kiểm thử: node --test tests/plan-bridge.test.mjs và node scripts/test-plan-chat-ui.mjs. Đã đọc thử catalog production (chỉ đọc), không sửa bảng Supabase. Không cần SQL mới.
