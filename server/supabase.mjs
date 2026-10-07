@@ -1,3 +1,4 @@
+import {publishPlan} from './plan-publish.mjs';
 import { all,get,put,transaction,audit,now,secret,saveSecret,getSupabaseHeaders,SUPABASE_URL,SUPABASE_KEY } from './store.mjs';
 import { fail,required } from './domain.mjs';
 
@@ -67,3 +68,6 @@ export async function readPlanSources(){
  if(process.env.PLAN_REMOTE_CATALOG==='0')return [];
  const out=[];for(let offset=0;offset<20000;offset+=500){const batch=await remote(config(),'/rest/v1/customers?select=customer_id,customer_name,sdt,start_date,duration_days&order=customer_id.asc&offset='+offset+'&limit=500');if(!Array.isArray(batch))fail('Danh sách phác đồ không hợp lệ.');out.push(...batch);if(batch.length<500)return out;}fail('Danh sách phác đồ vượt giới hạn tải.');
 }
+
+export async function readPublishedPlan(id){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;return (await remote(config(),'/rest/v1/customers?select=*&customer_id=eq.'+encodeURIComponent(id)+'&limit=1'))[0]||null;}
+export async function publishStudyPlan(customer,tasks,options){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;return publishPlan((path,init)=>remote(config(),path,init),customer,tasks,options);}

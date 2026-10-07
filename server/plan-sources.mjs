@@ -17,7 +17,7 @@ export async function getPlanSource(user,targetId,id){
  if(id===targetId)fail('Chọn học viên khác.');
  let data,tasks,canonical;
  if(String(id).startsWith('remote:')){if(!['owner','manager'].includes(user.role))fail('Bạn không có quyền đọc phác đồ nguồn này.',403);canonical=id.slice(7);}
- else {const c=get('customers',id);if(!c)fail('Không tìm thấy phác đồ nguồn.',404);assertCustomer(user,id);const p=localPlan(c);if(p){data=p.customer;tasks=p.tasks||[];}else if(c.origin==='taophacdo')canonical=c.customer_id;}
+ else {const c=get('customers',id);if(!c)fail('Không tìm thấy phác đồ nguồn.',404);assertCustomer(user,id);const p=localPlan(c);if(p?.publishedAt){canonical=p.id;}else if(p){data=p.customer;tasks=p.tasks||[];}else if(c.origin==='taophacdo')canonical=c.customer_id;}
  if(canonical){data=await readLearner(canonical);if(data){data={...data,...await readPlanProfile(canonical)};tasks=(await readLearnerActivity(canonical,data.is_customized)).tasks;}}
  if(!data)fail('Không tải được phác đồ nguồn. Vui lòng thử lại.',404);
  const target=get('customers',targetId);if(data.customer_id===(target?.planCustomerId||target?.customer_id))fail('Chọn học viên khác.');
