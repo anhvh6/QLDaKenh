@@ -79,3 +79,7 @@ Sheet `Cau tra loi` gồm tên, nội dung, hướng dẫn AI sử dụng, mã m
 
 ### Danh sách câu trả lời mẫu và xóa hàng loạt
 Mỗi dòng chỉ hiển thị tên, một dòng nội dung rút gọn, số media và trạng thái. Bấm Sửa để xem đầy đủ. Chủ hệ thống chọn từng mẫu hoặc Chọn tất cả rồi Xóa đã chọn, xác nhận trước khi xóa. Mẫu bị xóa được gỡ khỏi các bộ chatbot; bộ hết mẫu tự tắt và hủy tác vụ chờ. Lịch sử tin đã gửi và media trong thư viện được giữ nguyên. API POST /api/chatbot/templates/bulk-delete kiểm tra phiên bản tất cả mẫu và thực hiện trong một giao dịch. Không cần migration SQL mới.
+
+### Nhắc việc bằng # trong hội thoại
+Bấm Nhắc việc dưới tin đến để tạo bản nháp # kèm trích dẫn, hoặc gõ # ở đầu ô trả lời. Chọn nhân viên từ danh sách gợi ý (lọc theo tên, chỉ người có quyền kênh), nhập hướng dẫn rồi Gửi. Đây là giao việc nội bộ, không gửi nội dung # ra nền tảng khách hàng. Yêu cầu source=mention xuất hiện trong AI chuyển nhân viên; tin nguồn đổi màu khi còn việc chờ. Mở hội thoại cuộn tới messageId. Đúng nhân viên được giao gửi tin thành công sẽ hoàn tất các việc nhắc của mình tại hội thoại; ghi chú nội bộ, tin AI, tin của người khác và lượt gửi thất bại không hoàn tất. Có thể bấm Đã xử lý. Hồ sơ resolved được giữ để đối soát, ẩn khỏi danh sách chờ; màu tin trở lại bình thường khi hết việc chờ. Giao việc thủ công không bị worker AI đổi nhân viên theo tiến trình. Dùng kho records hiện có, không cần SQL mới cho runtime hiện tại.
+Kiểm thử: tests/staff-tasks.test.mjs, scripts/test-chat-mention-ui.mjs.
