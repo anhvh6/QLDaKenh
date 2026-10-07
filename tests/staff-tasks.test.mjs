@@ -19,3 +19,8 @@ test('unquoted task can be resolved explicitly and failed reply does not complet
  await assert.rejects(reply(staff,'c',{text:'Reply failure',version:get('conversations','c').version}));assert.equal(get('staff_handoffs',t.id).status,'open');
  await botRoute('/api/chatbot/handoffs/'+t.id,'PATCH',{version:t.version,status:'resolved'},staff);assert.equal(botState(staff).staffHandoffs.filter(h=>h.status!=='resolved').length,0);
 });
+
+test('can remind outgoing messages and internal notes, rejects another conversation',async()=>{
+ for(const direction of ['outgoing','note']){const m=put('messages',{conversationId:'c',direction,text:'Source '+direction});const task=await chatRoute(path,'POST',{assignedStaffId:'staff',messageId:m.id,version:get('conversations','c').version},owner);assert.equal(task.messageId,m.id);assert.equal(task.questions[0].text,m.text);await botRoute('/api/chatbot/handoffs/'+task.id,'PATCH',{status:'resolved',version:task.version},staff);}
+ const foreign=put('messages',{conversationId:'other-conv',direction:'outgoing',text:'Other chat'});await assert.rejects(chatRoute(path,'POST',{assignedStaffId:'staff',messageId:foreign.id,version:get('conversations','c').version},owner),/thuộc hội thoại/);
+});
