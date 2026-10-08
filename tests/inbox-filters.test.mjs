@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {filterThreads,inboxTabs} from '../public/inbox-model.js';
+const time=Date.now(),stamp=delta=>new Date(time+delta).toISOString();
+const state={user:{id:'me',role:'owner'},customers:[{id:'customer',name:'Khách'}],messages:[],conversations:['personal','group','ai','mention','other','upcoming','due','done','waiting','answered'].map(id=>({id,customerId:'customer',kind:'message',threadType:id==='group'?1:0,status:'open',unread:id==='waiting',waitingSince:id==='waiting'?stamp(-1000):null,lastAt:stamp(-1000)})),staffHandoffs:[{conversationId:'ai',assignedStaffId:'me',status:'open'},{conversationId:'mention',source:'mention',assignedStaffId:'me',status:'processing'},{conversationId:'other',assignedStaffId:'someone-else',status:'open'},{conversationId:'done',assignedStaffId:'me',status:'resolved'}],chat_reminders:[{conversationId:'upcoming',assignee:'me',status:'pending',dueAt:stamp(3600000)},{conversationId:'due',assignee:'me',status:'pending',dueAt:stamp(-3600000)},{conversationId:'done',assignee:'me',status:'done',dueAt:stamp(3600000)}]};
+const ids=filter=>filterThreads(state,'',filter).map(c=>c.id).sort();
+test('inbox exposes the seven requested filters',()=>assert.deepEqual(inboxTabs.map(t=>t[1]),['Tất cả','Chưa đọc','Cá nhân','Nhóm','Đợi xử lý','Lên lịch','Đợi phản hồi']));
+test('personal, group and unread filters remain distinct',()=>{assert.deepEqual(ids('group'),['group']);assert.equal(ids('personal').length,9);assert.deepEqual(ids('unread'),['waiting']);});
+test('action queue combines my open AI/mention tasks and overdue appointments',()=>assert.deepEqual(ids('action-needed'),['ai','due','mention']));
+test('scheduled queue only includes future pending reminders',()=>assert.deepEqual(ids('scheduled'),['upcoming']));
+test('waiting reply queue uses persisted waiting state, not unread or conversation status',()=>{assert.deepEqual(ids('waiting-reply'),['waiting']);const updated=structuredClone(state);updated.conversations.find(c=>c.id==='answered').unread=true;updated.conversations.find(c=>c.id==='waiting').unread=false;assert.deepEqual(filterThreads(updated,'','waiting-reply').map(c=>c.id),['waiting']);});
+test('queue tabs still respect search and archive filters',()=>{assert.equal(filterThreads(state,'no match','action-needed').length,0);const updated=structuredClone(state);updated.conversations.find(c=>c.id==='ai').archived=true;assert.deepEqual(filterThreads(updated,'','action-needed').map(c=>c.id).sort(),['due','mention']);});

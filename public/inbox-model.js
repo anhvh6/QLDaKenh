@@ -2,12 +2,20 @@ import {chatName} from './chat-names.js';
 export const defaultFilters={type:'all',phone:'all',reply:'all',archive:'active',pinned:false,connectionId:'',tags:[],tagMode:'any',assignees:[],assigneeMode:'any',dateField:'lastAt',from:'',to:'',sort:'newest',customerId:''};
 export const assignedIds=c=>[...new Set([...(c.assigneeIds||[]),...(c.assignee?[c.assignee]:[])])];
 export const normalize=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
+export const inboxTabs=[['all','Tất cả'],['unread','Chưa đọc'],['personal','Cá nhân'],['group','Nhóm'],['action-needed','Đợi xử lý'],['scheduled','Lên lịch'],['waiting-reply','Đợi phản hồi']];
+export function inboxQueues(S,time=Date.now()){
+ const mine=id=>id===S.user?.id||(!id&&['owner','manager'].includes(S.user?.role));
+ const action=new Set((S.staffHandoffs||[]).filter(h=>!['resolved','cancelled'].includes(h.status)&&mine(h.assignedStaffId)).map(h=>h.conversationId)),scheduled=new Set();
+ for(const r of S.chat_reminders||[]){if(r.status!=='pending')continue;const due=Date.parse(r.dueAt);if(due>time)scheduled.add(r.conversationId);else if(Number.isFinite(due)&&mine(r.assignee))action.add(r.conversationId);}
+ return {action,scheduled};
+}
 export function filterThreads(S,q='',status='all',f=defaultFilters){
- const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map();
+ const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map(),queues=inboxQueues(S);
  if(q)for(const m of S.messages)texts.set(m.conversationId,(texts.get(m.conversationId)||'')+' '+m.text);
  return S.conversations.filter(c=>c.kind!=='comment').map(c=>({...c,customerName:chatName(c,customers.get(c.customerId))})).filter(c=>{
   const p=customers.get(c.customerId)||{},tags=c.tags||[],ids=assignedIds(c),phone=p.phone||p.sdt;
-  if(status!=='all'&&(status==='unread'?!c.unread:c.status!==status))return false;
+  if(status==='unread'&&!c.unread||status==='personal'&&c.threadType===1||status==='group'&&c.threadType!==1||status==='action-needed'&&!queues.action.has(c.id)||status==='scheduled'&&!queues.scheduled.has(c.id)||status==='waiting-reply'&&!c.waitingSince)return false;
+  if(!inboxTabs.some(([key])=>key===status)&&c.status!==status)return false;
   if(q&&!normalize([c.customerName,p.phone,p.email,c.lastMessage,texts.get(c.id)].join(' ')).includes(normalize(q)))return false;
   if(f.type==='group'&&c.threadType!==1||f.type==='personal'&&c.threadType===1||f.type==='stranger'&&c.isFriend!==false)return false;
   if(f.phone==='yes'&&!phone||f.phone==='no'&&phone)return false;
