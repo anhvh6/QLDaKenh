@@ -1,7 +1,7 @@
 import {chatName} from './chat-names.js';
 export const defaultFilters={type:'all',phone:'all',reply:'all',archive:'active',pinned:false,connectionId:'',tags:[],tagMode:'any',assignees:[],assigneeMode:'any',dateField:'lastAt',from:'',to:'',sort:'newest',customerId:''};
 export const assignedIds=c=>[...new Set([...(c.assigneeIds||[]),...(c.assignee?[c.assignee]:[])])];
-export const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
+export const normalize=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
 export function filterThreads(S,q='',status='all',f=defaultFilters){
  const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map();
  if(q)for(const m of S.messages)texts.set(m.conversationId,(texts.get(m.conversationId)||'')+' '+m.text);
