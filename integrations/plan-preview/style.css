@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@source "../pages/ClientView.tsx";
+@source "../components";
+body{margin:0;background:#f8faff;font-family:Arial,sans-serif}button{cursor:pointer}

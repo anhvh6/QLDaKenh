@@ -1,5 +1,5 @@
 import {tool,reminderPopup,cardPopup} from './chat-tools.js';
-import {richMessage} from './chat-message-rich.js';
+import {richMessage,enhanceRichCards} from './chat-message-rich.js';
 import {mediaPicker} from './chat-media-picker.js';
 import {showQuickChatOrder} from './quick-order.js';
 import {emojiPopup,filterEmoji,rememberEmoji} from './emoji-picker.js';
@@ -137,7 +137,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of
  if(c.threadType===1){head.querySelector('.row small').textContent=(S.connections.find(x=>x.id===c.connectionId)?.name||'')+' · Hội thoại nhóm';form.querySelector('.row .small').textContent='Trả lời nhóm';}if(c.threadType===1)head.querySelector('h3').textContent=(c.localGroupName&&c.title?c.title:c.group?.name||c.title)||S.customers.find(p=>p.id===c.customerId)?.name||'Nhóm';
  for(const m of document.querySelectorAll('.chat-menu'))if(openMenus.includes(m.querySelector('summary').textContent))m.open=true;
  const side=$('.chat-side');side.insertAdjacentHTML('beforeend',`<div class="side-section"><h4>Ghi chú nội bộ</h4>${S.messages.filter(m=>m.conversationId===c.id&&m.direction==='note').slice(-5).map(m=>`<p class="small">${e(m.text)}<br><span class="muted">${e(date(m.createdAt))}</span></p>`).join('')||'<p class="muted">Chưa có ghi chú</p>'}${b('Viết ghi chú','note')}</div>`);
- enhanceChatNames(H);
+ enhanceChatNames(H);enhanceRichCards(H);
 }
 async function bulk(patch){const items=[...selected].map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));await H.api('/chat/bulk',{method:'POST',body:{items,patch}});selected.clear();H.closeModal();await H.refresh();}
 function insertText(text){const c=active(),d=draft(c.id);rememberInboxDraft();d.text+=(d.text?'\n':'')+text;H.closeModal();paint();$('#reply-form textarea').focus();}
