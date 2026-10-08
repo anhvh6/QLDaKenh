@@ -70,3 +70,5 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 @media(max-width:760px){.reminder-grid{grid-template-columns:1fr}.reminder-grid>section{max-height:30vh}.chat-head-tools{gap:0}.chat-head-compact .chat-head-tools button{width:26px;height:28px;min-height:28px;padding:4px}.chat-compose-tools{gap:0}.chat-tool{width:29px}.chat-compose-row>.row{flex-wrap:wrap!important;justify-content:flex-end}.chat-head-tools [data-plan=customer],.chat-head-tools [data-bot=info]{display:none!important}}
 
 .chat-head-compact .chat-head-tools .bot-toggle.on{background:#ddf7e5;color:#047c3e}.chat-head-compact .chat-head-tools .bot-toggle.attention{background:#fff1b8;color:#946500}
+
+.chat-head-compact>.row .icon-btn{border:0;box-shadow:none;background:transparent}

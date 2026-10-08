@@ -22,7 +22,7 @@ export function compactChatHead(){
  const identity=head.querySelector('.row:first-child>div:last-child');if(!identity)return;
  const meta=document.createElement('div');meta.className='chat-head-meta';
  for(const el of [identity.querySelector('.learner-progress-text'),identity.querySelector('small.muted'),identity.querySelector('.chat-assigned')])if(el){el.title=el.textContent;if(el.classList.contains('chat-assigned'))el.textContent=el.textContent.replace('Phụ trách: ','');meta.append(el);}identity.append(meta);
- const tools=document.createElement('div');tools.className='chat-head-tools';
+ const tools=document.createElement('div');tools.className='chat-head-tools';const info=head.querySelector('[data-bot=info]');if(info){info.innerHTML=icon('help',18);info.title='Thông tin AI';info.setAttribute('aria-label','Thông tin AI');}
  for(const el of head.querySelectorAll('.chat-name-icons button,[data-bot=toggle],[data-bot=info]'))tools.append(el);
  if(!tools.querySelector('[data-care=profile]'))tools.insertAdjacentHTML('beforeend',`<button type="button" class="chat-tool" data-care="profile" data-id="${e(active().customerId)}" title="Hồ sơ / Đơn" aria-label="Xem hồ sơ khách">${icon('users',18)}</button>`);
  tools.insertAdjacentHTML('beforeend',tool('Tạo lịch hẹn','reminders','calendar',active().id));head.querySelector('.care-profile-open')?.remove();head.querySelector('[data-action=customer-detail]')?.remove();
@@ -147,7 +147,7 @@ function initMessageHold(){
  document.addEventListener('contextmenu',event=>{if(event.target.closest('.bubble-wrap .bubble')&&(hold||Date.now()<suppressUntil))event.preventDefault();});
  document.addEventListener('click',event=>{if(Date.now()<suppressUntil&&event.target.closest('.bubble-wrap .bubble')){event.preventDefault();event.stopPropagation();}},true);
 }
-export function initInbox(host){H=host;initSendHold();initMessageHold();initThreadHold();window.addEventListener('chat:jump-message',event=>{jumpTarget=event.detail;jumpUntil=Date.now()+3000;requestAnimationFrame(()=>jumpToMessage(jumpTarget));});initChatNameControls(host);
+export function initInbox(host){H=host;initMessageHold();initThreadHold();initSendHold();window.addEventListener('chat:jump-message',event=>{jumpTarget=event.detail;jumpUntil=Date.now()+3000;requestAnimationFrame(()=>jumpToMessage(jumpTarget));});initChatNameControls(host);
  document.addEventListener('click',event=>{if(H.route()!=='inbox')return;for(const m of document.querySelectorAll('.chat-menu[open]'))if(!m.contains(event.target))m.open=false;});
  document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.chat-menu[open]').forEach(m=>m.open=false);});
  function load(){if(!H.state?.user)return;try{F={...structuredClone(defaultFilters),...JSON.parse(sessionStorage.getItem('chat-filters:'+H.state.user.id)||'{}')};for(const [id,d] of JSON.parse(sessionStorage.getItem(storageKey())||'[]'))drafts.set(id,{...freshDraft(),...d});}catch{F=structuredClone(defaultFilters);}}
