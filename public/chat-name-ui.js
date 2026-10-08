@@ -1,3 +1,4 @@
+import {enhanceHeadState} from './chat-head-state.js';
 import {learnerStages,progressFor} from './learner-progress.js';
 import {chatName,nameStatuses,defaultNameSettings,nameRuleRow} from './chat-names.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -11,6 +12,7 @@ export function enhanceChatNames(H){
  const p=S.customers.find(p=>p.id===c.customerId),name=chatName(c,p),rules=nameStatuses(S,c),ch=S.connections.find(ch=>ch.id===c.connectionId),zalo=ch?.provider==='zalo_personal';
  const h=head.querySelector('h3'),label=c.friendRequestPending?'Lời mời đang chờ · kiểm tra kết bạn':c.isFriend===true?'Hủy kết bạn Zalo':c.isFriend===false?'Kết bạn Zalo':'Kiểm tra kết bạn Zalo';
  h.outerHTML=`<div class="chat-name-line"><h3><button type="button" class="chat-name-copy" data-chat-name="${esc(c.id)}" data-copy-name="${esc(name)}" style="${rules.length?'color:'+rules[0].color:''}" title="Chạm để sao chép · Giữ để đổi tên${rules.length?' · '+esc(rules.map(r=>r.label).join(' · ')):''}" aria-label="Sao chép tên ${esc(name)}; nhấn giữ để đổi tên">${esc(name)}</button><span class="chat-copy-feedback" role="status" hidden></span></h3>${c.threadType!==1?`<div class="chat-name-icons">${quick(label,`data-name-action="friend" data-id="${esc(c.id)}"`,c.isFriend?'unfriend':'friend',!zalo||ch.mode!=='api'?'disabled':'')}${quick('Tạo nhóm với khách',`data-chat="new-group-for" data-id="${esc(c.id)}"`,'group',!zalo||ch.mode!=='api'?'disabled':'')}${quick('Xem hồ sơ khách',`data-care="profile" data-id="${esc(c.customerId)}"`,'profile')}${quick('Tạo phác đồ',`data-plan="customer" data-id="${esc(c.customerId)}"`,'plan')}</div>`:''}</div>`;
+ enhanceHeadState(H,c,p);
  if(c.threadType!==1&&p){const progress=progressFor(S,p),info=learnerStages[progress.stage];head.querySelector('.chat-name-line').insertAdjacentHTML('afterend','<button type="button" class="learner-progress-text" data-name-action="progress" data-id="'+esc(c.id)+'" style="color:'+info.color+'" title="'+esc(info.description)+' · Bấm để đổi tiến trình">'+esc(info.name)+' <span aria-hidden="true">⌄</span></button>');}
  const panel=head.querySelector('.chat-actions .chat-menu-panel');if(panel)panel.insertAdjacentHTML('beforeend',`<h4>Tên & phân loại</h4><button type="button" class="btn small" data-name-action="rename" data-id="${esc(c.id)}">Đổi tên hiển thị</button>${c.threadType!==1?`<button type="button" class="btn small" data-name-action="statuses" data-id="${esc(c.id)}">Trạng thái & màu tên</button>`:''}`);
 }

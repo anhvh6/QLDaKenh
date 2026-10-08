@@ -23,3 +23,5 @@ test('opaque Zalo errors preserve code and empty success is not reported as crea
  assert.equal(failed.platformErrorCode,999);assert.ok(failed.platformError.includes('999'));assert.notEqual(failed.platformError,'null');
  const empty=await createChatReminder(owner,c,input,async()=>null);assert.equal(empty.platformStatus,'failed');
 });
+
+test('Zalo rejection -20017 does not prevent the assigned system alert',async()=>{const due=Date.now()+900000;const r=await createChatReminder(owner,c,{title:'Provider rejection QA',dueAt:new Date(due).toISOString(),platform:true},async()=>{const error=new Error('null');error.code=-20017;throw error;});assert.equal(r.platformStatus,'failed');assert.equal(r.platformErrorCode,-20017);reminderTick(due);assert.equal(get('notifications','chat-reminder:'+r.id).body,'Provider rejection QA');assert.equal(get('notifications','chat-reminder:'+r.id).recipientId,owner.id);assert.equal(reminderTick(due),0);});

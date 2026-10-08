@@ -48,9 +48,10 @@ async function update(user,c,input){if(input.customerVersion!==c.version)fail('H
   if(input.action==='renew')put('learner_renewals',{customerId:c.id,baseDate:input.baseDate,days:Number(input.days),amount:fee,previousEndDate:r.data.end_date,endDate:patch.end_date,orderId:order?.id||null,actor:user.id});audit(user.id,'learner_'+input.action,c.id,{endDate:patch.end_date,amount:fee});
  });return learnerProfile(user,c.id);
 }
-export async function learnerRoute(path,method,input,user){const m=path.match(/^\/api\/care\/customers\/([^/]+)\/learner(?:\/(sources|copy|order))?$/);if(!m)return undefined;const c=access(user,decodeURIComponent(m[1])),action=m[2];
+export async function learnerRoute(path,method,input,user){const m=path.match(/^\/api\/care\/customers\/([^/]+)\/learner(?:\/(sources|copy|order|plan))?$/);if(!m)return undefined;const c=access(user,decodeURIComponent(m[1])),action=m[2];
  if(!action&&method==='GET')return learnerProfile(user,c.id);
  if(!action&&method==='PATCH')return update(user,c,input);
+ if(action==='plan'&&method==='GET'){const r=await record(c),p=r.data;return {hasPlan:!!p,name:p?.customer_name||c.name,link:safeLink(p?.link||c.link),startDate:p?.start_date,endDate:p?.end_date,tasks:(r.local?.tasks||[]).map(t=>({day:t.day,title:t.title,link:safeLink(t.link)}))};}
  if(action==='sources'&&method==='GET')return listPlanSources(user,c.id);
  if(action==='copy'&&method==='POST'){if(input.customerVersion!==c.version)fail('Hồ sơ đã thay đổi.',409);const source=await getPlanSource(user,c.id,input.sourceId);const copy=Object.fromEntries(['note','chewing_status','sidebar_blocks_json','app_title','app_slogan','duration_days','video_date','ma_vd','is_customized','require_google_auth','require_device_limit'].map(k=>[k,source.customer[k]]));const target=await record(c);if(target.data)fail('Học viên đã có phác đồ. Mở trình phác đồ để chỉnh sửa.',409);transaction(()=>{put('plan_drafts',{id:c.id,customer:copy,tasks:source.tasks,sourceId:input.sourceId,actor:user.id});audit(user.id,'learner_plan_copied',c.id,{sourceId:input.sourceId});});return {copied:true};}
  if(action==='order'&&method==='GET')return quickOrderContext(user,c);
