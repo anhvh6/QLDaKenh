@@ -44,7 +44,7 @@ export async function chatRoute(path,method,input,user){
   const c=chatConversation(user,m.conversationId);
   if(m.version!==input.version)fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
   if(m.direction!=='outgoing'||m.status!=='failed'||m.retryMessageId)fail('Chỉ gửi lại tin đã thất bại rõ ràng và chưa được gửi lại.',409);
-  return reply(user,c.id,{version:c.version,text:m.text,assetIds:(m.attachments||[]).map(a=>a.assetId),retryOf:m.id});
+  return reply(user,c.id,{version:c.version,text:m.text,mentions:m.mentions||[],assetIds:(m.attachments||[]).map(a=>a.assetId),retryOf:m.id});
  }
  if(!path.startsWith('/api/chat/'))return;
  permission(user,'inbox');

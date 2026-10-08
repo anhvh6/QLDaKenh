@@ -6,7 +6,9 @@ const state={user:{id:'me',role:'owner'},customers:[{id:'customer',name:'Khách'
 const ids=filter=>filterThreads(state,'',filter).map(c=>c.id).sort();
 test('inbox exposes the seven requested filters',()=>assert.deepEqual(inboxTabs.map(t=>t[1]),['Tất cả','Chưa đọc','Cá nhân','Nhóm','Đợi xử lý','Lên lịch','Đợi phản hồi']));
 test('personal, group and unread filters remain distinct',()=>{assert.deepEqual(ids('group'),['group']);assert.equal(ids('personal').length,9);assert.deepEqual(ids('unread'),['waiting']);});
-test('action queue combines my open AI/mention tasks and overdue appointments',()=>assert.deepEqual(ids('action-needed'),['ai','due','mention']));
+test('action queue only includes my incomplete AI/mention tasks',()=>assert.deepEqual(ids('action-needed'),['ai','mention']));
 test('scheduled queue only includes future pending reminders',()=>assert.deepEqual(ids('scheduled'),['upcoming']));
 test('waiting reply queue uses persisted waiting state, not unread or conversation status',()=>{assert.deepEqual(ids('waiting-reply'),['waiting']);const updated=structuredClone(state);updated.conversations.find(c=>c.id==='answered').unread=true;updated.conversations.find(c=>c.id==='waiting').unread=false;assert.deepEqual(filterThreads(updated,'','waiting-reply').map(c=>c.id),['waiting']);});
-test('queue tabs still respect search and archive filters',()=>{assert.equal(filterThreads(state,'no match','action-needed').length,0);const updated=structuredClone(state);updated.conversations.find(c=>c.id==='ai').archived=true;assert.deepEqual(filterThreads(updated,'','action-needed').map(c=>c.id).sort(),['due','mention']);});
+test('queue tabs still respect search and archive filters',()=>{assert.equal(filterThreads(state,'no match','action-needed').length,0);const updated=structuredClone(state);updated.conversations.find(c=>c.id==='ai').archived=true;assert.deepEqual(filterThreads(updated,'','action-needed').map(c=>c.id).sort(),['mention']);});
+
+test('action queue excludes unassigned tasks even for owner',()=>{const updated=structuredClone(state);updated.staffHandoffs.push({conversationId:'personal',status:'open',assignedStaffId:null});assert.deepEqual(filterThreads(updated,'','action-needed').map(c=>c.id).sort(),['ai','mention']);});

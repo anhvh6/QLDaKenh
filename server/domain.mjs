@@ -1,3 +1,4 @@
+import {validateGroupMentions} from './group-mentions.mjs';
 import {finishMentionTasks} from './staff-tasks.mjs';
 import {join,basename} from 'node:path';
 import {dataDir} from './store.mjs';
@@ -134,15 +135,15 @@ export async function reply(user,id,input){permission(user,'inbox');const conv=g
  if(!text&&!assets.length)fail('Nhập nội dung hoặc chọn media.');
  if(assets.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal'&&!input.note)fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
  let quoted=input.quoteId?get('messages',input.quoteId):null;if(input.quoteId&&(!quoted||quoted.deletedAt||quoted.conversationId!==id||quoted.direction==='note'))fail('Tin trích dẫn không hợp lệ.');
- const nativeQuote=quoted&&ch.provider==='zalo_personal'&&quoted.quoteSource;
- if(quoted&&!nativeQuote)text='> '+quoted.text.slice(0,1000)+'\n\n'+text;
+ const mentionText=String(input.text||'');let mentions=validateGroupMentions(conv,mentionText,input.mentions).map(m=>({...m,pos:m.pos-(mentionText.length-mentionText.trimStart().length)}));if(input.note&&mentions.length)fail('Ghi chú nội bộ không tag thành viên nhóm.');if(mentions.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal')fail('Kênh này chưa hỗ trợ tag thành viên nhóm qua API.');const nativeQuote=quoted&&ch.provider==='zalo_personal'&&quoted.quoteSource;
+ if(quoted&&!nativeQuote){const prefix='> '+quoted.text.slice(0,1000)+'\n\n';text=prefix+text;mentions=mentions.map(m=>({...m,pos:m.pos+prefix.length}));}
  if(text.length>5000)fail('Nội dung kèm trích dẫn vượt 5000 ký tự.');
- const options={...(nativeQuote?{quote:quoted.quoteSource}:{}),...(assets.length?{attachments:assets.map(a=>join(dataDir,'uploads',basename(a.url)))}:{})};
+ const options={...(mentions.length?{mentions}:{}),...(nativeQuote?{quote:quoted.quoteSource}:{}),...(assets.length?{attachments:assets.map(a=>join(dataDir,'uploads',basename(a.url)))}:{})};
  if(input.version!==conv.version)fail('Hội thoại vừa thay đổi. Tải lại trước khi gửi.',409);
  if(conv.sending)fail('Có một tin nhắn đang gửi. Vui lòng chờ.',409);put('conversations',{...conv,sending:true,assignee:user.id});
  const retrySource=input.retryOf?get('messages',input.retryOf):null;
  if(input.retryOf&&(!retrySource||retrySource.conversationId!==id||retrySource.status!=='failed'||retrySource.retryMessageId)){put('conversations',{...get('conversations',id),sending:false});fail('Tin nhắn không còn có thể gửi lại.',409);}
- let msg=put('messages',{conversationId:id,direction:input.note?'note':'outgoing',senderType:user.botId?'ai':'staff',botId:user.botId||null,botRunId:user.botRunId||null,text,attachments:assets.map(({id,url,name,type})=>({assetId:id,url,name,type})),quoteId:quoted?.id||null,retryOf:retrySource?.id||null,status:'sending',actor:user.id});
+ let msg=put('messages',{conversationId:id,direction:input.note?'note':'outgoing',senderType:user.botId?'ai':'staff',botId:user.botId||null,botRunId:user.botRunId||null,text,mentions,attachments:assets.map(({id,url,name,type})=>({assetId:id,url,name,type})),quoteId:quoted?.id||null,retryOf:retrySource?.id||null,status:'sending',actor:user.id});
  if(retrySource)put('messages',{...retrySource,retryMessageId:msg.id});
  try{let result;if(input.note)result={};else if(ch.mode==='demo')result={demo:true};else {if(ch.status!=='connected')fail('Kênh chưa được kết nối thực tế.');result=await sendMessage(ch,conv,text,options);}
  msg=put('messages',{...msg,status:input.note?'internal':ch.mode==='demo'?'demo':'accepted',externalId:result.message_id||result.id||null});

@@ -4,9 +4,9 @@ export const assignedIds=c=>[...new Set([...(c.assigneeIds||[]),...(c.assignee?[
 export const normalize=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
 export const inboxTabs=[['all','Tất cả'],['unread','Chưa đọc'],['personal','Cá nhân'],['group','Nhóm'],['action-needed','Đợi xử lý'],['scheduled','Lên lịch'],['waiting-reply','Đợi phản hồi']];
 export function inboxQueues(S,time=Date.now()){
- const mine=id=>id===S.user?.id||(!id&&['owner','manager'].includes(S.user?.role));
+ const mine=id=>!!id&&id===S.user?.id;
  const action=new Set((S.staffHandoffs||[]).filter(h=>!['resolved','cancelled'].includes(h.status)&&mine(h.assignedStaffId)).map(h=>h.conversationId)),scheduled=new Set();
- for(const r of S.chat_reminders||[]){if(r.status!=='pending')continue;const due=Date.parse(r.dueAt);if(due>time)scheduled.add(r.conversationId);else if(Number.isFinite(due)&&mine(r.assignee))action.add(r.conversationId);}
+ for(const r of S.chat_reminders||[]){if(r.status!=='pending')continue;const due=Date.parse(r.dueAt);if(due>time)scheduled.add(r.conversationId);}
  return {action,scheduled};
 }
 export function filterThreads(S,q='',status='all',f=defaultFilters){
