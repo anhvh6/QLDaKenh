@@ -1,3 +1,5 @@
+import {createChatReminder} from './chat-reminders.mjs';
+import {sendContactCard} from './zalo.mjs';
 import {deleteChats} from './chat-delete.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
@@ -125,14 +127,19 @@ export async function chatRoute(path,method,input,user){
   if(groupJobs.has(c.connectionId))fail('Đang xử lý nhóm trên kênh này.',409);groupJobs.add(c.connectionId);
   try{await changeGroup(c.connectionId,c.externalUserId,action,input);audit(user.id,'zalo_group_'+action,c.id);return put('conversations',{...get('conversations',c.id),...(action==='rename'?{title:input.name,localGroupName:false}:{}),...(['leave','disband'].includes(action)?{archived:true,groupUnavailable:true}:{}),groupNeedsSync:true});}finally{groupJobs.delete(c.connectionId);}
  }
+
+ match=path.match(/^\/api\/chat\/conversations\/([^/]+)\/card$/);
+ if(match&&method==='POST'){
+  const c=chatConversation(user,match[1]),ch=get('connections',c.connectionId),contact=get('conversations',input.contactId);
+  if(ch?.provider!=='zalo_personal'||ch.mode!=='api')fail('Danh thiếp gốc hiện hỗ trợ Zalo API.');
+  if(!contact||contact.deletedAt||contact.threadType===1||contact.connectionId!==c.connectionId||!contact.externalUserId||contact.isFriend!==true)fail('Chọn bạn bè trên cùng kênh.');
+  if(input.version!==c.version)fail('Hội thoại đã thay đổi.',409);
+  const p=get('customers',contact.customerId),message=put('messages',{conversationId:c.id,direction:'outgoing',senderType:'human',senderId:user.id,text:'[Danh thiếp] '+(p?.name||contact.externalUserId),status:'sending',contactId:contact.id});
+  try{const sent=await sendContactCard(c.connectionId,c.externalUserId,c.threadType,contact.externalUserId);put('conversations',{...get('conversations',c.id),lastMessage:message.text,lastAt:now()});audit(user.id,'chat_contact_card',message.id);return put('messages',{...message,status:'sent',externalId:String(sent.msgId)});}catch(err){put('messages',{...message,status:'unknown',error:String(err.message).slice(0,500)});fail('Chưa xác nhận gửi danh thiếp. Kiểm tra trên Zalo trước khi gửi lại.',502);}
+ }
  match=path.match(/^\/api\/chat\/conversations\/([^/]+)\/reminders$/);
  if(match&&method==='POST'){
-  const c=chatConversation(user,match[1]),due=Date.parse(input.dueAt);
-  if(!Number.isFinite(due)||due<=Date.now())fail('Chọn thời gian nhắc trong tương lai.');
-  const assignee=input.assignee||user.id,u=db.prepare('SELECT id,role FROM users WHERE id=? AND active=1').get(assignee);
-  if(!u)fail('Nhân viên không tồn tại.');permission(u,'inbox');assertChannel(u,c.connectionId);
-  const r=put('chat_reminders',{conversationId:c.id,customerId:c.customerId,connectionId:c.connectionId,title:required(input.title,'Nội dung nhắc',500),dueAt:new Date(due).toISOString(),assignee,actor:user.id,status:'pending'});
-  audit(user.id,'chat_reminder_created',r.id);return r;
+  return createChatReminder(user,chatConversation(user,match[1]),input);
  }
  match=path.match(/^\/api\/chat\/reminders\/([^/]+)$/);
  if(match&&method==='PATCH'){

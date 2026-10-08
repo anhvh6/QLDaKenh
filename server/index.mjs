@@ -1,3 +1,4 @@
+import {reminderTick} from './chat-reminders.mjs';
 import {contextRoute} from './customer-context.mjs';
 import {filterDeletedChats} from './chat-delete.mjs';
 import {learnerRoute} from './learner-profile.mjs';
@@ -105,7 +106,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  }
  if(path==='/api/customers/merge'&&method==='POST'){domain.permission(user,'customers');if(input.source===input.target)domain.fail('Chọn hai khách khác nhau.');return transaction(()=>{const s=get('customers',input.source),t=get('customers',input.target);if(!s||!t)domain.fail('Không tìm thấy khách.');if(s.origin==='taophacdo'||t.origin==='taophacdo')domain.fail('Hồ sơ taophacdo phải gộp tại hệ thống gốc để giữ liên kết phác đồ và thiết bị.');if(s.mergedInto||t.mergedInto)domain.fail('Khách đã được gộp.');for(const k of ['conversations','orders','leads','identities','enrollments','journey_events'])for(const r of all(k).filter(x=>x.customerId===s.id))put(k,{...r,customerId:t.id});put('customers',{...s,mergedInto:t.id});audit(user.id,'customer_merged',t.id,{source:s,target:t});return put('customers',{...t,tags:[...new Set([...(t.tags||[]),...(s.tags||[])])]});});}
  if(path==='/api/workflows/test'&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const w=get('workflows',input.id);if(!w)domain.fail('Không tìm thấy quy tắc.');return {matched:!w.keyword||String(input.text||'').toLowerCase().includes(w.keyword.toLowerCase()),action:w.action,value:w.value,executed:false};}
- if(path==='/api/notifications/read'&&method==='POST'){for(const n of all('notifications'))put('notifications',{...n,read:true});return {ok:true};}
+ if(path==='/api/notifications/read'&&method==='POST'){for(const n of all('notifications').filter(n=>!n.recipientId||n.recipientId===user.id))put('notifications',{...n,read:true});return {ok:true};}
  if(path==='/api/audit'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Cần quyền quản lý.',403);return db.prepare('SELECT * FROM audit ORDER BY created_at DESC LIMIT 300').all();}
  if(path==='/api/backup'&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const name=`hub-${now().replace(/[:.]/g,'-')}.sqlite`;await backup(db,join(dataDir,'backups',name));audit(user.id,'backup',name);return {name,note:'Bản sao database trong data/backups. Để khôi phục đầy đủ, giữ cả uploads và encryption.key.'};}
  if(path==='/api/export'&&method==='GET'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const data={exportedAt:now(),version:1};for(const k of [...domain.kinds,...care.extraKinds])data[k]=all(k);res.setHeader('Content-Disposition','attachment; filename="moc-export.json"');audit(user.id,'export');return data;}
@@ -163,3 +164,5 @@ setInterval(()=>db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now(
 recoverBotJobs();setInterval(()=>botTick().catch(e=>console.error('Chatbot:',e.message)),2000).unref();
 server.listen(port,host,()=>console.log(`Mộc Hub: http://${host==='0.0.0.0'?'localhost':host}:${port}\nDatabase: ${join(dataDir,'hub.sqlite')}`));
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>{db.close();process.exit(0);}));
+
+setInterval(()=>{try{reminderTick();}catch(error){console.error('Reminder tick:',error.message);}},10000).unref();
