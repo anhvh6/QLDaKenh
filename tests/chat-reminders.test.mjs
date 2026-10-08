@@ -16,3 +16,10 @@ test('platform failure keeps internal reminder; unsupported channel never invoke
  await assert.rejects(createChatReminder(owner,c,{...input,assignee:'missing'}));await assert.rejects(createChatReminder(owner,c,{...input,dueAt:'invalid'}));
  put('chat_reminders',{...r,status:'cancelled'});assert.equal(reminderTick(Date.now()+200000),1);assert.equal(all('notifications').length,2);
 });
+
+test('opaque Zalo errors preserve code and empty success is not reported as created',async()=>{
+ const input={title:'QA',dueAt:new Date(Date.now()+120000).toISOString(),platform:true};
+ const failed=await createChatReminder(owner,c,input,async()=>{const error=new Error('null');error.code=999;throw error;});
+ assert.equal(failed.platformErrorCode,999);assert.ok(failed.platformError.includes('999'));assert.notEqual(failed.platformError,'null');
+ const empty=await createChatReminder(owner,c,input,async()=>null);assert.equal(empty.platformStatus,'failed');
+});

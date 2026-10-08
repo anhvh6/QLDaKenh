@@ -1,0 +1,21 @@
+{
+  "source": "VPS SQLite snapshot",
+  "snapshot_at": "2026-10-08T02:37:57.909Z",
+  "backup": "/root/QLDaKenh/data/backups/chat-supabase-2026-10-08T02-37-57-909Z/hub.sqlite",
+  "destination": "Supabase aqtnzvqyljweppklblni public.chat_crm_records",
+  "counts": {
+    "customers": 2057,
+    "conversations": 2057,
+    "messages": 1872,
+    "crm_profiles": 0
+  },
+  "total": 5986,
+  "verification": {
+    "all_content_fingerprints_match": true,
+    "orphan_messages": 0,
+    "orphan_conversations": 0
+  },
+  "mode": "one_time_snapshot_copy",
+  "source_deleted": false,
+  "automatic_sync_enabled": false
+}

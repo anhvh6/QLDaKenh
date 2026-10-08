@@ -2,7 +2,7 @@ import {listPlanSources,getPlanSource} from './plan-sources.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {all,get,put,transaction,audit,now} from './store.mjs';
 import {permission,fail,number,createOrder} from './domain.mjs';
-import {assertCustomer,planFor,phonesIn,syncPaymentOrder} from './taophacdo.mjs';
+import {assertCustomer,assertChannel,planFor,phonesIn,syncPaymentOrder} from './taophacdo.mjs';
 import {readLearner,writeLearner,readLearnerActivity,readPlanCatalog,readPlanProfile} from './supabase.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 
@@ -21,7 +21,15 @@ export async function learnerProfile(user,id){const c=access(user,id),r=await re
  const conversations=new Set(all('conversations').filter(v=>v.customerId===c.id&&v.threadType!==1).map(v=>v.id));const phoneMessage=all('messages').filter(m=>m.direction==='incoming'&&conversations.has(m.conversationId)).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).find(m=>phonesIn(m.text).length===1);
  return {customer:{id:c.id,name:c.name,phone:c.phone||phonesIn(phoneMessage?.text)[0]||'',email:c.email||'',address:c.address||'',version:c.version},products,catalogWarning:catalog.warning||'',stage,hasPlan:!!data,version:r.remote?data?.updated_at:r.local?.version||0,plan:data?{startDate:data.start_date,endDate:data.end_date,durationDays:data.duration_days,googleAuth:data.require_google_auth!==false,deviceLimit:data.require_device_limit!==false,link:safeLink(data.link),remainingDays:data.end_date?Math.max(0,Math.ceil((Date.parse(data.end_date+'T23:59:59+07:00')-Date.now())/86400000)):0}:null,attendance:{opened:new Set(attendance.map(a=>a.access_date)).size,total:new Set(tasks.filter(t=>!t.is_deleted).map(t=>t.day)).size||Number(data?.duration_days||0),rows:attendance.map(a=>({date:a.access_date,createdAt:a.created_at||a.createdAt})).sort((a,b)=>String(b.date).localeCompare(String(a.date)))},purchases:purchases(r.remote?{...c,san_pham:data.san_pham,gia_tien:data.gia_tien}:c)};
 }
-function contact(input){const result={};for(const k of ['phone','address','email'])if(input[k]!==undefined)result[k]=String(input[k]||'').trim().slice(0,k==='address'?1000:200);if(result.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.email))fail('Email không hợp lệ.');return result;}
+async function quickOrderContext(user,c){
+ const catalog=await readPlanCatalog(),local=all('products').filter(p=>p.active!==false);
+ const products=local.map(p=>({id:p.id,name:p.name,price:p.price,productType:p.productType}));
+ for(const p of catalog.products)if(!local.some(x=>x.id_sp===p.id_sp))products.push({id:'catalog:'+p.id_sp,name:p.ten_sp,price:p.gia_ban,productType:p.productType||(isCourse(p)?'course':'physical')});
+ const ids=new Set(all('conversations').filter(v=>v.customerId===c.id&&v.threadType!==1&&!v.deletedAt).filter(v=>{try{assertChannel(user,v.connectionId);return true;}catch{return false;}}).map(v=>v.id));
+ const found=all('messages').filter(m=>m.direction==='incoming'&&!m.deletedAt&&ids.has(m.conversationId)).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).find(m=>phonesIn(m.text).length===1);
+ return {customer:{id:c.id,name:c.name,phone:c.phone||phonesIn(found?.text)[0]||'',email:c.email||'',address:c.address||'',version:c.version},products,catalogWarning:catalog.warning||''};
+}
+function contact(input){const result={};for(const k of ['name','phone','address','email'])if(input[k]!==undefined)result[k]=String(input[k]||'').trim().slice(0,k==='address'?1000:200);if(input.name!==undefined&&!result.name)fail('Nhập tên khách hàng.');if(result.name)result.nameEditedLocally=true;if(result.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.email))fail('Email không hợp lệ.');return result;}
 async function update(user,c,input){if(input.customerVersion!==c.version)fail('Hồ sơ đã thay đổi. Mở lại hồ sơ.',409);const r=await record(c);if(input.version!==(r.remote?r.data?.updated_at:r.local?.version||0))fail('Phác đồ đã thay đổi. Mở lại hồ sơ.',409);const patch={},contacts=contact(input);let fee=0,order=null,courseIndex=-1;
  if(input.action==='contact'){Object.assign(patch,{...(contacts.phone!==undefined?{sdt:contacts.phone}:{}),...(contacts.email!==undefined?{email:contacts.email}:{}),...(contacts.address!==undefined?{dia_chi:contacts.address}:{})});}
  else if(input.action==='stage'){if(!learnerStages[input.stage])fail('Tiến trình không hợp lệ.');if(['STUDYING','EXPIRING','EXPIRED'].includes(input.stage)&&!r.data)fail('Cần có phác đồ học viên trước khi cập nhật bước học.');}
@@ -45,5 +53,6 @@ export async function learnerRoute(path,method,input,user){const m=path.match(/^
  if(!action&&method==='PATCH')return update(user,c,input);
  if(action==='sources'&&method==='GET')return listPlanSources(user,c.id);
  if(action==='copy'&&method==='POST'){if(input.customerVersion!==c.version)fail('Hồ sơ đã thay đổi.',409);const source=await getPlanSource(user,c.id,input.sourceId);const copy=Object.fromEntries(['note','chewing_status','sidebar_blocks_json','app_title','app_slogan','duration_days','video_date','ma_vd','is_customized','require_google_auth','require_device_limit'].map(k=>[k,source.customer[k]]));const target=await record(c);if(target.data)fail('Học viên đã có phác đồ. Mở trình phác đồ để chỉnh sửa.',409);transaction(()=>{put('plan_drafts',{id:c.id,customer:copy,tasks:source.tasks,sourceId:input.sourceId,actor:user.id});audit(user.id,'learner_plan_copied',c.id,{sourceId:input.sourceId});});return {copied:true};}
+ if(action==='order'&&method==='GET')return quickOrderContext(user,c);
  if(action==='order'&&method==='POST'){if(input.customerVersion!==c.version)fail('Hồ sơ đã thay đổi.',409);const contacts=contact(input),catalog=await readPlanCatalog();return transaction(()=>{const items=(input.items||[]).map(i=>{if(!i.productId?.startsWith('catalog:'))return i;const source=catalog.products.find(p=>p.id_sp===i.productId.slice(8));if(!source)fail('Sản phẩm không còn trong danh mục.');const id='plan-product:'+source.id_sp;if(!get('products',id))put('products',{id,id_sp:source.id_sp,name:source.ten_sp,sku:source.id_sp,price:source.gia_ban,cost:source.gia_nhap||0,stock:0,reserved:0,active:true,productType:source.productType||(isCourse(source)?'course':'physical')});return {...i,productId:id};});const result=createOrder(user,{...input,items,customerId:c.id,phone:contacts.phone||c.phone,address:contacts.address||c.address,shippingFee:input.freeShipping?0:input.shippingFee},{allowCustomPrice:true});put('customers',{...c,...contacts},c.version);return result;});}
 }

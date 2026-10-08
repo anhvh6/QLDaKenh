@@ -11,7 +11,7 @@ export async function createChatReminder(user,c,input,platform=createNativeRemin
  let r=put('chat_reminders',{conversationId:c.id,customerId:c.customerId,connectionId:c.connectionId,title,phone:String(input.phone||get('customers',c.customerId)?.phone||'').slice(0,50),dueAt:new Date(due).toISOString(),assignee,actor:user.id,status:'pending',platformStatus:input.platform?'creating':'not_requested'});
  if(input.platform){
   if(ch?.provider!=='zalo_personal'||ch.mode!=='api'||!c.externalUserId)r=put('chat_reminders',{...r,platformStatus:'unsupported',platformError:'Kênh này chưa hỗ trợ nhắc hẹn trên nền tảng; đã lưu nhắc trong hệ thống.'});
-  else try{const result=await platform(c.connectionId,c.externalUserId,c.threadType,title,due);r=put('chat_reminders',{...r,platformStatus:'created',platformId:String(result?.id||result?.reminderId||'')});}catch(error){r=put('chat_reminders',{...r,platformStatus:'failed',platformError:String(error.message).slice(0,500)});}
+  else try{const result=await platform(c.connectionId,c.externalUserId,c.threadType,title,due);if(!result?.id&&!result?.reminderId)throw new Error('Zalo không trả mã lịch hẹn. Chưa xác nhận lịch đã tạo; kiểm tra trên Zalo trước khi thử lại.');r=put('chat_reminders',{...r,platformStatus:'created',platformId:String(result?.id||result?.reminderId||'')});}catch(error){r=put('chat_reminders',{...r,platformStatus:'failed',platformError:platformFailure(error),platformErrorCode:error?.code??null});}
  }
  audit(user.id,'chat_reminder_created',r.id,{platformStatus:r.platformStatus});return r;
 }
@@ -23,3 +23,5 @@ export function reminderTick(time=Date.now()){
   put('chat_reminders',{...r,alertedAt:now()});count++;
  }return count;});
 }
+
+export function platformFailure(error){const code=error?.code,message=String(error?.message||'').trim();const detail=message&& !['null','undefined'].includes(message)?message:'Zalo từ chối tạo lịch nhưng không cung cấp nội dung lỗi. Kiểm tra trạng thái kết nối và quyền tạo nhắc hẹn của cuộc trò chuyện.';return (detail+(code!==null&&code!==undefined?' (mã Zalo: '+String(code)+')':'')).slice(0,500);}

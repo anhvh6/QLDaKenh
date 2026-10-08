@@ -1,0 +1,16 @@
+import {normalize} from './inbox-model.js';
+const groups=[
+ ['faces','😊','Cảm xúc · khuôn mặt · smileys happy sad','😀 😃 😄 😁 😆 😅 😂 🤣 😊 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😝 😜 🤪 🤨 🧐 🤓 😎 🥸 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🤭 🤫 🤥 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤑 😈 👿 👹 👺 💀 ☠️ 👻 👽 🤖 💩 😺 😸 😹 😻 😼 😽 🙀 😿 😾'],
+ ['people','👋','Con người · bàn tay · people hands','👋 🤚 🖐️ ✋ 🖖 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦵 🦶 👂 👃 👀 👁️ 🧠 🦷 👶 👧 🧒 👦 👩 🧑 👨 👵 🧓 👴 👮 👷 💂 🧑‍⚕️ 🧑‍🎓 🧑‍🏫 🧑‍🍳 🧑‍💻 🧑‍🎨 🧑‍🚀 💃 🕺 🧘 🏃 🚶'],
+ ['nature','🐶','Động vật · thiên nhiên · hoa · animals nature','🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦋 🐝 🐛 🐞 🐢 🐍 🐬 🐳 🐟 🐠 🐙 🌷 🌹 🌺 🌸 🌼 🌻 💐 🌱 🌿 🍀 🍁 🍂 🌵 🌲 🌳 ☀️ 🌤️ ⛅ 🌧️ ⛈️ 🌈 ❄️ 🔥 💧 🌊 🌙 ⭐ 🌟 ✨'],
+ ['food','🍎','Ăn uống · trái cây · food drink','🍎 🍏 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🥑 🥦 🥬 🥒 🌶️ 🌽 🥕 🥔 🍞 🥐 🥖 🧀 🥚 🍳 🥓 🥞 🍗 🍔 🍟 🍕 🌭 🥪 🌮 🍜 🍝 🍚 🍣 🍤 🍦 🍰 🎂 🍫 🍬 🍭 🍯 ☕ 🍵 🧋 🥤 🧃 🍺 🍷 🥂'],
+ ['travel','🚗','Đi lại · địa điểm · du lịch · travel vehicles','🚗 🚕 🚌 🚎 🏎️ 🚓 🚑 🚒 🚚 🚲 🛵 🏍️ 🚂 🚆 🚇 ✈️ 🚀 🚁 ⛵ 🚢 🏠 🏡 🏢 🏥 🏫 🏪 🏨 🏰 🗼 🗽 🏔️ ⛰️ 🏖️ 🏝️ 🏕️ 🌅 🌄 🌆 🌃 🌉'],
+ ['objects','💡','Đồ vật · thể thao · lễ hội · objects activities','⚽ 🏀 🏈 ⚾ 🎾 🏐 🏓 🏸 🥊 🏋️ 🏊 🧘 🎯 🏆 🥇 🥈 🥉 🎉 🎊 🎈 🎁 🎀 🎄 🎆 🎇 🎵 🎶 🎤 🎧 🎹 🎸 🎮 🎲 💡 🔦 📱 💻 🖥️ 📷 📺 ⏰ ⌚ 📅 📌 📍 ✂️ 🖊️ 📝 📚 📖 📦 💰 💵 💳 💎 🔑 🔒 🔓 🛒 💊 🩺'],
+ ['symbols','❤️','Ký hiệu · trái tim · symbols hearts','❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ✅ ☑️ ✔️ ❌ ❎ ➕ ➖ ➗ ✖️ 💯 💢 💥 💫 💦 💬 🗨️ 🗯️ 💭 ❗ ❕ ❓ ❔ ‼️ ⁉️ ⚠️ 🚫 ⛔ 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ 🟥 🟧 🟨 🟩 🟦 🟪 ⬛ ⬜ 🔔 🔕 📣 📢 🔊 🔈 🔇 ▶️ ⏸️ ⏹️ ⏩ ⏪ 🔁 🔄 ⬆️ ⬇️ ➡️ ⬅️ ↗️ ↘️ ↙️ ↖️ 🇻🇳 🇺🇸 🇬🇧 🇯🇵 🇰🇷']
+];
+const e=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function recent(){try{return JSON.parse(localStorage.getItem('chat-recent-emoji')||'[]').filter(s=>typeof s==='string').slice(0,24);}catch{return [];}}
+export function rememberEmoji(s){try{localStorage.setItem('chat-recent-emoji',JSON.stringify([s,...recent().filter(x=>x!==s)].slice(0,24)));}catch{}}
+const buttons=s=>s.map(x=>`<button type="button" class="chat-emoji-button" data-chat="insert-emoji" data-id="${e(x)}" title="${e(x)}" aria-label="Chèn ${e(x)}">${x}</button>`).join('');
+export function emojiPopup(H){const used=recent();H.modal('Chèn biểu tượng',`<input class="input" id="chat-emoji-search" placeholder="Tìm cảm xúc, bàn tay, hoa, trái tim…" aria-label="Tìm biểu tượng"><div class="emoji-categories">${groups.map(([id,glyph,label])=>`<button type="button" class="chat-tool" data-chat="emoji-category" data-id="${id}" title="${label.split(' · ')[0]}">${glyph}</button>`).join('')}</div><div class="emoji-scroll">${used.length?`<section data-emoji-search="thuong dung frequently used"><h4>Thường dùng</h4><div class="chat-emoji">${buttons(used)}</div></section>`:''}${groups.map(([id,,label,chars])=>`<section id="emoji-${id}" data-emoji-search="${e(normalize(label))}"><h4>${label.split(' · ').slice(0,2).join(' · ')}</h4><div class="chat-emoji">${buttons(chars.split(' '))}</div></section>`).join('')}<p id="emoji-empty" hidden>Không tìm thấy biểu tượng.</p></div>`);}
+export function filterEmoji(query){const q=normalize(query);let shown=0;for(const s of document.querySelectorAll('[data-emoji-search]')){s.hidden=!!q&&!s.dataset.emojiSearch.includes(q)&&!s.textContent.includes(query);if(!s.hidden)shown++;}document.getElementById('emoji-empty').hidden=shown>0;}
