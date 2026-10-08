@@ -49,6 +49,8 @@ export function getSupabaseHeaders() {
   };
 }
 
+db.exec(readFileSync(new URL('../docs/chat-crm-storage.sql',import.meta.url),'utf8'));
+
 export function all(kind) {
   return db.prepare('SELECT id, data, version FROM records WHERE kind=? ORDER BY updated_at DESC').all(kind).map(r => ({...JSON.parse(r.data), version: r.version, id: r.id}));
 }
