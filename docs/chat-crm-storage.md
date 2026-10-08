@@ -4,7 +4,7 @@ Hệ thống lưu khách hàng, hội thoại và tin nhắn trong SQLite `data/
 
 `chat-crm-storage.sql` bổ sung chỉ mục và các view đọc dữ liệu, được áp dụng tự động khi server khởi động. Đây là SQL cho **SQLite**, không chạy trên Supabase. Không cần tạo bảng chat trùng lặp. Hồ sơ CRM bổ sung được lưu dưới kind `crm_profiles`, ID là ID khách hàng, có phiên bản và nhật ký cập nhật.
 
-Trong Hồ sơ / Đơn, nhân viên có thể cập nhật mục tiêu, hiện trạng, cách trao đổi, hạn chế và ghi nhận chăm sóc. Bot tự động và Gợi ý AI đều nhận cùng cấu trúc ngữ cảnh: tiến trình, phác đồ, đơn hàng, thông tin CRM và lịch sử liên quan. Các thông tin nhân viên ghi nhận không phải là suy luận tự động về tính cách hoặc bệnh lý.
+Hồ sơ CRM bổ sung được lưu trong database và truy cập qua API có kiểm tra quyền. Popup Hồ sơ / Đơn chỉ hiển thị thông tin học viên, phác đồ, bảo mật, chuyên cần, đơn hàng và lịch sử mua hàng; không hiển thị các trường ngữ cảnh CRM. Bot tự động và Gợi ý AI vẫn sử dụng ngữ cảnh CRM đã lưu cùng tiến trình, phác đồ, đơn hàng và lịch sử trao đổi.
 
 AI nhận 20 tin gần nhất trong hội thoại hiện tại và tối đa 12 tin cũ liên quan theo từ khóa từ các hội thoại cá nhân của cùng khách trên kênh được phép. Tìm kiếm hiện xét tối đa 600 tin mới nhất mỗi hội thoại; đây là giới hạn truy xuất ngữ cảnh, **không phải giới hạn lưu trữ**. Không đưa tin gửi lỗi/chưa rõ kết quả, ghi chú nội bộ, tin bị xóa, tin trước mốc xóa hội thoại hoặc hội thoại nhóm vào ngữ cảnh. Bot vẫn chỉ chọn câu trả lời mẫu đã được cấu hình.
 
