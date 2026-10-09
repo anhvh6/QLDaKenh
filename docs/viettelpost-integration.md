@@ -26,7 +26,15 @@ Lưu trạng thái nguyên gốc, tên trạng thái, ngày giờ, địa điể
 
 Trạng thái nhận hàng trừ tồn kho một lần. Giao thành công không tự ghi nhận thanh toán. Hoàn hàng không tự nhập lại tồn; nhân viên cần kiểm tra hàng và lập phiếu nhận hoàn. Yêu cầu hủy chỉ gửi yêu cầu tới hãng; hàng giữ chỉ giải phóng khi nhận trạng thái hủy. Nhãn A6 được lấy qua `printing-code`, có hạn khoảng một giờ. Trang quản lý tự cập nhật các thay đổi mỗi 10 giây khi không đang nhập/làm việc trong modal.
 
-## CSDL đang chạy
+## Kiểm tra đồng bộ và dữ liệu lịch sử
+
+Cài đặt → Đơn vị vận chuyển → Kiểm tra đồng bộ hiển thị kết nối, kho gửi, số yêu cầu gửi đơn, số callback xác thực, callback chưa gắn với đơn và lần nhận gần nhất. Chỉ chủ hệ thống được đọc báo cáo này; không trả token. Kết nối thành công chỉ xác nhận quyền API lấy kho, chưa xác nhận webhook đã đăng ký tại hãng.
+
+Chưa có API lấy danh sách vận đơn lịch sử được xác minh trong bộ tài liệu chính thức đã đọc. Bản hiện tại **chưa nhập vận đơn cũ tạo trên website/app Viettel Post**. Không suy diễn mã SKU, giá bán, thanh toán hay biến động kho từ callback vận chuyển. Để triển khai nhập lịch sử cần tài liệu API lấy danh sách/chi tiết được hãng cấp, hoặc file xuất dữ liệu gốc để xác định trường và quy tắc đối chiếu, tránh tạo trùng hoặc trừ tồn lần hai.
+
+Trang Đơn hàng tách bộ lọc trạng thái nội bộ, vận chuyển và thanh toán; khoảng ngày dùng múi giờ Việt Nam. Trang Sản phẩm thêm bộ lọc danh mục, loại hàng, đang bán/ngừng bán/hết hàng/sắp hết hàng, sắp xếp và xuất CSV theo bộ lọc. Hết hàng/sắp hết hàng chỉ áp dụng hàng vật lý; dịch vụ/khóa học không giới hạn bởi tồn kho.
+
+## Nơi lưu dữ liệu
 
 CSDL nghiệp vụ của ứng dụng là SQLite trên VPS (`data/hub.sqlite`). Dữ liệu học viên/phác đồ ở Supabase được giữ theo cấu trúc hiện tại. Tích hợp này không cần sửa bảng học viên của Supabase.
 
