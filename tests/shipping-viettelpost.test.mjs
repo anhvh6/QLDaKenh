@@ -12,6 +12,12 @@ const request=async(env,path,options)=>{if(path==='/v2/user/listInventory')retur
 const newOrder=()=>createOrder(owner,{customerId:'vtp-customer',phone:'0901234567',address:'12 Nguyễn Trãi, phường Bến Thành, TP Hồ Chí Minh',items:[{productId:'vtp-product',quantity:2}]});
 const body=o=>({accountId:account.id,version:o.version,weight:500,length:20,width:15,height:10,service:'VCN',payment:3,cod:o.total,declaredValue:o.subtotal});
 const event=(s,code,date='09/10/2026 15:00:00')=>({TOKEN:secret('carrier:'+account.id).webhookToken,DATA:{ORDER_NUMBER:s.tracking,ORDER_REFERENCE:s.reference,ORDER_STATUS:code,ORDER_STATUSDATE:date,STATUS_NAME:'Trạng thái '+code,MONEY_TOTAL:30000,EMPLOYEE_NAME:'Nhân viên giao QA'}});
+test('quote selection uses the cheapest valid price regardless of default or order',async()=>{
+ const {cheapestService}=await import('../public/shipping-policy.js');
+ const rows=[{MA_DV_CHINH:'VCN',GIA_CUOC:41440,IS_DEFAULT:true},{MA_DV_CHINH:'VHT',GIA_CUOC:212800},{MA_DV_CHINH:'STK',GIA_CUOC:'28000'},{MA_DV_CHINH:'MISSING'},{GIA_CUOC:null},{GIA_CUOC:''},{GIA_CUOC:-1},{GIA_CUOC:'invalid'}];
+ assert.equal(cheapestService(rows).MA_DV_CHINH,'STK');assert.equal(cheapestService(rows.reverse()).MA_DV_CHINH,'STK');
+ assert.equal(cheapestService([{GIA_CUOC:10},{GIA_CUOC:0}]).GIA_CUOC,0);assert.equal(cheapestService([{GIA_CUOC:null}]),null);
+});
 
 test('transfer and free delivery policy chooses all four carrier collection modes',async()=>{
  const {collectionPolicy}=await import('../public/shipping-policy.js');
