@@ -2,7 +2,7 @@ import {fail} from './domain.mjs';
 import {carrierTokenMetadata} from './carrier-token.mjs';
 const id=(value,label)=>{const n=Number(value);if(!Number.isSafeInteger(n)||n<=0)fail('Viettel Post chưa xác định được '+label+'. Bổ sung đầy đủ địa chỉ rồi lấy lại báo cước.');return n;};
 export async function prepareCarrierCreation(a,p,token,request){
- const metadata=carrierTokenMetadata(token);if(!metadata.apiTokenReady)fail(metadata.tokenKind==='web-session'?'Kết nối này đang dùng token phiên web Viettel Post (Partner = -1), chưa phải token API shop. Chọn kết nối API shop hoặc đổi thông tin kết nối trong Cài đặt.':'Token Viettel Post đã hết hạn. Kết nối lại trong Cài đặt.');
+ const metadata=carrierTokenMetadata(token);if(!metadata.apiTokenReady)fail('Token Viettel Post đã hết hạn. Kết nối lại trong Cài đặt.');
  const quote=await request(a.environment,'/v2/order/getPriceAllNlp',{token,fullResponse:true,body:{SENDER_ADDRESS:p.SENDER_ADDRESS,RECEIVER_ADDRESS:p.RECEIVER_ADDRESS,PRODUCT_TYPE:p.PRODUCT_TYPE,PRODUCT_WEIGHT:p.PRODUCT_WEIGHT,PRODUCT_PRICE:p.PRODUCT_PRICE,MONEY_COLLECTION:p.MONEY_COLLECTION,PRODUCT_LENGTH:p.PRODUCT_LENGTH,PRODUCT_WIDTH:p.PRODUCT_WIDTH,PRODUCT_HEIGHT:p.PRODUCT_HEIGHT,TYPE:1}});
  const sender=quote?.SENDER_ADDRESS||quote?.data?.SENDER_ADDRESS,receiver=quote?.RECEIVER_ADDRESS||quote?.data?.RECEIVER_ADDRESS,services=quote?.RESULT||quote?.data?.RESULT||[];
  if(!services.some(s=>s.MA_DV_CHINH===p.ORDER_SERVICE))fail('Dịch vụ đã chọn không còn phù hợp. Lấy lại báo cước trước khi tạo đơn.');
