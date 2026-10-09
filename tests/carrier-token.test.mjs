@@ -8,5 +8,12 @@ test('Partner is not treated as a permission claim, but expired tokens are exclu
 test('creation stops before carrier calls for expired tokens and supports API sessions with Partner -1',async()=>{
  await assert.rejects(prepareCarrierCreation({}, {},token({Partner:-1,exp:1}),()=>assert.fail('Must not call carrier')),/hết hạn/);
  const p={ORDER_SERVICE:'VMCH',PRODUCT_DETAIL:[]},quote={SENDER_ADDRESS:{PROVINCE_ID:1,WARD_ID:2},RECEIVER_ADDRESS:{PROVINCE_ID:3,WARD_ID:4},RESULT:[{MA_DV_CHINH:'VMCH'}]};
- const payload=await prepareCarrierCreation({environment:'production'},p,token({UserId:14280733,Partner:-1}),async()=>quote);assert.equal(payload.CUS_ID,14280733);
+ const payload=await prepareCarrierCreation({environment:'production'},p,token({UserId:14280733,Partner:-1}),async()=>quote);assert.equal(payload.CUS_ID,0);assert.equal(payload.ORDER_SERVICE_ADD,'');assert.equal('DELIVERY_DATE' in payload,false);
+});
+
+test('carrier text limits count UTF-8 bytes and fail before network calls',async()=>{
+ const quote={SENDER_ADDRESS:{PROVINCE_ID:1,WARD_ID:2},RECEIVER_ADDRESS:{PROVINCE_ID:3,WARD_ID:4},RESULT:[{MA_DV_CHINH:'VMCH'}]};
+ const p={ORDER_SERVICE:'VMCH',SENDER_ADDRESS:'á'.repeat(75),PRODUCT_DETAIL:[]};
+ await prepareCarrierCreation({},p,'opaque-api-token',async()=>quote);
+ await assert.rejects(prepareCarrierCreation({}, {...p,SENDER_ADDRESS:'á'.repeat(76)},'opaque-api-token',()=>assert.fail('Must reject before carrier call')),/150 byte/);
 });
