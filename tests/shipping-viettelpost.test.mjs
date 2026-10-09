@@ -13,6 +13,18 @@ const newOrder=()=>createOrder(owner,{customerId:'vtp-customer',phone:'090123456
 const body=o=>({accountId:account.id,version:o.version,weight:500,length:20,width:15,height:10,service:'VCN',payment:3,cod:o.total,declaredValue:o.subtotal});
 const event=(s,code,date='09/10/2026 15:00:00')=>({TOKEN:secret('carrier:'+account.id).webhookToken,DATA:{ORDER_NUMBER:s.tracking,ORDER_REFERENCE:s.reference,ORDER_STATUS:code,ORDER_STATUSDATE:date,STATUS_NAME:'Trạng thái '+code,MONEY_TOTAL:30000,EMPLOYEE_NAME:'Nhân viên giao QA'}});
 
+test('NLP price adapter accepts documented RESULT response while creation remains strict',async()=>{
+ const rows=[{MA_DV_CHINH:'SCN',TEN_DICHVU:'Chuyển phát nhanh',GIA_CUOC:41440}];
+ for(const value of [{SENDER_ADDRESS:{},RECEIVER_ADDRESS:{},RESULT:rows},{status:200,data:{RESULT:rows}},{status:200,data:rows}])assert.deepEqual(await vtpRequest('production','/v2/order/getPriceAllNlp',{fetcher:async()=>new Response(JSON.stringify(value))}),rows);
+ await assert.rejects(vtpRequest('production','/v2/order/createOrderNlp',{fetcher:async()=>new Response(JSON.stringify({RESULT:rows}))}),e=>e.unknown===true);
+ await assert.rejects(vtpRequest('production','/v2/order/getPriceAllNlp',{fetcher:async()=>new Response(JSON.stringify({status:400,error:true,message:'Rejected',RESULT:rows}))}),/Rejected/);
+ await assert.rejects(vtpRequest('production','/v2/order/getPriceAllNlp',{fetcher:async()=>new Response(JSON.stringify({RESULT:[{MA_DV_CHINH:'SCN',GIA_CUOC:-1}]}))}),/thiếu trạng thái/);
+});
+test('course-only quick order completion never dispatches to carrier even when account was previously selected',async()=>{
+ const {completeOrderShipping}=await import('../public/shipping-ui.js');const o={id:'course-only-qa',requiresShipping:false,status:'draft'};
+ assert.equal(await completeOrderShipping({elements:{vtpAccount:{value:'selected-account'}}},o,{api:()=>assert.fail('must not dispatch')}),o);
+});
+
 test('historical import verifies identity and account warehouse, is idempotent and does not affect stock or payments',async()=>{
  const a=await shippingRoute('/api/shipping/accounts','POST',{token:'history-qa',name:'History QA'},owner,request),before=JSON.stringify([all('orders'),all('products'),all('payments')]);
  const detail={ORDER_NUMBER:'PKE-QA',GROUPADDRESS_ID:42,RECEIVER_FULLNAME:'Khách cũ QA',RECEIVER_PHONE:'0901234567',PRODUCT_NAME:'Hàng cũ',MONEY_COLLECTION:330000,ORDER_STATUS:400,ORDER_SYSTEMDATE:'08/10/2026 16:05:19',ORDER_STATUSDATE:'09/10/2026 03:04:11'};
