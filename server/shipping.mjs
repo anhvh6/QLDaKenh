@@ -1,5 +1,6 @@
 import {collectionPolicy} from '../public/shipping-policy.js';
 import {resolveCarrierAddress} from './shipping-address.mjs';
+import {prepareCarrierCreation} from './shipment-create.mjs';
 import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {db,all,get,put,secret,saveSecret,transaction,audit,now,uid} from './store.mjs';
@@ -53,7 +54,7 @@ export function shipmentPayload(order,customer,a,input){
 }
 export async function dispatchShipment(user,id,input,request=vtpRequest){
  const o=get('orders',id);shippingAccess(user,o);if(!['draft','confirmed'].includes(o.status)||o.requiresShipping===false)fail('Đơn không thể tạo vận đơn.');
- const a=account(input.accountId),payload=shipmentPayload(o,get('customers',o.customerId),a,input);
+ const a=account(input.accountId);let payload=shipmentPayload(o,get('customers',o.customerId),a,input);
  if(o.version!==Number(input.version))fail('Đơn đã thay đổi. Tải lại trước khi gửi.',409);
  if(inFlight.has(id))fail('Đang gửi đơn này.',409);
  if(all('shipments').some(s=>s.orderId===id&&s.status!=='cancelled'))fail('Đơn đã có vận đơn hoặc đang chờ xác minh. Kiểm tra trước khi gửi lại.',409);
@@ -61,11 +62,13 @@ export async function dispatchShipment(user,id,input,request=vtpRequest){
  const sameReference=db.prepare('SELECT order_id FROM shipping_requests WHERE account_id=? AND reference=?').get(a.id,o.code);if(sameReference&&sameReference.order_id!==id)fail('Mã tham chiếu bị trùng với đơn khác. Kiểm tra mã đơn trước khi gửi.',409);
  inFlight.add(id);let s,requestId;
  try{
+  payload=await prepareCarrierCreation(a,payload,secret(accountSecret(a.id)).token,request);
+  if(get('orders',id)?.version!==Number(input.version))fail('Đơn đã thay đổi trong khi lấy báo cước. Tải lại trước khi gửi.',409);
   transaction(()=>{if(o.status==='draft'){put('orders',{...o,receiverName:payload.RECEIVER_FULLNAME,phone:payload.RECEIVER_PHONE,address:payload.RECEIVER_ADDRESS});orderAction(user,id,{action:'confirm'});}put('orders',{...get('orders',id),receiverName:payload.RECEIVER_FULLNAME,phone:payload.RECEIVER_PHONE,address:payload.RECEIVER_ADDRESS,shippingAccountId:a.id,shippingService:payload.ORDER_SERVICE,shippingState:'sending',parcel:{weight:payload.PRODUCT_WEIGHT,length:payload.PRODUCT_LENGTH,width:payload.PRODUCT_WIDTH,height:payload.PRODUCT_HEIGHT}});
    requestId=uid('shipping-request');const existing=db.prepare('SELECT id FROM shipping_requests WHERE account_id=? AND reference=?').get(a.id,o.code);if(existing)requestId=existing.id;
    db.prepare('INSERT OR REPLACE INTO shipping_requests(id,order_id,account_id,reference,state,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').run(requestId,id,a.id,o.code,'sending',JSON.stringify(payload),now(),now());
-   s=put('shipments',{orderId:id,carrier:'viettelpost',accountId:a.id,environment:a.environment,reference:o.code,requestId,status:'creating',cod:payload.MONEY_COLLECTION,fee:0,settlement:'expected',parcel:get('orders',id).parcel,receiver:{name:payload.RECEIVER_FULLNAME,phone:payload.RECEIVER_PHONE,address:payload.RECEIVER_ADDRESS},sender:a.sender,service:payload.ORDER_SERVICE,payment:payload.ORDER_PAYMENT,history:[{status:'creating',at:now(),actor:user.id}]});});
-  let result;try{result=await request(a.environment,'/v2/order/createOrderNlp',{token:secret(accountSecret(a.id)).token,body:payload});if(!result?.ORDER_NUMBER)throw Object.assign(Error('Hãng chưa trả mã vận đơn. Kiểm tra tại Viettel Post.'),{unknown:true});}catch(error){const state=error.unknown?'unknown':'failed';transaction(()=>{db.prepare('UPDATE shipping_requests SET state=?,error=?,updated_at=? WHERE id=?').run(state,error.message,now(),requestId);put('shipments',{...get('shipments',s.id),status:error.unknown?'unknown':'cancelled',error:error.message});put('orders',{...get('orders',id),shippingState:state});});throw Object.assign(error,{orderId:id});}
+   s=put('shipments',{orderId:id,carrier:'viettelpost',accountId:a.id,environment:a.environment,reference:o.code,requestId,requestEndpoint:'/v2/order/createOrder',status:'creating',cod:payload.MONEY_COLLECTION,fee:0,settlement:'expected',parcel:get('orders',id).parcel,receiver:{name:payload.RECEIVER_FULLNAME,phone:payload.RECEIVER_PHONE,address:payload.RECEIVER_ADDRESS},sender:a.sender,service:payload.ORDER_SERVICE,payment:payload.ORDER_PAYMENT,history:[{status:'creating',at:now(),actor:user.id}]});});
+  let result;try{result=await request(a.environment,'/v2/order/createOrder',{token:secret(accountSecret(a.id)).token,body:payload});if(!result?.ORDER_NUMBER)throw Object.assign(Error('Hãng chưa trả mã vận đơn. Kiểm tra tại Viettel Post.'),{unknown:true});}catch(error){const state=error.unknown?'unknown':'failed';transaction(()=>{db.prepare('UPDATE shipping_requests SET state=?,error=?,updated_at=? WHERE id=?').run(state,error.message,now(),requestId);put('shipments',{...get('shipments',s.id),status:error.unknown?'unknown':'cancelled',error:error.message});put('orders',{...get('orders',id),shippingState:state});});throw Object.assign(error,{orderId:id});}
   return transaction(()=>{db.prepare('UPDATE shipping_requests SET state=?,response=?,error=NULL,updated_at=? WHERE id=?').run('accepted',JSON.stringify(result),now(),requestId);s=put('shipments',{...get('shipments',s.id),tracking:String(result.ORDER_NUMBER),fee:Number(result.MONEY_TOTAL||0),feeBreakdown:result,status:'pickup_pending',history:[...get('shipments',s.id).history,{status:'pickup_pending',at:now(),source:'viettelpost'}]});put('orders',{...get('orders',id),shippingState:'pickup_pending',shipmentId:s.id});audit(user.id,'viettelpost_order_created',s.id,{reference:o.code,tracking:s.tracking});replayEvents(a.id,s.tracking);return get('shipments',s.id);});
  }finally{inFlight.delete(id);}
 }
