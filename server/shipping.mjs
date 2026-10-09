@@ -48,7 +48,7 @@ export async function syncVtpHistory(user,accountId,input={},request=vtpRequest)
 function admin(user){if(user.role!=='owner')fail('Chỉ chủ hệ thống được quản lý kết nối vận chuyển.',403);}
 function shippingAccess(user,order){permission(user,user.role==='warehouse'?'shipping':'orders');if(!order)fail('Không tìm thấy đơn.',404);if(user.role!=='warehouse')assertCustomer(user,order.customerId);}
 function account(id){const a=get('shipping_accounts',id);if(!a||!a.active||a.status!=='connected')fail('Chọn tài khoản Viettel Post đang kết nối.');return a;}
-export function shippingState(user){return all('shipping_accounts').map(a=>{const {customerId,...metadata}=carrierTokenMetadata(secret(accountSecret(a.id)).token);return {...a,...metadata,...(user.role==='owner'?{}:{inventories:undefined})};});}
+export function shippingState(user){return all('shipping_accounts').map(a=>{const {customerId,accountPhone,...metadata}=carrierTokenMetadata(secret(accountSecret(a.id)).token);return {...a,...metadata,...(user.role==='owner'?{accountPhone,customerId}:{inventories:undefined})};});}
 function phone(v,label){const s=required(v,label,25).replace(/[\s.()-]/g,'').replace(/^\+84/,'84');if(!/^(?:0\d{9}|84\d{9})$/.test(s))fail(label+' không hợp lệ.');return s;}
 function sender(input){return {name:required(input.name,'Tên người gửi',150),phone:phone(input.phone,'Số điện thoại người gửi'),address:required(input.address,'Địa chỉ đầy đủ của kho gửi',500),inventoryId:String(input.inventoryId||'').slice(0,50)};}
 export function shipmentPayload(order,customer,a,input){
@@ -173,7 +173,7 @@ export async function shippingRoute(path,method,input,user,request=vtpRequest){
   const websiteToken=mode==='website-token';
   const stageRequest=async(stage,path,options)=>{try{return await request(environment,path,options);}catch(error){let safe=String(error.message||'Hãng từ chối yêu cầu.');for(const value of [input.token,input.password,input.ownerPassword])if(value)safe=safe.split(String(value)).join('[ẩn]');error.message=stage+': '+safe;throw error;}};
   if(previous&&previous.environment!==environment&&!input.token&&!input.username)fail('Đổi môi trường cần token hoặc tài khoản tương ứng.');
-  if(websiteToken){if(!String(input.token||'').trim())fail('Nhập token đã sao chép từ website Viettel Post.');const auth=await stageRequest('Đổi token website (LoginVTP)','/v2/user/LoginVTP',{body:{token:String(input.token).trim()}});token=auth?.token;if(!token)fail('Viettel Post chưa trả token từ LoginVTP.');}
+  if(websiteToken){if(!String(input.token||'').trim()){if(!previous||!token)fail('Nhập token đã sao chép từ website Viettel Post.');}else{const auth=await stageRequest('Đổi token website (LoginVTP)','/v2/user/LoginVTP',{body:{token:String(input.token).trim()}});token=auth?.token;if(!token)fail('Viettel Post chưa trả token từ LoginVTP.');}}
   const credentials=!websiteToken&&mode!=='shop-token';
   if(credentials&&(Boolean(input.username)!==Boolean(input.password)||Boolean(input.ownerUsername)!==Boolean(input.ownerPassword)))fail('Nhập đủ tài khoản và mật khẩu.');
   if(mode==='partner-login'&&!input.username)fail('Nhập tài khoản và mật khẩu Partner.');
@@ -183,7 +183,8 @@ export async function shippingRoute(path,method,input,user,request=vtpRequest){
   if(credentials&&(input.ownerUsername||input.username)){if(!token)fail('Nhập token Partner hoặc tài khoản Partner trước khi kết nối shop.');const connected=await stageRequest('Kết nối tài khoản shop (ownerconnect)','/v2/user/ownerconnect',{token,body:{USERNAME:input.ownerUsername||input.username,PASSWORD:input.ownerPassword||input.password}});token=connected?.token;if(!token)fail('Viettel Post chưa trả token shop.');}
   if(!token)fail('Nhập token hoặc tài khoản API Viettel Post.');
   const inventories=await stageRequest('Đọc kho Viettel Post (listInventory)','/v2/user/listInventory',{token,method:'GET'});if(!Array.isArray(inventories))fail('Không đọc được kho gửi Viettel Post.');
-  const a=put('shipping_accounts',{id,provider:'viettelpost',name:required(input.name,'Tên kết nối',100),environment,active:true,status:'connected',inventories,sender:input.sender?sender(input.sender):previous?.sender||null,connectedAt:now()},previous?input.version:undefined);
+  const authMethod=websiteToken&&String(input.token||'').trim()?'LoginVTP':credentials&&(input.ownerUsername||input.username)?'ownerconnect':input.token?'supplied-api-token':previous?.authMethod||'unknown';
+  const a=put('shipping_accounts',{...previous,id,provider:'viettelpost',name:required(input.name,'Tên kết nối',100),environment,active:true,status:'connected',inventories,sender:input.sender?sender(input.sender):previous?.sender||null,authMethod,connectedAt:now()},previous?input.version:undefined);
   saveSecret(accountSecret(id),{token,webhookToken:input.webhookToken||secret(accountSecret(id)).webhookToken||randomBytes(32).toString('hex')});audit(user.id,'carrier_connected',id);return a;
  }
  const config=path.match(/^\/api\/shipping\/accounts\/([^/]+)(?:\/(credentials|inventory|disable))?$/);
