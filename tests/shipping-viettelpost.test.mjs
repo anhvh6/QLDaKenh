@@ -43,6 +43,15 @@ test('course-only quick order completion never dispatches to carrier even when a
  const {completeOrderShipping}=await import('../public/shipping-ui.js');const o={id:'course-only-qa',requiresShipping:false,status:'draft'};
  assert.equal(await completeOrderShipping({elements:{vtpAccount:{value:'selected-account'}}},o,{api:(path,options)=>{assert.equal(path,'/orders/course-only-qa/action');assert.equal(options.body.action,'confirm');return o;}}),o);
 });
+test('explicit draft completion neither confirms nor dispatches and reports draft success',async()=>{
+ const {completeOrderShipping,validateShippingForm,orderCreatedMessage}=await import('../public/shipping-ui.js');const o={id:'draft-choice',code:'DRAFT-QA',requiresShipping:true,status:'draft'},f={dataset:{},elements:{createDraft:{checked:true}}};
+ validateShippingForm(f);assert.equal(await completeOrderShipping(f,o,{api:()=>{throw Error('Draft must not confirm or dispatch');}}),o);assert.match(orderCreatedMessage(f,o),/lưu nháp/);assert.equal(f.dataset.savedShippingOrder,o.id);
+});
+test('full NLP quotes preserve carrier parsed address as well as services',async()=>{
+ const parsed={PROVINCE_ID:1,WARD_ID:7,ADDRESS:'Phường Hà Đông - Hà Nội'},rows=[{MA_DV_CHINH:'SCN',GIA_CUOC:20000}];
+ const result=await vtpRequest('production','/v2/order/getPriceAllNlp',{fullResponse:true,fetcher:async()=>new Response(JSON.stringify({RECEIVER_ADDRESS:parsed,RESULT:rows}))});
+ assert.deepEqual(result.RECEIVER_ADDRESS,parsed);assert.deepEqual(result.RESULT,rows);
+});
 
 test('historical import verifies identity and account warehouse, is idempotent and does not affect stock or payments',async()=>{
  const a=await shippingRoute('/api/shipping/accounts','POST',{token:'history-qa',name:'History QA'},owner,request),before=JSON.stringify([all('orders'),all('products'),all('payments')]);
