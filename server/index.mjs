@@ -1,4 +1,5 @@
 import {reminderTick} from './chat-reminders.mjs';
+import {pushRoute,pushTick} from './web-push.mjs';
 import {contextRoute} from './customer-context.mjs';
 import {filterDeletedChats} from './chat-delete.mjs';
 import {learnerRoute} from './learner-profile.mjs';
@@ -38,6 +39,7 @@ const throttles=new Map();const busy=new Set();
 function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host&&origin.host!==req.headers['x-forwarded-host'])domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
 const generic=/^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req,res,url,user,input){const path=url.pathname;const method=req.method;
+ const pushResult=await pushRoute(path,method,input,user);if(pushResult!==undefined)return pushResult;
  const botResult=await botRoute(path,method,input,user);if(botResult!==undefined)return botResult;
  const mediaResult=await mediaRoute(path,method,input,user);if(mediaResult!==undefined)return mediaResult;
  const planResult=await planRoute(path,method,input,user,url);if(planResult!==undefined)return planResult;
@@ -167,3 +169,4 @@ server.listen(port,host,()=>console.log(`Mộc Hub: http://${host==='0.0.0.0'?'l
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>{db.close();process.exit(0);}));
 
 setInterval(()=>{try{reminderTick();}catch(error){console.error('Reminder tick:',error.message);}},10000).unref();
+setInterval(()=>pushTick().catch(error=>console.error('Push tick:',error.message)),5000).unref();
