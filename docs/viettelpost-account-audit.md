@@ -36,3 +36,13 @@ Cần xác minh luồng cấp token của kết nối cũ. Nếu lấy token ở
 Nếu token cấp lại đúng luồng vẫn lỗi 205, cần Viettel Post tra cứu thời điểm/endpoint/mã tham chiếu hoặc cung cấp sandbox chính thức để tái hiện. Người dùng không cần tự có quyền log backend. Không gửi token, mật khẩu hoặc yêu cầu tự thay CUS_ID theo phỏng đoán cho bộ phận hỗ trợ.
 
 Nguồn: https://partner2.viettelpost.vn/document/token-authen ; https://partner2.viettelpost.vn/document/environment-parameter ; https://partner2.viettelpost.vn/document/create-order-id-address
+
+## Kết quả sau khi cấp lại token website megaphuong
+
+Ngày 09/10/2026, người dùng nhập token megaphuong vào chế độ website. Hệ thống đổi qua LoginVTP thành công, ghi authMethod=LoginVTP, subject=0988262641, UserId=14280733, hết hạn 17:12:26 ngày 10/10/2026.
+
+Phát hiện và sửa biểu mẫu kho không chọn lại inventory hiện tại khi mở: thao tác lưu kho có thể ghi inventoryId rỗng dù tên/địa chỉ vẫn hiển thị đúng. Đã khôi phục kho 29380875 và sửa biểu mẫu giữ đúng option. Lỗi này không giải thích các lần thử trước có GROUPADDRESS_ID đúng; không coi đây là nguyên nhân đã được chứng minh của lỗi 205.
+
+Sau khi người dùng duyệt riêng, đã kiểm tra trùng theo điện thoại và mã tham chiếu trên website, tất cả trạng thái, tất cả kho, ngày 03–09/10: không có kết quả. Gửi đúng một lần lúc 17:17:24.912 ngày 09/10/2026 (10:17:24.912 UTC), bằng token LoginVTP mới, kho 29380875, dịch vụ VMCH 24639đ, COD 0, ORDER_PAYMENT 1, CHECK_UNIQUE true. Kết quả HTTP 200 / status 205 / System error; không có ORDER_NUMBER. Giữ unknown và không thử tiếp.
+
+Các bước cấp lại token, đối chiếu tài khoản và khôi phục kho đã hoàn tất. Kết quả thực tế chưa chứng minh quyền tạo đơn thành công. Cần hãng kiểm tra xử lý yêu cầu tại thời điểm trên hoặc cấp sandbox chính thức; không thể xác định thêm nguyên nhân chỉ từ phản hồi này.
