@@ -1,0 +1,12 @@
+// Public contract: https://partner2.viettelpost.vn/document/create-by-detail-address
+const hosts={production:'https://partner.viettelpost.vn',sandbox:'https://partnerdev.viettelpost.vn'};
+export async function vtpRequest(environment,path,{token,body,method='POST',fetcher=fetch,fullResponse=false}={}){
+ if(!hosts[environment]||!/^\/v2\/(user|order|categories)\/[a-zA-Z0-9/-]+$/.test(path))throw Error('Địa chỉ API Viettel Post không hợp lệ.');
+ let response;try{response=await fetcher(hosts[environment]+path,{method,headers:{'Content-Type':'application/json',...(token?{Token:token}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(25000),redirect:'error'});}catch{throw Object.assign(Error('Không nhận được kết quả Viettel Post. Kiểm tra tại hãng trước khi gửi lại.'),{unknown:true});}
+ let result;try{result=await response.json();}catch{throw Object.assign(Error('Viettel Post trả kết quả không đọc được.'),{unknown:true});}
+ if(!result||typeof result!=='object'||!Number.isFinite(Number(result.status))||Number(result.status)<100)throw Object.assign(Error('Viettel Post trả kết quả thiếu trạng thái. Kiểm tra tại hãng trước khi gửi lại.'),{unknown:true});
+ if(!response.ok||result.error===true||Number(result.status)!==200){let safe=String(result.message||'Viettel Post từ chối yêu cầu.');for(const value of [token,body?.PASSWORD])if(value)safe=safe.split(String(value)).join('[ẩn]');safe=safe.replace(/eyJ[a-zA-Z0-9_.-]+/g,'[ẩn token]').slice(0,350);throw Object.assign(Error(safe),{status:response.status===401||Number(result.status)===401?401:400,unknown:response.status>=500||Number(result.status)>=500});}
+ return fullResponse?result:result.data;
+}
+export function providerDate(value){if(typeof value!=='string')return null;if(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/.test(value)){const [d,m,y,h,mi,s]=value.match(/\d+/g);value=`${y}-${m}-${d}T${h}:${mi}:${s}+07:00`;}const ms=Date.parse(value);return Number.isFinite(ms)?new Date(ms).toISOString():null;}
+export function mappedStatus(code){code=Number(code);if([101,201].includes(code))return 'cancelled';if([102,103,104].includes(code))return 'pickup_pending';if([105,200,300,400,500,508,509,550].includes(code))return 'in_transit';if(code===501)return 'delivered';if([502,503,515].includes(code))return 'returning';if(code===504)return 'returned';if([505,506,507].includes(code))return 'delivery_failed';return null;}

@@ -1,4 +1,5 @@
 import {reminderTick} from './chat-reminders.mjs';
+import {shippingRoute,shippingState,receiveVtpWebhook} from './shipping.mjs';
 import {interactionRoute} from './chat-interactions.mjs';
 import {pushRoute,pushTick} from './web-push.mjs';
 import {contextRoute} from './customer-context.mjs';
@@ -40,6 +41,7 @@ const throttles=new Map();const busy=new Set();
 function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host&&origin.host!==req.headers['x-forwarded-host'])domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
 const generic=/^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req,res,url,user,input){const path=url.pathname;const method=req.method;
+ const shipping=await shippingRoute(path,method,input,user);if(shipping!==undefined)return shipping;
  const interaction=await interactionRoute(path,method,input,user);if(interaction!==undefined)return interaction;
  const pushResult=await pushRoute(path,method,input,user);if(pushResult!==undefined)return pushResult;
  const botResult=await botRoute(path,method,input,user);if(botResult!==undefined)return botResult;
@@ -69,7 +71,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   state.savedPlanSummaries=all('study_plans').map(p=>({id:p.id,customerId:p.customerId,handoffId:p.handoffId||'draft:'+p.customerId,name:p.customer?.customer_name||get('customers',p.customerId)?.name||'Học viên',phone:p.customer?.sdt||'',startDate:p.customer?.start_date,endDate:p.customer?.end_date,durationDays:p.customer?.duration_days||0,group:p.customer?.ma_vd||'',amount:Number(p.customer?.gia_tien||0),updatedAt:p.updatedAt,version:p.version,status:studyPlanStatus(p,get('orders',p.lastOrderId))})).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
   if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
-  state.integrations={ai:!!secret('ai').token,aiModel:secret('ai').model||'',ghn:!!secret('shipping').token};
+  state.shippingAccounts=shippingState(user);state.integrations={ai:!!secret('ai').token,aiModel:secret('ai').model||'',ghn:!!secret('shipping').token};
   state.users=db.prepare('SELECT id,name,email,role,active FROM users').all();state.careSettings=get('settings','care')||{slaMinutes:3};state.taophacdo=user.role==='owner'?integrationState(user):null;return care.scopeState(state,user);
  }
  if(path==='/api/logout'&&method==='POST'){db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id,user.csrf);res.setHeader('Set-Cookie','hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');return {ok:true};}
@@ -131,6 +133,7 @@ const server=http.createServer(async(req,res)=>{try{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
  const url=new URL(req.url,'http://localhost');const path=url.pathname;if(path.startsWith('/plan-ui/')||path.startsWith('/plan-editor/')||path.startsWith('/plan-preview/')){res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");}const user=userFor(req);
  if(path==='/api/health')return json(res,{ok:true,service:'Moc Hub'});
+ const carrierHook=path.match(/^\/api\/shipping\/webhooks\/viettelpost\/([^/]+)$/);if(carrierHook){if(req.method!=='POST')domain.fail('Chỉ chấp nhận POST.',405);const payload=await body(req,256000);return json(res,receiveVtpWebhook(carrierHook[1],req.headers,payload.value));}
  if(path.startsWith('/api/webhooks/'))return await webhook(req,res,url);
  if(path==='/api/events'&&req.method==='GET'){if(!user)domain.fail('Vui lòng đăng nhập.',401);res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});let revision=db.prepare('SELECT sum(version) AS n FROM records').get().n;res.write('event: ready\ndata: {}\n\n');const timer=setInterval(()=>{if(!userFor(req)){clearInterval(timer);res.end();return;}const next=db.prepare('SELECT sum(version) AS n FROM records').get().n;if(next!==revision){revision=next;res.write('event: changed\ndata: {}\n\n');}else res.write(': keepalive\n\n');},2000);req.on('close',()=>clearInterval(timer));return;}
  if(path==='/api/bootstrap'){const setup=!db.prepare('SELECT id FROM users LIMIT 1').get();return json(res,{setup,user});}
