@@ -29,3 +29,6 @@ CREATE VIEW IF NOT EXISTS shipping_account_details AS
  json_extract(data,'$.sender') AS sender,json_extract(data,'$.inventories') AS inventories,
  json_extract(data,'$.active') AS active,updated_at FROM records WHERE kind='shipping_accounts';
 INSERT OR IGNORE INTO migrations VALUES(3,datetime('now'));
+CREATE UNIQUE INDEX IF NOT EXISTS carrier_history_account_tracking
+ ON records(json_extract(data,'$.accountId'),json_extract(data,'$.tracking')) WHERE kind='carrier_orders';
+INSERT OR IGNORE INTO migrations VALUES(4,datetime('now'));

@@ -9,6 +9,31 @@ db.prepare("UPDATE shipping_requests SET state='unknown',error='Máy chủ khở
 for(const s of all('shipments').filter(s=>s.carrier==='viettelpost'&&s.status==='creating'))put('shipments',{...s,status:'unknown',error:'Chưa rõ kết quả gửi. Kiểm tra trên Viettel Post.'});
 const inFlight=new Set();
 const accountSecret=id=>'carrier:'+id;
+const importing=new Set();
+export function carrierOrdersState(user){return user.role==='owner'?all('carrier_orders'):[];}
+export async function importVtpOrder(accountId,tracking,request=vtpRequest){
+ const a=account(accountId);if(!/^[-A-Za-z0-9]{1,100}$/.test(tracking))fail('Mã vận đơn không hợp lệ.');
+ const p=await request(a.environment,'/v2/order/detail-v2',{token:secret(accountSecret(a.id)).token,method:'GET',query:{o:tracking}});
+ if(!p||String(p.ORDER_NUMBER)!==tracking||!p.RECEIVER_FULLNAME)fail('Hãng chưa trả đúng chi tiết vận đơn '+tracking+'.');
+ if(!a.inventories?.length||!a.inventories.some(i=>String(i.groupaddressId)===String(p.GROUPADDRESS_ID)))fail('Vận đơn không thuộc kho của tài khoản đang kết nối.');
+ return transaction(()=>{
+  const old=all('carrier_orders').find(o=>o.accountId===a.id&&o.tracking===tracking);
+  const at=providerDate(p.ORDER_STATUSDATE),older=old?.carrierUpdatedAt&&at&&at<old.carrierUpdatedAt;
+  const row=put('carrier_orders',{...old,id:old?.id||uid('carrier-order'),accountId:a.id,tracking,reference:p.ORDER_REFERENCE||'',source:'viettelpost',receiverName:p.RECEIVER_FULLNAME,phone:p.RECEIVER_PHONE||'',address:p.RECEIVER_ADDRESS||'',productName:p.PRODUCT_NAME||'',quantity:Number(p.PRODUCT_QUANTITY)||0,weight:Number(p.PRODUCT_WEIGHT)||0,declaredValue:Number(p.PRODUCT_PRICE)||0,cod:Number(p.MONEY_COLLECTION)||0,fee:Number(p.MONEY_TOTAL)||0,service:p.ORDER_SERVICE||'',note:p.ORDER_NOTE||'',createdAt:providerDate(p.ORDER_SYSTEMDATE)||old?.createdAt||now(),carrierStatus:older?old.carrierStatus:Number(p.ORDER_STATUS),status:older?old.status:mappedStatus(p.ORDER_STATUS)||'unknown',carrierUpdatedAt:older?old.carrierUpdatedAt:at,carrierData:older?old.carrierData:p,syncedAt:now()});
+  replayEvents(a.id,tracking);return {row:get('carrier_orders',row.id),created:!old};
+ });
+}
+export async function syncVtpHistory(user,accountId,input={},request=vtpRequest){
+ admin(user);account(accountId);if(importing.has(accountId))fail('Tài khoản đang đồng bộ.',409);
+ const text=String(input.tracking||'').trim();if(text.length>12000)fail('Tối đa 100 mã vận đơn mỗi lần.');
+ const requested=text?text.split(/[\s,;]+/).filter(Boolean):[];if(requested.some(t=>!/^[-A-Za-z0-9]{1,100}$/.test(t)))fail('Chỉ nhập mã vận đơn, phân cách bằng dấu phẩy hoặc xuống dòng.');
+ const events=db.prepare('SELECT DISTINCT tracking FROM shipping_events WHERE account_id=? AND applied=0').all(accountId).map(e=>e.tracking);
+ const codes=[...new Set(requested.length?requested:[...events,...all('carrier_orders').filter(o=>o.accountId===accountId).map(o=>o.tracking)])];if(codes.length>100)fail('Quá 100 vận đơn. Nhập từng đợt tối đa 100 mã.');
+ importing.add(accountId);const result={created:0,updated:0,failed:[],attempted:codes.length,scope:'known-tracking',at:now()};
+ try{let cursor=0;await Promise.all(Array.from({length:Math.min(4,codes.length)},async()=>{while(cursor<codes.length){const code=codes[cursor++];try{const r=await importVtpOrder(accountId,code,request);result[r.created?'created':'updated']++;}catch(error){result.failed.push({tracking:code,message:error.message});}}}));
+ put('shipping_accounts',{...get('shipping_accounts',accountId),historySync:result});audit(user.id,'viettelpost_history_sync',accountId,{created:result.created,updated:result.updated,failed:result.failed.length});return result;
+ }finally{importing.delete(accountId);}
+}
 function admin(user){if(user.role!=='owner')fail('Chỉ chủ hệ thống được quản lý kết nối vận chuyển.',403);}
 function shippingAccess(user,order){permission(user,user.role==='warehouse'?'shipping':'orders');if(!order)fail('Không tìm thấy đơn.',404);if(user.role!=='warehouse')assertCustomer(user,order.customerId);}
 function account(id){const a=get('shipping_accounts',id);if(!a||!a.active||a.status!=='connected')fail('Chọn tài khoản Viettel Post đang kết nối.');return a;}
@@ -52,7 +77,14 @@ export function receiveVtpWebhook(id,headers,payload){
  transaction(()=>{db.prepare('INSERT OR IGNORE INTO shipping_events VALUES(?,?,?,?,?,?,?,?,0)').run(eventId,id,tracking,String(p.ORDER_REFERENCE||'').slice(0,100),Number(p.ORDER_STATUS),date,now(),JSON.stringify(p));const unknown=all('shipments').find(s=>s.accountId===id&&s.reference===p.ORDER_REFERENCE&&s.status==='unknown');if(unknown&&!all('shipments').some(s=>s.accountId===id&&s.tracking===tracking)){put('shipments',{...unknown,tracking,status:'pickup_pending',error:null});db.prepare('UPDATE shipping_requests SET state=?,error=NULL,updated_at=? WHERE id=?').run('accepted',now(),unknown.requestId);audit('viettelpost','shipping_recovered_by_webhook',unknown.id,{tracking});}replayEvents(id,tracking);});
  return {status:200,error:false,message:'OK'};
 }
-function replayEvents(accountId,tracking){for(const event of db.prepare('SELECT * FROM shipping_events WHERE account_id=? AND tracking=? AND applied=0 ORDER BY occurred_at,received_at').all(accountId,tracking)){const s=all('shipments').find(s=>s.accountId===accountId&&s.tracking===tracking);if(!s)continue;applyEvent(s,event);db.prepare('UPDATE shipping_events SET applied=1 WHERE id=?').run(event.id);}}
+function replayEvents(accountId,tracking){for(const event of db.prepare('SELECT * FROM shipping_events WHERE account_id=? AND tracking=? AND applied=0 ORDER BY occurred_at,received_at').all(accountId,tracking)){
+ const s=all('shipments').find(s=>s.accountId===accountId&&s.tracking===tracking),o=all('carrier_orders').find(o=>o.accountId===accountId&&o.tracking===tracking);if(!s&&!o)continue;
+ if(s)applyEvent(s,event);
+ if(o){const p=JSON.parse(event.payload),h={eventId:event.id,at:event.occurred_at,name:p.STATUS_NAME||'',carrierStatus:event.status_code,location:p.LOCATION_CURRENTLY||p.LOCALION_CURRENTLY||'',note:p.NOTE||''};const history=[...(o.history||[]),h];
+  const next=mappedStatus(event.status_code),terminal=o.status==='returned'||o.status==='cancelled'||o.status==='delivered'&&!['returning','returned','delivered'].includes(next);
+  const newer=(!o.carrierUpdatedAt||event.occurred_at>=o.carrierUpdatedAt)&&!terminal;put('carrier_orders',{...o,history,...(newer?{status:next||o.status,carrierStatus:event.status_code,carrierStatusName:p.STATUS_NAME||'',carrierUpdatedAt:event.occurred_at,carrierData:{...o.carrierData,...p},location:h.location}: {})});}
+ db.prepare('UPDATE shipping_events SET applied=1 WHERE id=?').run(event.id);
+}}
 function applyEvent(s,event){const p=JSON.parse(event.payload),at=event.occurred_at,status=mappedStatus(event.status_code),history=[...(s.history||[]),{eventId:event.id,at,receivedAt:event.received_at,status:status||s.status,carrierStatus:event.status_code,name:p.STATUS_NAME||'',location:p.LOCATION_CURRENTLY||p.LOCALION_CURRENTLY||'',note:p.NOTE||''}];
  if(s.carrierUpdatedAt&&at<s.carrierUpdatedAt){put('shipments',{...s,history});return;}
  if(status&&status!==s.status&&(s.status==='returned'||s.status==='cancelled'||(s.status==='delivered'&&!['returning','returned'].includes(status)))){put('shipments',{...s,history});return;}
@@ -70,11 +102,12 @@ function applyEvent(s,event){const p=JSON.parse(event.payload),at=event.occurred
  audit('viettelpost','shipping_event',s.id,{eventId:event.id,carrierStatus:event.status_code});
 }
 export async function shippingRoute(path,method,input,user,request=vtpRequest){
+ const historySync=path.match(/^\/api\/shipping\/accounts\/([^/]+)\/sync-history$/);if(historySync&&method==='POST')return syncVtpHistory(user,historySync[1],input,request);
  const diagnostics=path.match(/^\/api\/shipping\/accounts\/([^/]+)\/diagnostics$/);if(diagnostics&&method==='GET'){
   admin(user);const a=get('shipping_accounts',diagnostics[1]);if(!a)fail('Không tìm thấy kết nối.',404);
   const events=db.prepare('SELECT COUNT(*) AS total, SUM(CASE WHEN applied=0 THEN 1 ELSE 0 END) AS unmatched, MAX(received_at) AS lastReceivedAt FROM shipping_events WHERE account_id=?').get(a.id);
   const requests=db.prepare('SELECT state, COUNT(*) AS total FROM shipping_requests WHERE account_id=? GROUP BY state').all(a.id);
-  return {connected:a.active&&a.status==='connected',senderReady:!!(a.sender?.name&&a.sender?.phone&&a.sender?.address),inventoryCount:a.inventories?.length||0,inventorySyncedAt:a.syncedAt||a.connectedAt,requests:Object.fromEntries(requests.map(r=>[r.state,r.total])),events:{total:events.total,unmatched:events.unmatched||0,lastReceivedAt:events.lastReceivedAt||null},historicalImportAvailable:false};
+  return {connected:a.active&&a.status==='connected',senderReady:!!(a.sender?.name&&a.sender?.phone&&a.sender?.address),inventoryCount:a.inventories?.length||0,inventorySyncedAt:a.syncedAt||a.connectedAt,requests:Object.fromEntries(requests.map(r=>[r.state,r.total])),events:{total:events.total,unmatched:events.unmatched||0,lastReceivedAt:events.lastReceivedAt||null},historicalImportAvailable:true};
  }
  const label=path.match(/^\/api\/shipping\/shipments\/([^/]+)\/label$/);if(label&&method==='POST'){const s=get('shipments',label[1]);if(!s)fail('Không tìm thấy vận đơn.',404);shippingAccess(user,get('orders',s.orderId));if(s.carrier!=='viettelpost'||!s.tracking)fail('Vận đơn chưa có mã hãng.');const a=account(s.accountId),r=await request(a.environment,'/v2/order/printing-code',{token:secret(accountSecret(a.id)).token,body:{EXPIRY_TIME:Date.now()+3600000,ORDER_ARRAY:[s.tracking]},fullResponse:true});const code=r?.message;if(typeof code!=='string'||!/^[A-Za-z0-9+/=_-]{10,500}$/.test(code))fail('Hãng chưa trả mã in hợp lệ.');const url=new URL('/DigitalizePrint/report.do',a.environment==='sandbox'?'https://dev-release-print.viettelpost.vn':'https://digitalize.viettelpost.vn');url.searchParams.set('type','a6_1');url.searchParams.set('bill','$'+code);url.searchParams.set('showPostage','1');return {url:url.href};}
  const reconcile=path.match(/^\/api\/shipping\/shipments\/([^/]+)\/reconcile$/);if(reconcile&&method==='POST'){const s=get('shipments',reconcile[1]);if(!s)fail('Không tìm thấy vận đơn.',404);shippingAccess(user,get('orders',s.orderId));if(s.carrier!=='viettelpost'||s.status!=='unknown')fail('Chỉ xác minh vận đơn chưa rõ kết quả.');const tracking=required(input.tracking,'Mã vận đơn đã kiểm tra',100);if(all('shipments').some(other=>other.id!==s.id&&other.accountId===s.accountId&&other.tracking===tracking))fail('Vận đơn đã gắn với đơn khác.',409);return transaction(()=>{const updated=put('shipments',{...s,tracking,status:'pickup_pending',fee:number(input.fee||0,'Cước hãng'),error:null,history:[...s.history,{status:'pickup_pending',at:now(),actor:user.id,note:'Nhân viên xác minh tại hãng'}]});db.prepare('UPDATE shipping_requests SET state=?,error=NULL,updated_at=? WHERE id=?').run('accepted',now(),s.requestId);put('orders',{...get('orders',s.orderId),shippingState:'pickup_pending',shipmentId:s.id});replayEvents(s.accountId,tracking);audit(user.id,'shipping_reconciled',s.id,{tracking});return get('shipments',updated.id);});}
