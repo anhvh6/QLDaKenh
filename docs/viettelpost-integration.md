@@ -2,7 +2,7 @@
 
 ## Kết nối tài khoản
 
-Cài đặt → Đơn vị vận chuyển → Kết nối Viettel Post. Nhập token dài hạn của tài khoản, hoặc đăng nhập tài khoản API Partner. Nếu shop khác tài khoản Partner, nhập thêm tài khoản shop để `ownerconnect`. Hệ thống kiểm tra qua `listInventory` trước khi lưu; mật khẩu không được giữ lại. Token tài khoản và token webhook nằm trong bảng `secrets`, mã hóa AES-256-GCM bằng khóa riêng trên VPS.
+Cài đặt → Đơn vị vận chuyển → Kết nối Viettel Post. Chọn đúng cách kết nối: token tạo ở Quản lý token trên viettelpost.vn được đổi qua `POST /v2/user/LoginVTP` với body `{token}`; token API shop đã đổi được dùng trực tiếp; token Partner cùng tài khoản shop được đổi qua `ownerconnect`; hoặc đăng nhập Partner rồi đổi sang shop. Với cách token website/token shop, các ô tài khoản được bỏ qua để tránh thông tin tự điền gây đổi token sai luồng. Hệ thống kiểm tra qua `listInventory` trước khi lưu; mật khẩu và mã website không được giữ lại. Chỉ token API đã đổi và token webhook được lưu mã hóa AES-256-GCM trong bảng `secrets` bằng khóa riêng trên VPS. Lỗi xác thực hiển thị tên bước xảy ra (LoginVTP, đăng nhập Partner, ownerconnect hoặc listInventory) và ẩn các thông tin bí mật.
 
 Chọn môi trường thật hoặc sandbox và chọn kho gửi. Sandbox cần tài khoản thử nghiệm Viettel Post cấp; không dùng tài khoản thật thay cho tài khoản sandbox. Kho gửi phải có tên, điện thoại, địa chỉ đầy đủ. Đăng nhập sẵn trên website Viettel Post không đồng nghĩa hệ thống được quyền API; cần bước kết nối này.
 

@@ -84,13 +84,20 @@ export async function shippingRoute(path,method,input,user,request=vtpRequest){
  if(path==='/api/shipping/accounts'&&method==='POST'){
   admin(user);const previous=input.id?get('shipping_accounts',input.id):null;if(input.id&&!previous)fail('Không tìm thấy kết nối.',404);if(previous&&previous.version!==input.version)fail('Kết nối đã thay đổi. Tải lại trước khi lưu.',409);const id=previous?.id||uid('carrier'),environment=input.environment||previous?.environment||'production';if(!['production','sandbox'].includes(environment))fail('Môi trường không hợp lệ.');
   let token=String(input.token||'').trim()||secret(accountSecret(id)).token;
+  const mode=input.authMode||'auto';if(!['auto','website-token','shop-token','partner-token','partner-login'].includes(mode))fail('Cách kết nối không hợp lệ.');
+  const websiteToken=mode==='website-token';
+  const stageRequest=async(stage,path,options)=>{try{return await request(environment,path,options);}catch(error){let safe=String(error.message||'Hãng từ chối yêu cầu.');for(const value of [input.token,input.password,input.ownerPassword])if(value)safe=safe.split(String(value)).join('[ẩn]');error.message=stage+': '+safe;throw error;}};
   if(previous&&previous.environment!==environment&&!input.token&&!input.username)fail('Đổi môi trường cần token hoặc tài khoản tương ứng.');
-  if(Boolean(input.username)!==Boolean(input.password)||Boolean(input.ownerUsername)!==Boolean(input.ownerPassword))fail('Nhập đủ tài khoản và mật khẩu.');
-  if(input.username){const auth=await request(environment,'/v2/user/Login',{body:{USERNAME:input.username,PASSWORD:input.password}});token=auth?.token;if(!token)fail('Viettel Post chưa trả token Partner.');}
+  if(websiteToken){if(!String(input.token||'').trim())fail('Nhập token đã sao chép từ website Viettel Post.');const auth=await stageRequest('Đổi token website (LoginVTP)','/v2/user/LoginVTP',{body:{token:String(input.token).trim()}});token=auth?.token;if(!token)fail('Viettel Post chưa trả token từ LoginVTP.');}
+  const credentials=!websiteToken&&mode!=='shop-token';
+  if(credentials&&(Boolean(input.username)!==Boolean(input.password)||Boolean(input.ownerUsername)!==Boolean(input.ownerPassword)))fail('Nhập đủ tài khoản và mật khẩu.');
+  if(mode==='partner-login'&&!input.username)fail('Nhập tài khoản và mật khẩu Partner.');
+  if(mode==='partner-token'&&!input.ownerUsername)fail('Nhập tài khoản và mật khẩu shop để đổi token Partner.');
+  if(credentials&&input.username){const auth=await stageRequest('Đăng nhập Partner','/v2/user/Login',{body:{USERNAME:input.username,PASSWORD:input.password}});token=auth?.token;if(!token)fail('Viettel Post chưa trả token Partner.');}
   // Shop credentials also exchange a supplied Partner token, without requiring Partner login.
-  if(input.ownerUsername||input.username){if(!token)fail('Nhập token Partner hoặc tài khoản Partner trước khi kết nối shop.');const connected=await request(environment,'/v2/user/ownerconnect',{token,body:{USERNAME:input.ownerUsername||input.username,PASSWORD:input.ownerPassword||input.password}});token=connected?.token;if(!token)fail('Viettel Post chưa trả token shop.');}
+  if(credentials&&(input.ownerUsername||input.username)){if(!token)fail('Nhập token Partner hoặc tài khoản Partner trước khi kết nối shop.');const connected=await stageRequest('Kết nối tài khoản shop (ownerconnect)','/v2/user/ownerconnect',{token,body:{USERNAME:input.ownerUsername||input.username,PASSWORD:input.ownerPassword||input.password}});token=connected?.token;if(!token)fail('Viettel Post chưa trả token shop.');}
   if(!token)fail('Nhập token hoặc tài khoản API Viettel Post.');
-  const inventories=await request(environment,'/v2/user/listInventory',{token,method:'GET'});if(!Array.isArray(inventories))fail('Không đọc được kho gửi Viettel Post.');
+  const inventories=await stageRequest('Đọc kho Viettel Post (listInventory)','/v2/user/listInventory',{token,method:'GET'});if(!Array.isArray(inventories))fail('Không đọc được kho gửi Viettel Post.');
   const a=put('shipping_accounts',{id,provider:'viettelpost',name:required(input.name,'Tên kết nối',100),environment,active:true,status:'connected',inventories,sender:input.sender?sender(input.sender):previous?.sender||null,connectedAt:now()},previous?input.version:undefined);
   saveSecret(accountSecret(id),{token,webhookToken:input.webhookToken||secret(accountSecret(id)).webhookToken||randomBytes(32).toString('hex')});audit(user.id,'carrier_connected',id);return a;
  }
