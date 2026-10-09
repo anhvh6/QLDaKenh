@@ -14,6 +14,36 @@ const quoteFixture={SENDER_ADDRESS:{PROVINCE_ID:1,DISTRICT_ID:2,WARD_ID:3},RECEI
 const dispatchShipment=(user,id,input,request)=>dispatchActual(user,id,input,async(env,path,options)=>path==='/v2/order/getPriceAllNlp'?quoteFixture:request(env,path,options));
 const body=o=>({accountId:account.id,version:o.version,weight:500,length:20,width:15,height:10,service:'VCN',payment:3,cod:o.total,declaredValue:o.subtotal});
 const event=(s,code,date='09/10/2026 15:00:00')=>({TOKEN:secret('carrier:'+account.id).webhookToken,DATA:{ORDER_NUMBER:s.tracking,ORDER_REFERENCE:s.reference,ORDER_STATUS:code,ORDER_STATUSDATE:date,STATUS_NAME:'Trạng thái '+code,MONEY_TOTAL:30000,EMPLOYEE_NAME:'Nhân viên giao QA'}});
+
+test('restricted API details preserve verified export fields on subsequent sync without creating shop orders',async()=>{
+ const {default:ExcelJS}=await import('exceljs'),w=new ExcelJS.Workbook(),sheet=w.addWorksheet('Export');
+ sheet.addRow(['Mã Vận Đơn','Mã đơn hàng','Người nhận','Địa chỉ nhận','ĐT Nhận','Giá trị','Tiền thu hộ (4)','Tổng phí (9)= (3)+(5)+(6)+(7)-(8)']);sheet.addRow(['PKE-RESTRICTED','MGP-QA','QA','Full address','0901234567',260000,0,23519]);
+ const a=await shippingRoute('/api/shipping/accounts','POST',{name:'Restricted QA',token:'restricted-token'},owner,request),before=JSON.stringify([all('orders'),all('products'),all('payments')]);
+ const detail={ORDER_NUMBER:'PKE-RESTRICTED',ORDER_REFERENCE:'MGP-QA',GROUPADDRESS_ID:42,RECEIVER_FULLNAME:'QA',RECEIVER_PHONE:'******',RECEIVER_ADDRESS:'******',MONEY_COLLECTION:-1,MONEY_TOTAL:-1,PRODUCT_PRICE:-1,ORDER_STATUS:300,ORDER_STATUSDATE:'09/10/2026 15:00:00'};
+ const fileBase64=Buffer.from(await w.xlsx.writeBuffer()).toString('base64');
+ const result=await shippingRoute('/api/shipping/accounts/'+a.id+'/import-export','POST',{fileBase64},owner,async()=>detail);assert.equal(result.created,1);assert.deepEqual(result.failed,[]);
+ await shippingRoute('/api/shipping/accounts/'+a.id+'/sync-history','POST',{},owner,async()=>detail);
+ const saved=all('carrier_orders').find(o=>o.tracking==='PKE-RESTRICTED');assert.equal(saved.phone,'0901234567');assert.equal(saved.address,'Full address');assert.equal(saved.fee,23519);assert.equal(saved.cod,0);assert.equal(saved.dataRestricted,true);
+ assert.equal(JSON.stringify([all('orders'),all('products'),all('payments')]),before);
+ await assert.rejects(shippingRoute('/api/shipping/accounts/'+a.id+'/import-export','POST',{fileBase64},{role:'support'},async()=>detail),/chủ hệ thống/);
+});
+
+test('verified reconciliation rejects wrong reference and refreshes carrier state without a second stock dispatch',async()=>{
+ const a=await shippingRoute('/api/shipping/accounts','POST',{name:'Verify QA',token:'verify-token',environment:'sandbox',sender:{name:'Kho QA',phone:'0901234568',address:'19 Duy Tân, Hà Nội',inventoryId:'42'}},owner,request);
+ const o=newOrder();await assert.rejects(dispatchShipment(owner,o.id,{accountId:a.id,version:o.version,weight:500,service:'VCN',payment:3,cod:o.total},async()=>{throw Object.assign(Error('System error'),{unknown:true,diagnostics:{httpStatus:200,carrierStatus:500}});}));
+ const s=all('shipments').find(s=>s.orderId===o.id),route='/api/shipping/shipments/'+s.id;
+ const detail={ORDER_NUMBER:'PKE-VERIFY',ORDER_REFERENCE:o.code,GROUPADDRESS_ID:42,RECEIVER_FULLNAME:'Khách QA',RECEIVER_PHONE:o.phone,MONEY_COLLECTION:o.total,MONEY_TOTAL:24000,ORDER_STATUS:105,ORDER_STATUSDATE:'09/10/2026 15:00:00'};
+ await assert.rejects(shippingRoute(route+'/reconcile','POST',{tracking:'PKE-VERIFY'},owner,async()=>({...detail,ORDER_REFERENCE:'OTHER'})),/tham chiếu/);
+ assert.equal(get('shipments',s.id).status,'unknown');assert.equal(get('shipments',s.id).errorDetails.carrierStatus,500);
+ const before=get('products','vtp-product').stock;
+ const {default:ExcelJS}=await import('exceljs'),w=new ExcelJS.Workbook(),sheet=w.addWorksheet('Export');sheet.addRow(['Mã Vận Đơn','Mã đơn hàng','Người nhận','Địa chỉ nhận','ĐT Nhận','Tiền thu hộ (4)','Tổng phí (9)= (3)+(5)+(6)+(7)-(8)']);sheet.addRow(['PKE-VERIFY',o.code,detail.RECEIVER_FULLNAME,o.address,o.phone,o.total,24000]);
+ const fileBase64=Buffer.from(await w.xlsx.writeBuffer()).toString('base64');
+ const linked=await shippingRoute(route+'/reconcile','POST',{tracking:'PKE-VERIFY',fee:99999,fileBase64},owner,async()=>({...detail,RECEIVER_PHONE:'******',MONEY_COLLECTION:-1,MONEY_TOTAL:-1}));
+ assert.equal(linked.status,'in_transit');assert.equal(linked.fee,24000);assert.equal(get('products','vtp-product').stock,before-2);
+ for(let i=0;i<2;i++)await shippingRoute(route+'/refresh','POST',{},owner,async()=>({...detail,ORDER_STATUS:501,ORDER_STATUSDATE:'09/10/2026 17:00:00'}));
+ assert.equal(get('orders',o.id).status,'delivered');assert.equal(get('products','vtp-product').stock,before-2);
+ assert.equal(get('shipments',s.id).history.filter(h=>h.eventId==='detail:PKE-VERIFY:2026-10-09T10:00:00.000Z').length,1);
+});
 test('coded-address preparation includes warehouse and blocks missing ward or unavailable service',async()=>{
  const {prepareCarrierCreation}=await import('../server/shipment-create.mjs');const a={environment:'sandbox',sender:{inventoryId:'42'},inventories:[{groupaddressId:42}]},p={ORDER_NUMBER:'CODED-QA',ORDER_SERVICE:'VCN',PRODUCT_DETAIL:[{PRODUCT_NAME:'Hàng QA'}]};
  const ready=await prepareCarrierCreation(a,p,'secret',async()=>quoteFixture);assert.equal(ready.GROUPADDRESS_ID,42);assert.equal(ready.SENDER_WARD,3);assert.equal(ready.RECEIVER_WARD,6);assert.deepEqual(ready.LIST_ITEM,p.PRODUCT_DETAIL);assert.equal(ready.ORDER_NUMBER,'CODED-QA');
