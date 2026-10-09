@@ -66,6 +66,7 @@ export function put(kind, data, expected) {
   const prev = get(kind, id);
   if (expected !== undefined && prev?.version !== expected) throw Object.assign(new Error('Dữ liệu đã thay đổi. Vui lòng tải lại trước khi lưu.'), {status: 409});
   const record = {...data, id, createdAt: prev?.createdAt || data.createdAt || now(), updatedAt: now()};
+  if(kind==='messages'&&!prev&&data.direction==='incoming'&&data.history!==true)record.pushReceivedAt=now();
   delete record.version;
   const newVersion = prev ? prev.version + 1 : 1;
   db.prepare('INSERT OR REPLACE INTO records(kind, id, data, version, updated_at) VALUES(?,?,?,?,?)').run(kind, id, JSON.stringify(record), newVersion, record.updatedAt);

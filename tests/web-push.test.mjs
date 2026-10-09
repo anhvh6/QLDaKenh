@@ -16,9 +16,12 @@ test('subscription validation rejects private networks, credentials, lookalike d
  assert.equal(validSubscription({...sub,keys:{...sub.keys,auth:'bad'}}),false);
  assert.equal(pushKeys().publicKey,pushKeys().publicKey);
 });
-test('events enforce recipient/channel scope and never include customer content',()=>{
+test('events enforce recipient/channel scope and respect lock screen preview preference',()=>{
  const message={id:'sensitive',conversationId:'push-chat',direction:'incoming',text:'Private phone and content'};
- const payload=eventFor('messages',message,staff,prefs);assert.equal(payload.title,'Có tin nhắn mới');assert.ok(!JSON.stringify(payload).includes('Private'));assert.ok(!JSON.stringify(payload).includes('push-chat'));
+ const hidden=eventFor('messages',message,staff,{...prefs,preview:false});assert.equal(hidden.title,'Có tin nhắn mới');assert.ok(!hidden.body.includes('Private'));
+ const payload=eventFor('messages',message,staff,prefs);assert.equal(payload.title,'Private customer');assert.equal(payload.body,message.text);assert.equal(payload.url,'/?conversation=push-chat#inbox');
+ const group=put('conversations',{id:'group-push',connectionId:'push-channel',threadType:1,title:'QA nhóm'});const grouped=eventFor('messages',{...message,conversationId:group.id,senderName:'QA nick'},staff,prefs);assert.equal(grouped.title,'QA nick · QA nhóm');
+ assert.equal(eventFor('messages',{...message,history:true},staff,prefs),null);
  assert.equal(eventFor('messages',message,outsider,prefs),null);
  assert.equal(eventFor('messages',message,user,{...prefs,messages:false}),null);
  assert.equal(eventFor('staff_handoffs',{...message,assignedStaffId:staff.id,status:'open'},user,prefs),null);
@@ -29,10 +32,10 @@ test('events enforce recipient/channel scope and never include customer content'
 test('worker sends new events once, persists retry cursor and removes expired subscriptions',async()=>{
  await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);
  await new Promise(r=>setTimeout(r,5));
- put('messages',{id:'push-event1',conversationId:'push-chat',direction:'incoming',text:'Secret'});
- const delivered=[];await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);
+ put('messages',{id:'push-event1',conversationId:'push-chat',direction:'incoming',text:'Secret',createdAt:'2020-01-01T00:00:00.000Z'});
+ const delivered=[];await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);assert.ok(all('push_subscriptions')[0].lastDeliveredAt);
  await new Promise(r=>setTimeout(r,5));put('messages',{id:'push-event2',conversationId:'push-chat',direction:'incoming'});
- await pushTick(async()=>{throw Object.assign(Error('retry'),{statusCode:503});});let saved=all('push_subscriptions')[0];assert.ok(saved.retryAt>Date.now());put('push_subscriptions',{...saved,retryAt:null});
+ await pushTick(async()=>{throw Object.assign(Error('retry'),{statusCode:503});});let saved=all('push_subscriptions')[0];assert.ok(saved.retryAt>Date.now());assert.match((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).error,/503/);put('push_subscriptions',{...saved,retryAt:null});
  await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,2);
  await new Promise(r=>setTimeout(r,5));put('messages',{id:'push-event3',conversationId:'push-chat',direction:'incoming'});
  await pushTick(async()=>{throw Object.assign(Error('gone'),{statusCode:410});});assert.equal(all('push_subscriptions').length,0);
