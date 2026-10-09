@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {orderGridRows,ordersGridPage} from '../public/orders-grid.js';
+test('unified order grid deduplicates linked carrier rows and distinguishes shipment failures from cancellation',()=>{
+ const state={user:{role:'owner'},customers:[{id:'c',name:'Khách'}],shippingAccounts:[],orders:[{id:'o',code:'LOCAL',customerId:'c',items:[{name:'Hàng',sku:'SKU',quantity:1}],status:'confirmed',shippingState:'failed',createdAt:'2026-10-09',total:100000,paid:0}],shipments:[{id:'s',orderId:'o',accountId:'a',tracking:'TRACK',status:'cancelled',error:'System error'}],carrierOrders:[{id:'c1',accountId:'a',tracking:'TRACK'},{id:'c2',accountId:'a',tracking:'OLD',status:'in_transit',productName:'Hàng cũ',quantity:1,createdAt:'2026-10-08',declaredValue:200000}]};
+ const rows=orderGridRows(state);assert.equal(rows.length,2);assert.equal(rows.find(o=>o.id==='o').displayStatus,'failed');assert.equal(rows.find(o=>o.id==='c2').total,null);
+ const html=ordersGridPage(state);for(const label of ['Mã vận đơn','Mã sản phẩm chi tiết','SĐT','Nhận hàng','Cập nhật TT','COD','Cần xử lý','Đợi chuyển'])assert.ok(html.includes(label));assert.ok(!html.includes('shipping-summary'));assert.ok(html.includes('System error'));
+});

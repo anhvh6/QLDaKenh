@@ -103,6 +103,8 @@ function applyEvent(s,event){const p=JSON.parse(event.payload),at=event.occurred
  audit('viettelpost','shipping_event',s.id,{eventId:event.id,carrierStatus:event.status_code});
 }
 export async function shippingRoute(path,method,input,user,request=vtpRequest){
+ const defaultAccount=path.match(/^\/api\/shipping\/accounts\/([^/]+)\/default$/);if(defaultAccount&&method==='POST'){admin(user);const a=account(defaultAccount[1]);if(a.version!==Number(input.version))fail('Kết nối đã thay đổi.',409);return transaction(()=>{for(const other of all('shipping_accounts'))put('shipping_accounts',{...other,isDefault:other.id===a.id});return get('shipping_accounts',a.id);});}
+
  const historySync=path.match(/^\/api\/shipping\/accounts\/([^/]+)\/sync-history$/);if(historySync&&method==='POST')return syncVtpHistory(user,historySync[1],input,request);
  const diagnostics=path.match(/^\/api\/shipping\/accounts\/([^/]+)\/diagnostics$/);if(diagnostics&&method==='GET'){
   admin(user);const a=get('shipping_accounts',diagnostics[1]);if(!a)fail('Không tìm thấy kết nối.',404);

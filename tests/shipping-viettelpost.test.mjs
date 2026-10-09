@@ -35,7 +35,7 @@ test('NLP price adapter accepts documented RESULT response while creation remain
 });
 test('course-only quick order completion never dispatches to carrier even when account was previously selected',async()=>{
  const {completeOrderShipping}=await import('../public/shipping-ui.js');const o={id:'course-only-qa',requiresShipping:false,status:'draft'};
- assert.equal(await completeOrderShipping({elements:{vtpAccount:{value:'selected-account'}}},o,{api:()=>assert.fail('must not dispatch')}),o);
+ assert.equal(await completeOrderShipping({elements:{vtpAccount:{value:'selected-account'}}},o,{api:(path,options)=>{assert.equal(path,'/orders/course-only-qa/action');assert.equal(options.body.action,'confirm');return o;}}),o);
 });
 
 test('historical import verifies identity and account warehouse, is idempotent and does not affect stock or payments',async()=>{
@@ -60,6 +60,12 @@ test('detail query is encoded and rejects unsupported parameters before network'
  await vtpRequest('production','/v2/order/detail-v2',{method:'GET',query:{o:'PKE1542069448'},fetcher:async(url,opts)=>{assert.equal(url,'https://partner.viettelpost.vn/v2/order/detail-v2?o=PKE1542069448');assert.equal(opts.method,'GET');return new Response(JSON.stringify({status:200,data:{}}));}});
  await assert.rejects(vtpRequest('production','/v2/order/detail-v2',{query:{o:'a&b'},fetcher:()=>assert.fail('must not fetch')}),/Tham số/);
  await assert.rejects(vtpRequest('production','/v2/user/Login',{query:{o:'test'},fetcher:()=>assert.fail('must not fetch')}),/Tham số/);
+});
+test('carrier system error is ambiguous and default account changes are owner-only',async()=>{
+ await assert.rejects(vtpRequest('production','/v2/order/createOrderNlp',{fetcher:async()=>new Response(JSON.stringify({status:400,error:true,message:'System error'}))}),e=>e.unknown===true);
+ const a=await shippingRoute('/api/shipping/accounts','POST',{token:'default-qa',name:'Default QA'},owner,request),path='/api/shipping/accounts/'+a.id+'/default';
+ await assert.rejects(shippingRoute(path,'POST',{version:a.version},{id:'support',role:'support'}),/chủ hệ thống/);
+ const saved=await shippingRoute(path,'POST',{version:a.version},owner);assert.equal(saved.isDefault,true);assert.equal(all('shipping_accounts').filter(a=>a.isDefault).length,1);
 });
 
 test('website token is exchanged through LoginVTP before reading inventory, ignores unrelated credentials',async()=>{const calls=[];const a=await shippingRoute('/api/shipping/accounts','POST',{authMode:'website-token',name:'Website Token QA',token:'  opaque-website-key  ',ownerUsername:'autofill-shop',ownerPassword:'autofill-password'},owner,async(env,path,options)=>{calls.push(path);if(path.endsWith('/LoginVTP')){assert.deepEqual(options.body,{token:'opaque-website-key'});assert.equal(options.token,undefined);return {token:'exchanged-api-token'};}assert.equal(path,'/v2/user/listInventory');assert.equal(options.token,'exchanged-api-token');return [];});assert.deepEqual(calls,['/v2/user/LoginVTP','/v2/user/listInventory']);assert.equal(secret('carrier:'+a.id).token,'exchanged-api-token');assert.ok(!JSON.stringify(secret('carrier:'+a.id)).includes('opaque-website-key'));});
