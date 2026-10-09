@@ -2,6 +2,7 @@ import {contactCardDetails,contactPhone} from './zalo-contact-card.mjs';
 import {createVerifiedZaloGroup} from './zalo-group-create.mjs';
 import {parseZaloContent,hydrateZaloStickers,repairZaloCards} from './zalo-message-content.mjs';
 import { Zalo, ThreadType } from 'zca-js';
+import {Reactions} from 'zca-js';
 import {imageSizeFromFile} from 'image-size/fromFile';
 import {stat} from 'node:fs/promises';
 import { db, put, get, all, now, transaction, saveSecret, secret } from './store.mjs';
@@ -168,6 +169,7 @@ function repairProfileNames(id,api){const conversations=all('conversations').fil
 
 export async function createNativeReminder(id,thread,type,title,startTime){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng.');return r.api.createReminder({title,startTime},thread,type===1?ThreadType.Group:ThreadType.User);}
 export async function sendContactCard(id,thread,type,userId,phoneNumber=''){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng.');return r.api.sendCard({userId,...(phoneNumber?{phoneNumber}:{})},thread,type===1?ThreadType.Group:ThreadType.User);}
+export async function sendMessageReaction(id,thread,type,msgId,cliMsgId,reaction){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng.');const icons={heart:Reactions.HEART,like:Reactions.LIKE,haha:Reactions.HAHA,wow:Reactions.WOW,cry:Reactions.CRY,angry:Reactions.ANGRY};if(!icons[reaction])throw new Error('Cảm xúc không hợp lệ.');const result=await r.api.addReaction(icons[reaction],{data:{msgId:String(msgId),cliMsgId:String(cliMsgId)},threadId:String(thread),type:type===1?ThreadType.Group:ThreadType.User});if(result==null)throw new Error('Zalo chưa xác nhận gửi cảm xúc.');return result;}
 
 const stickerJobs=new Map();function queueStickerHydration(id,api){if(stickerJobs.has(id))return;const timer=setTimeout(()=>{const job=hydrateZaloStickers(id,api,{all,get,put}).catch(()=>state(id,{stickerError:'Chưa tải được một số sticker; bấm Đồng bộ để thử lại.'})).finally(()=>stickerJobs.delete(id));stickerJobs.set(id,job);},300);timer.unref?.();stickerJobs.set(id,timer);}
 

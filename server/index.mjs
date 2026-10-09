@@ -1,4 +1,5 @@
 import {reminderTick} from './chat-reminders.mjs';
+import {interactionRoute} from './chat-interactions.mjs';
 import {pushRoute,pushTick} from './web-push.mjs';
 import {contextRoute} from './customer-context.mjs';
 import {filterDeletedChats} from './chat-delete.mjs';
@@ -39,6 +40,7 @@ const throttles=new Map();const busy=new Set();
 function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host&&origin.host!==req.headers['x-forwarded-host'])domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
 const generic=/^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req,res,url,user,input){const path=url.pathname;const method=req.method;
+ const interaction=await interactionRoute(path,method,input,user);if(interaction!==undefined)return interaction;
  const pushResult=await pushRoute(path,method,input,user);if(pushResult!==undefined)return pushResult;
  const botResult=await botRoute(path,method,input,user);if(botResult!==undefined)return botResult;
  const mediaResult=await mediaRoute(path,method,input,user);if(mediaResult!==undefined)return mediaResult;
