@@ -1,6 +1,7 @@
 import {collectionPolicy} from '../public/shipping-policy.js';
 import {resolveCarrierAddress} from './shipping-address.mjs';
 import {prepareCarrierCreation} from './shipment-create.mjs';
+import {carrierTokenMetadata} from './carrier-token.mjs';
 import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {db,all,get,put,secret,saveSecret,transaction,audit,now,uid} from './store.mjs';
@@ -40,7 +41,7 @@ export async function syncVtpHistory(user,accountId,input={},request=vtpRequest)
 function admin(user){if(user.role!=='owner')fail('Chỉ chủ hệ thống được quản lý kết nối vận chuyển.',403);}
 function shippingAccess(user,order){permission(user,user.role==='warehouse'?'shipping':'orders');if(!order)fail('Không tìm thấy đơn.',404);if(user.role!=='warehouse')assertCustomer(user,order.customerId);}
 function account(id){const a=get('shipping_accounts',id);if(!a||!a.active||a.status!=='connected')fail('Chọn tài khoản Viettel Post đang kết nối.');return a;}
-export function shippingState(user){return all('shipping_accounts').map(a=>({...a,...(user.role==='owner'?{}:{inventories:undefined})}));}
+export function shippingState(user){return all('shipping_accounts').map(a=>{const {customerId,...metadata}=carrierTokenMetadata(secret(accountSecret(a.id)).token);return {...a,...metadata,...(user.role==='owner'?{}:{inventories:undefined})};});}
 function phone(v,label){const s=required(v,label,25).replace(/[\s.()-]/g,'').replace(/^\+84/,'84');if(!/^(?:0\d{9}|84\d{9})$/.test(s))fail(label+' không hợp lệ.');return s;}
 function sender(input){return {name:required(input.name,'Tên người gửi',150),phone:phone(input.phone,'Số điện thoại người gửi'),address:required(input.address,'Địa chỉ đầy đủ của kho gửi',500),inventoryId:String(input.inventoryId||'').slice(0,50)};}
 export function shipmentPayload(order,customer,a,input){
