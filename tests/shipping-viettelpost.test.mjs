@@ -13,6 +13,19 @@ const newOrder=()=>createOrder(owner,{customerId:'vtp-customer',phone:'090123456
 const body=o=>({accountId:account.id,version:o.version,weight:500,length:20,width:15,height:10,service:'VCN',payment:3,cod:o.total,declaredValue:o.subtotal});
 const event=(s,code,date='09/10/2026 15:00:00')=>({TOKEN:secret('carrier:'+account.id).webhookToken,DATA:{ORDER_NUMBER:s.tracking,ORDER_REFERENCE:s.reference,ORDER_STATUS:code,ORDER_STATUSDATE:date,STATUS_NAME:'Trạng thái '+code,MONEY_TOTAL:30000,EMPLOYEE_NAME:'Nhân viên giao QA'}});
 
+test('transfer and free delivery policy chooses all four carrier collection modes',async()=>{
+ const {collectionPolicy}=await import('../public/shipping-policy.js');
+ assert.deepEqual(collectionPolicy({total:100000,freeShipping:true}),{cod:100000,payment:3});
+ assert.deepEqual(collectionPolicy({total:100000,freeShipping:false}),{cod:100000,payment:2});
+ assert.deepEqual(collectionPolicy({total:100000,bankTransfer:true,freeShipping:true}),{cod:0,payment:1});
+ assert.deepEqual(collectionPolicy({total:100000,bankTransfer:true,freeShipping:false}),{cod:0,payment:4});
+});
+test('stored bank transfer intent overrides stale COD without recording payment',async()=>{
+ const {shipmentPayload}=await import('../server/shipping.mjs');const o={code:'TRANSFER-QA',total:100000,paid:0,subtotal:100000,bankTransfer:true,freeShipping:true,phone:'0901234567',address:'12 Nguyễn Trãi, TP HCM',items:[{productId:'vtp-product',name:'Hàng QA',quantity:1,price:100000,productType:'physical'}]},a={sender:{name:'Shop QA',phone:'0901234568',address:'19 Duy Tân, Hà Nội'}};
+ let p=shipmentPayload(o,{name:'Khách QA'},a,{weight:500,service:'SCN',cod:100000,payment:3});assert.equal(p.MONEY_COLLECTION,0);assert.equal(p.ORDER_PAYMENT,1);assert.equal(o.paid,0);
+ p=shipmentPayload({...o,freeShipping:false},{name:'Khách QA'},a,{weight:500,service:'SCN',cod:100000,payment:3});assert.equal(p.MONEY_COLLECTION,0);assert.equal(p.ORDER_PAYMENT,4);
+});
+
 test('NLP price adapter accepts documented RESULT response while creation remains strict',async()=>{
  const rows=[{MA_DV_CHINH:'SCN',TEN_DICHVU:'Chuyển phát nhanh',GIA_CUOC:41440}];
  for(const value of [{SENDER_ADDRESS:{},RECEIVER_ADDRESS:{},RESULT:rows},{status:200,data:{RESULT:rows}},{status:200,data:rows}])assert.deepEqual(await vtpRequest('production','/v2/order/getPriceAllNlp',{fetcher:async()=>new Response(JSON.stringify(value))}),rows);

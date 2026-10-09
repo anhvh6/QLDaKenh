@@ -1,3 +1,4 @@
+import {collectionPolicy} from '../public/shipping-policy.js';
 import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {db,all,get,put,secret,saveSecret,transaction,audit,now,uid} from './store.mjs';
@@ -43,9 +44,9 @@ function sender(input){return {name:required(input.name,'Tên người gửi',15
 export function shipmentPayload(order,customer,a,input){
  const items=order.items.filter(i=>!i.productType||i.productType==='physical');if(!items.length)fail('Đơn dịch vụ không cần vận chuyển.');
  const from=sender(a.sender||{}),receiverName=required(input.receiverName||order.receiverName||customer?.name,'Tên người nhận',150),receiverPhone=phone(input.receiverPhone||order.phone,'Số điện thoại người nhận'),receiverAddress=required(input.receiverAddress||order.address,'Địa chỉ đầy đủ của người nhận',500);
- const weight=number(input.weight,'Khối lượng kiện (gram)',1,1e6),length=number(input.length||0,'Chiều dài (cm)',0,300),width=number(input.width||0,'Chiều rộng (cm)',0,300),height=number(input.height||0,'Chiều cao (cm)',0,300),payment=number(input.payment||3,'Loại thu hộ',1,4);
+ const weight=number(input.weight,'Khối lượng kiện (gram)',1,1e6),length=number(input.length||0,'Chiều dài (cm)',0,300),width=number(input.width||0,'Chiều rộng (cm)',0,300),height=number(input.height||0,'Chiều cao (cm)',0,300),policy=collectionPolicy({bankTransfer:order.bankTransfer===true,freeShipping:order.freeShipping===true,total:order.total,paid:order.paid}),payment=number(order.bankTransfer===true||order.freeShipping===true?policy.payment:input.payment||3,'Loại thu hộ',1,4);
  const service=required(input.service,'Dịch vụ Viettel Post',50);if(!/^[A-Z0-9_, -]+$/.test(service))fail('Mã dịch vụ không hợp lệ.');
- const remaining=Math.max(0,order.total-order.paid),cod=number(input.cod??remaining,'Tiền thu hộ',0,remaining),value=number(input.declaredValue??order.subtotal,'Giá trị hàng',0,1e9);
+ const remaining=Math.max(0,order.total-order.paid),cod=number(order.bankTransfer===true?0:input.cod??remaining,'Tiền thu hộ',0,remaining),value=number(input.declaredValue??order.subtotal,'Giá trị hàng',0,1e9);
  if(cod>0&&[1,4].includes(payment))fail('Loại vận đơn không thu hộ tiền hàng: đặt COD bằng 0 hoặc chọn loại 2/3.');
  return {ORDER_NUMBER:order.code,SENDER_FULLNAME:from.name,SENDER_PHONE:from.phone,SENDER_ADDRESS:from.address,RECEIVER_FULLNAME:receiverName,RECEIVER_PHONE:receiverPhone,RECEIVER_ADDRESS:receiverAddress,PRODUCT_NAME:items.map(i=>i.name).join(', ').slice(0,250),PRODUCT_QUANTITY:items.reduce((n,i)=>n+i.quantity,0),PRODUCT_PRICE:value,PRODUCT_WEIGHT:weight,PRODUCT_LENGTH:length,PRODUCT_WIDTH:width,PRODUCT_HEIGHT:height,ORDER_PAYMENT:payment,ORDER_SERVICE:service,ORDER_SERVICE_ADD:String(input.additionalServices||'').slice(0,100)||null,PRODUCT_TYPE:'HH',ORDER_NOTE:String(input.shippingNote||order.note||'').slice(0,500),MONEY_COLLECTION:cod,EXTRA_MONEY:0,CHECK_UNIQUE:true,PRODUCT_DETAIL:items.map(i=>({PRODUCT_NAME:i.name,PRODUCT_QUANTITY:i.quantity,PRODUCT_PRICE:i.price,PRODUCT_WEIGHT:get('products',i.productId)?.weight||0}))};
 }
@@ -139,7 +140,7 @@ export async function shippingRoute(path,method,input,user,request=vtpRequest){
   if(config[2]==='credentials'&&method==='GET'){return {webhookToken:secret(accountSecret(a.id)).webhookToken,webhookPath:'/api/shipping/webhooks/viettelpost/'+a.id};}
   if(config[2]==='disable'&&method==='POST'){audit(user.id,'carrier_disabled',a.id);return put('shipping_accounts',{...a,active:false,status:'disconnected'},input.version);}
   if(config[2]==='inventory'&&method==='POST'){const inventories=await request(a.environment,'/v2/user/listInventory',{token:secret(accountSecret(a.id)).token,method:'GET'});return put('shipping_accounts',{...a,inventories,syncedAt:now()},input.version);}
-  if(!config[2]&&method==='PATCH'){return put('shipping_accounts',{...a,sender:sender(input.sender)},input.version);}
+  if(!config[2]&&method==='PATCH'){const preferred=input.defaultService===undefined?a.defaultService||'':String(input.defaultService).trim().toUpperCase();if(preferred&&!/^[A-Z0-9_-]{1,50}$/.test(preferred))fail('Mã dịch vụ mặc định không hợp lệ.');return put('shipping_accounts',{...a,sender:sender(input.sender),defaultService:preferred},input.version);}
  }
  const dispatch=path.match(/^\/api\/shipping\/orders\/([^/]+)\/(dispatch|quote)$/);
  if(dispatch&&method==='POST'){const o=get('orders',dispatch[1]);shippingAccess(user,o);if(dispatch[2]==='dispatch')return dispatchShipment(user,o.id,input,request);const a=account(input.accountId),p=shipmentPayload(o,get('customers',o.customerId),a,{...input,service:input.service||'VCN'});return request(a.environment,'/v2/order/getPriceAllNlp',{token:secret(accountSecret(a.id)).token,body:{SENDER_ADDRESS:p.SENDER_ADDRESS,RECEIVER_ADDRESS:p.RECEIVER_ADDRESS,PRODUCT_TYPE:p.PRODUCT_TYPE,PRODUCT_WEIGHT:p.PRODUCT_WEIGHT,PRODUCT_PRICE:p.PRODUCT_PRICE,MONEY_COLLECTION:p.MONEY_COLLECTION,PRODUCT_LENGTH:p.PRODUCT_LENGTH,PRODUCT_WIDTH:p.PRODUCT_WIDTH,PRODUCT_HEIGHT:p.PRODUCT_HEIGHT,TYPE:1}});}
