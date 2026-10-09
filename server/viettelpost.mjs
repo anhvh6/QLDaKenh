@@ -1,8 +1,8 @@
 // Public contract: https://partner2.viettelpost.vn/document/create-by-detail-address
 const hosts={production:'https://partner.viettelpost.vn',sandbox:'https://partnerdev.viettelpost.vn'};
 export async function vtpRequest(environment,path,{token,body,method='POST',fetcher=fetch,fullResponse=false,query={}}={}){
- if(!hosts[environment]||!/^\/v2\/(user|order|categories)\/[a-zA-Z0-9/-]+$/.test(path))throw Error('Địa chỉ API Viettel Post không hợp lệ.');
- const url=new URL(hosts[environment]+path);for(const [key,value] of Object.entries(query)){if(path!=='/v2/order/detail-v2'||key!=='o'||!/^[-A-Za-z0-9]{1,100}$/.test(String(value)))throw Error('Tham số API Viettel Post không hợp lệ.');url.searchParams.set(key,String(value));}
+ if(!hosts[environment]||!(/^\/v2\/(user|order|categories)\/[a-zA-Z0-9/-]+$/.test(path)||['/v3/categories/listProvinceNew','/v3/categories/listWardsNew'].includes(path)))throw Error('Địa chỉ API Viettel Post không hợp lệ.');
+ const url=new URL(hosts[environment]+path);for(const [key,value] of Object.entries(query)){const valid=path==='/v2/order/detail-v2'&&key==='o'&&/^[-A-Za-z0-9]{1,100}$/.test(String(value))||(['/v2/categories/listDistrict','/v3/categories/listWardsNew'].includes(path)&&key==='provinceId'||path==='/v2/categories/listWards'&&key==='districtId')&&/^\d{1,8}$/.test(String(value));if(!valid)throw Error('Tham số API Viettel Post không hợp lệ.');url.searchParams.set(key,String(value));}
  let response;try{response=await fetcher(url.href,{method,headers:{'Content-Type':'application/json',...(token?{Token:token}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(25000),redirect:'error'});}catch{throw Object.assign(Error('Không nhận được kết quả Viettel Post. Kiểm tra tại hãng trước khi gửi lại.'),{unknown:true});}
  let result;try{result=await response.json();}catch{throw Object.assign(Error('Viettel Post trả kết quả không đọc được.'),{unknown:true});}
  // getPriceAllNlp's documented success response has RESULT, without a status envelope.
