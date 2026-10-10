@@ -1,4 +1,4 @@
-import {contactPhones,contactAddress,latestContact} from './chat-contact-data.js';
+import {messagePhones,contactAddress,latestContact} from './chat-contact-data.js';
 import {showQuickChatOrder} from './quick-order.js';
 import {icon} from './icons.js';
 import {openForward} from './chat-forward.js';
@@ -31,7 +31,7 @@ export function enhanceMessageInteractions(){
    if(m.direction!=='note'){const ch=H.state.connections.find(c=>c.id===H.state.conversations.find(c=>c.id===id)?.connectionId),supported=ch?.mode==='demo'||ch?.provider==='zalo_personal';if(supported)tools.insertAdjacentHTML('beforeend',`<div class="message-reaction-selector"><button type="button" data-message-action="react" data-id="${esc(m.id)}" data-reaction="heart" aria-label="Gửi tim" title="Thả cảm xúc">♡</button><div class="message-reaction-palette">${Object.entries(emojis).map(([reaction,emoji])=>`<button type="button" data-message-action="react" data-id="${esc(m.id)}" data-reaction="${reaction}" aria-label="${reaction}">${emoji}</button>`).join('')}</div></div>`);}
    row.insertAdjacentHTML('afterbegin','<input type="checkbox" class="message-select-box" aria-label="Chọn tin nhắn" data-message-choice="'+esc(m.id)+'">');
   }
-  row.querySelector('.message-contact-order')?.remove();row.classList.toggle('has-contact-order',m.direction==='incoming'&&!!(contactPhones(m.text).length||contactAddress(m.text)));if(row.classList.contains('has-contact-order'))row.insertAdjacentHTML('beforeend',`<button type=button class=message-contact-order data-message-action=order data-id="${esc(m.id)}" aria-label="Tạo đơn từ thông tin khách gửi" title="Tạo đơn từ số điện thoại / địa chỉ mới nhất">${icon('bag',16)}</button>`);
+  row.querySelector('.message-contact-order')?.remove();row.classList.toggle('has-contact-order',m.direction==='incoming'&&!!(messagePhones(m).length||contactAddress(m.text)));if(row.classList.contains('has-contact-order'))row.insertAdjacentHTML('beforeend',`<button type=button class=message-contact-order data-message-action=order data-id="${esc(m.id)}" aria-label="Tạo đơn từ thông tin khách gửi" title="Tạo đơn từ số điện thoại / địa chỉ mới nhất">${icon('bag',16)}</button>`);
   row.querySelector('.message-reactions')?.remove();const reaction=row.querySelector('.message-reaction-selector');if(reaction){row.append(reaction);reaction.classList.toggle('has-reactions',!!m.reactions?.length);const trigger=reaction.querySelector(':scope > button');trigger.textContent=m.reactions?.length?[...new Set(m.reactions.map(r=>r.emoji))].join('')+(m.reactions.length>1?' '+m.reactions.length:''):'♡';}
  }
  selectionBar();tick();

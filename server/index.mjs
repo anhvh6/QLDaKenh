@@ -1,4 +1,5 @@
 import {quickReplyRoute} from './quick-replies.mjs';
+import {refreshLearnerStatuses} from './learner-status-sync.mjs';
 import {consultationTick} from './consultation-review.mjs';
 import {reminderTick} from './chat-reminders.mjs';
 import {shippingRoute,shippingState,receiveVtpWebhook,carrierOrdersState,importVtpOrder} from './shipping.mjs';
@@ -66,6 +67,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  const genericObject=path.match(/^\/api\/records\/(customers|contents)\/([^/]+)$/);if(genericObject){const r=get(genericObject[1],genericObject[2]);if(r){if(genericObject[1]==='customers')care.assertCustomer(user,r.id);else for(const id of r.channels||[])care.assertChannel(user,id);}}
 
  if(path==='/api/state'&&method==='GET'){
+  await refreshLearnerStatuses();
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
   const learnerFacts=new Map(all('learner_source_facts').map(f=>[f.id,f]));state.customers=state.customers.map(c=>{const f=learnerFacts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
   filterDeletedChats(state);
