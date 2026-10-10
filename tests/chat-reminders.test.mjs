@@ -8,7 +8,7 @@ put('connections',{id:'z',provider:'zalo_personal',mode:'api'});put('customers',
 const c=put('conversations',{id:'c',connectionId:'z',customerId:'p',externalUserId:'123',threadType:0});
 test('creates native reminder once and durable system notification once',async()=>{
  const due=Date.now()+60000;let calls=0;const r=await createChatReminder(owner,c,{title:'Nhắc tư vấn',dueAt:new Date(due).toISOString(),platform:true},async(id,thread,type,title,time)=>{calls++;assert.equal(thread,'123');assert.equal(time,due);return{id:'native'};});
- assert.equal(calls,1);assert.equal(r.platformStatus,'created');assert.equal(reminderTick(due-1),0);assert.equal(reminderTick(due),1);assert.equal(reminderTick(due+1),0);assert.equal(get('notifications','chat-reminder:'+r.id).recipientId,'owner');assert.ok(get('chat_reminders',r.id).alertedAt);
+ assert.equal(get('customers','p').learnerProgress.stage,'APPOINTMENT');assert.equal(get('customers','p').learnerProgress.manualOverride,true);assert.equal(calls,1);assert.equal(r.platformStatus,'created');assert.equal(reminderTick(due-1),0);assert.equal(reminderTick(due),1);assert.equal(reminderTick(due+1),0);assert.equal(get('notifications','chat-reminder:'+r.id).recipientId,'owner');assert.ok(get('chat_reminders',r.id).alertedAt);
 });
 test('platform failure keeps internal reminder; unsupported channel never invokes native provider',async()=>{
  const input={title:'Nhắc QA',dueAt:new Date(Date.now()+120000).toISOString(),platform:true};const r=await createChatReminder(owner,c,input,async()=>{throw Error('offline');});assert.equal(r.platformStatus,'failed');assert.equal(r.status,'pending');

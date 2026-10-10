@@ -13,6 +13,7 @@ export async function createChatReminder(user,c,input,platform=createNativeRemin
   if(ch?.provider!=='zalo_personal'||ch.mode!=='api'||!c.externalUserId)r=put('chat_reminders',{...r,platformStatus:'unsupported',platformError:'Kênh này chưa hỗ trợ nhắc hẹn trên nền tảng; đã lưu nhắc trong hệ thống.'});
   else try{const result=await platform(c.connectionId,c.externalUserId,c.threadType,title,due);if(!result?.id&&!result?.reminderId)throw new Error('Zalo không trả mã lịch hẹn. Chưa xác nhận lịch đã tạo; kiểm tra trên Zalo trước khi thử lại.');r=put('chat_reminders',{...r,platformStatus:'created',platformId:String(result?.id||result?.reminderId||'')});}catch(error){r=put('chat_reminders',{...r,platformStatus:'failed',platformError:platformFailure(error),platformErrorCode:error?.code??null});}
  }
+ const customer=get('customers',c.customerId);if(customer&&c.threadType!==1)transaction(()=>{const latest=get('customers',c.customerId);put('customers',{...latest,learnerProgress:{...latest.learnerProgress,stage:'APPOINTMENT',appointmentAt:r.dueAt,source:'reminder',manualOverride:true,updatedAt:now(),updatedBy:user.id}},latest.version);put('journey_events',{customerId:latest.id,from:latest.learnerProgress?.stage||'NEW',to:'APPOINTMENT',actor:user.id,source:'chat_reminder',reminderId:r.id});});
  audit(user.id,'chat_reminder_created',r.id,{platformStatus:r.platformStatus});return r;
 }
 export function reminderTick(time=Date.now()){

@@ -33,6 +33,8 @@ export function enhanceMessageInteractions(){
  selectionBar();tick();
 }
 export function initMessageInteractions(host){H=host;setInterval(tick,1000);
+ const placePalette=event=>{const selector=event.target.closest?.('.message-reaction-selector');if(!selector)return;const palette=selector.querySelector('.message-reaction-palette'),viewport=selector.closest('.chat-messages');if(!palette||!viewport)return;palette.style.transform='';const box=palette.getBoundingClientRect(),bounds=viewport.getBoundingClientRect(),shift=box.left<bounds.left+8?bounds.left+8-box.left:box.right>bounds.right-8?bounds.right-8-box.right:0;palette.style.transform=`translateX(${shift}px)`;};
+ document.addEventListener('pointerover',placePalette);document.addEventListener('focusin',placePalette);
  document.addEventListener('input',event=>{if(event.target.matches('#reply-form textarea')){if(form().elements.note.checked)return;const id=form().dataset.id;if(typingId&&typingId!==id)stopTyping();typingId=id;lastInput=Date.now();paintTyping(typingPeers);if(!lastPost||Date.now()-lastPost>1500)tick();}});
  document.addEventListener('focusout',event=>{if(event.target.matches('#reply-form textarea'))stopTyping();});
  document.addEventListener('submit',event=>{if(event.target.id==='reply-form')stopTyping();},true);document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')stopTyping();});window.addEventListener('pagehide',stopTyping);
