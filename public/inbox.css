@@ -105,3 +105,12 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 .forward-target .avatar{width:36px;height:36px;flex:none;overflow:hidden}.forward-target img{width:100%;height:100%;object-fit:cover}
 .forward-target small{display:block;color:var(--muted);font-size:11px}.forward-count{font-size:12px;margin:12px 0}.forward-result{font-size:12px;max-height:160px;overflow:auto}
 .message-tools>.message-more{background:transparent;border:0;box-shadow:none;border-radius:0;padding:0;margin:0}
+.bubble-wrap>.message-reaction-selector{position:absolute;top:calc(100% - 5px);right:0;left:auto;z-index:21;display:none}
+.bubble-wrap.outgoing>.message-reaction-selector{left:0;right:auto}
+.bubble-wrap:hover>.message-reaction-selector,.bubble-wrap:focus-within>.message-reaction-selector,.bubble-wrap.message-revealed>.message-reaction-selector,.bubble-wrap>.message-reaction-selector.has-reactions{display:block}
+.bubble-wrap>.message-reaction-selector>button{padding:1px 6px;background:white!important;border-radius:14px;line-height:20px;font-size:14px;color:#5b7a69;cursor:pointer}
+.bubble-wrap>.message-reaction-selector .message-reaction-palette{top:auto;bottom:100%;right:0;left:auto}
+.bubble-wrap .message-info{padding-right:32px}
+.learner-relations{display:grid;gap:5px;max-height:360px;overflow:auto}
+.learner-relation{display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:0;padding:7px;cursor:pointer;border-radius:7px;font:inherit}
+.learner-relation:hover{background:#eef4eb}.learner-relation .avatar{width:34px;height:34px;flex:none;overflow:hidden}.learner-relation img{width:100%;height:100%;object-fit:cover}.learner-relation small{display:block;color:#7b867e;font-size:11px;margin-top:3px}

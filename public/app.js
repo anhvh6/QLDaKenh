@@ -353,7 +353,7 @@ setInterval(async()=>{if(!S||document.body.dataset.mediaUploading||$('.modal')||
 initPlans({get state(){return S;},api,refresh,render,modal,closeModal,toast,navigate,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});
 initDeviceNotifications({getS:()=>S,api,toast,openSettings:()=>{closeModal();filter='notifications';route='settings';history.replaceState(null,'','#settings');document.body.classList.remove('menu-open');render();}});
 initConversationTags({get state(){return S;},api,refresh,render,modal,closeModal,toast});
-initCare({get state(){return S;},api,refresh,refreshInbox,render,modal,closeModal,toast});
+initCare({get state(){return S;},api,refresh,refreshInbox,render,modal,closeModal,toast,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});
 initProductsManagement({get state(){return S;},render});
 initShipping({get state(){return S;},route:()=>route,api,refresh,render,modal,closeModal,toast});
 const loadInbox=initInbox({get state(){return S;},route:()=>route,api,refresh,render,modal,closeModal,toast,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});

@@ -1,0 +1,15 @@
+import {all,get,put,transaction} from './store.mjs';
+import {permission,fail} from './domain.mjs';
+import {assertChannel} from './taophacdo.mjs';
+import {progressFor} from '../public/learner-progress.js';
+const readable=(user,c)=>{try{assertChannel(user,c.connectionId);return !c.deletedAt&&!c.groupUnavailable;}catch{return false;}};
+export function commonGroups(user,customerId){
+ const rows=all('conversations').filter(c=>readable(user,c)),contacts=rows.filter(c=>c.customerId===customerId&&c.threadType!==1&&c.externalUserId);
+ const groups=rows.filter(c=>c.threadType===1&&contacts.some(p=>p.connectionId===c.connectionId&&((p.commonGroupIds||[]).includes(String(c.externalUserId))||(c.group?.memberIds||[]).map(String).includes(String(p.externalUserId))||(c.group?.members||[]).some(m=>String(m.id)===String(p.externalUserId)))));
+ return groups.map(c=>({id:c.id,name:(c.localGroupName?c.title:c.group?.name||c.title)||(c.customerId?get('customers',c.customerId):null)?.name||'Nhóm',avatar:c.group?.avatar||(c.customerId?get('customers',c.customerId):null)?.zaloAvatar||'',memberCount:c.group?.memberCount||c.group?.members?.length||0}));
+}
+export function groupMembers(user,id){permission(user,'inbox');const c=get('conversations',id);if(!c||c.threadType!==1||!readable(user,c))fail('Không có quyền xem nhóm này.',403);
+ const contacts=all('conversations').filter(p=>p.connectionId===c.connectionId&&p.threadType!==1&&!p.deletedAt),state={journeys:all('journeys'),orders:all('orders'),chatPlanSummaries:all('study_plans').map(p=>({customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:p.customer?.status}))};
+ return {conversationId:c.id,name:(c.localGroupName?c.title:c.group?.name||c.title)||(c.customerId?get('customers',c.customerId):null)?.name||'Nhóm',memberCount:c.group?.memberCount||c.group?.members?.length||0,needsSync:!c.group?.members?.length||!!c.groupNeedsSync,members:(c.group?.members||[]).map(m=>{const contact=contacts.find(p=>String(p.externalUserId)===String(m.id)),p=contact&&get('customers',contact.customerId);return {id:String(m.id),name:p?.name||m.name||String(m.id),avatar:p?.zaloAvatar||p?.avatar||m.avatar||'',conversationId:contact?.id||'',customerId:p?.id||'',stage:p?progressFor(state,p).stage:'NEW'};})};
+}
+export function relationshipsRoute(path,method,input,user){const m=path.match(/^\/api\/care\/conversations\/([^/]+)\/relationships(?:\/(open-member))?$/);if(!m)return;const data=groupMembers(user,m[1]);if(!m[2]&&method==='GET')return data;if(m[2]&&method==='POST'){const member=data.members.find(p=>p.id===String(input.memberId));if(!member)fail('Thành viên chưa có trong danh sách nhóm.');if(member.conversationId)return get('conversations',member.conversationId);return transaction(()=>{const c=get('conversations',m[1]),p=put('customers',{name:member.name,zaloAvatar:member.avatar,origin:'zalo',tags:[]});return put('conversations',{customerId:p.id,connectionId:c.connectionId,externalUserId:member.id,threadType:0,kind:'message',status:'open',tags:[],mode:c.mode||'api',unread:false,lastAt:'1970-01-01T00:00:00.000Z',lastMessage:''});});}}

@@ -174,3 +174,9 @@ export async function sendMessageReaction(id,thread,type,msgId,cliMsgId,reaction
 const stickerJobs=new Map();function queueStickerHydration(id,api){if(stickerJobs.has(id))return;const timer=setTimeout(()=>{const job=hydrateZaloStickers(id,api,{all,get,put}).catch(()=>state(id,{stickerError:'Chưa tải được một số sticker; bấm Đồng bộ để thử lại.'})).finally(()=>stickerJobs.delete(id));stickerJobs.set(id,job);},300);timer.unref?.();stickerJobs.set(id,timer);}
 
 export async function readContactCard(id,userId,fallback){const r=instances.get(id);return contactCardDetails(r?.ready?r.api:{},userId,fallback);}
+export async function syncCommonGroups(id,thread){
+ const r=instances.get(id);if(!r?.ready)throw Error('Zalo chưa sẵn sàng để đọc nhóm chung.');
+ const response=await r.api.getRelatedFriendGroup(thread),ids=response.groupRelateds?.[thread];if(!Array.isArray(ids))throw Error('Zalo chưa trả danh sách nhóm chung.');
+ if(ids.length){const info=await r.api.getGroupInfo(ids);for(const uid of ids){const g=info.gridInfoMap?.[uid];if(!g)continue;const c=conversation(id,String(uid),1,g.name);put('conversations',{...c,title:c.localGroupName?c.title:g.name,group:{...c.group,name:g.name,memberCount:g.totalMember,memberIds:[...new Set([...(g.memberIds||[]),...(g.memVerList||[]).map(v=>v.split('_')[0])])]},groupNeedsSync:!c.group?.members?.length});}}
+ const contact=all('conversations').find(c=>c.connectionId===id&&c.threadType!==1&&String(c.externalUserId)===String(thread));if(contact)put('conversations',{...contact,commonGroupIds:ids.map(String),commonGroupsSyncedAt:now()});return ids;
+}

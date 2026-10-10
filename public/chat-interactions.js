@@ -28,7 +28,7 @@ export function enhanceMessageInteractions(){
    if(m.direction!=='note'){const ch=H.state.connections.find(c=>c.id===H.state.conversations.find(c=>c.id===id)?.connectionId),supported=ch?.mode==='demo'||ch?.provider==='zalo_personal';if(supported)tools.insertAdjacentHTML('beforeend',`<div class="message-reaction-selector"><button type="button" data-message-action="react" data-id="${esc(m.id)}" data-reaction="heart" aria-label="Gửi tim" title="Thả cảm xúc">♡</button><div class="message-reaction-palette">${Object.entries(emojis).map(([reaction,emoji])=>`<button type="button" data-message-action="react" data-id="${esc(m.id)}" data-reaction="${reaction}" aria-label="${reaction}">${emoji}</button>`).join('')}</div></div>`);}
    row.insertAdjacentHTML('afterbegin','<input type="checkbox" class="message-select-box" aria-label="Chọn tin nhắn" data-message-choice="'+esc(m.id)+'">');
   }
-  row.querySelector('.message-reactions')?.remove();if(m.reactions?.length)row.insertAdjacentHTML('beforeend','<div class="message-reactions">'+[...new Set(m.reactions.map(r=>r.emoji))].map(emoji=>'<span>'+esc(emoji)+' '+m.reactions.filter(r=>r.emoji===emoji).length+'</span>').join('')+'</div>');
+  row.querySelector('.message-reactions')?.remove();const reaction=row.querySelector('.message-reaction-selector');if(reaction){row.append(reaction);reaction.classList.toggle('has-reactions',!!m.reactions?.length);const trigger=reaction.querySelector(':scope > button');trigger.textContent=m.reactions?.length?[...new Set(m.reactions.map(r=>r.emoji))].join('')+(m.reactions.length>1?' '+m.reactions.length:''):'♡';}
  }
  selectionBar();tick();
 }
