@@ -1,3 +1,4 @@
+import {consultationTick} from './consultation-review.mjs';
 import {reminderTick} from './chat-reminders.mjs';
 import {shippingRoute,shippingState,receiveVtpWebhook,carrierOrdersState,importVtpOrder} from './shipping.mjs';
 import {interactionRoute} from './chat-interactions.mjs';
@@ -63,11 +64,12 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
+  const learnerFacts=new Map(all('learner_source_facts').map(f=>[f.id,f]));state.customers=state.customers.map(c=>{const f=learnerFacts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
   filterDeletedChats(state);
   Object.assign(state,botState(user,state));
   state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a,state.messages,state.publications)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
-  state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,o)};});
+  state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,link:p.customer?.link,status:studyPlanStatus(p,o)};});
   state.savedPlanSummaries=all('study_plans').map(p=>({id:p.id,customerId:p.customerId,handoffId:p.handoffId||'draft:'+p.customerId,name:p.customer?.customer_name||get('customers',p.customerId)?.name||'Học viên',phone:p.customer?.sdt||'',startDate:p.customer?.start_date,endDate:p.customer?.end_date,durationDays:p.customer?.duration_days||0,group:p.customer?.ma_vd||'',amount:Number(p.customer?.gia_tien||0),updatedAt:p.updatedAt,version:p.version,status:studyPlanStatus(p,get('orders',p.lastOrderId))})).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
   if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
@@ -173,5 +175,5 @@ recoverBotJobs();setInterval(()=>botTick().catch(e=>console.error('Chatbot:',e.m
 server.listen(port,host,()=>console.log(`Mộc Hub: http://${host==='0.0.0.0'?'localhost':host}:${port}\nDatabase: ${join(dataDir,'hub.sqlite')}`));
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>{db.close();process.exit(0);}));
 
-setInterval(()=>{try{reminderTick();}catch(error){console.error('Reminder tick:',error.message);}},10000).unref();
+setInterval(()=>{try{reminderTick();consultationTick();}catch(error){console.error('Reminder tick:',error.message);}},10000).unref();
 setInterval(()=>pushTick().catch(error=>console.error('Push tick:',error.message)),5000).unref();

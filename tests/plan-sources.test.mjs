@@ -13,7 +13,7 @@ test('remote plans appear without importing customers; source details exclude id
  const fetchBefore=globalThis.fetch;const owner={id:'owner',role:'owner'},staff={id:'staff',role:'support'};
  put('customers',{id:'target',name:'Target',createdBy:'staff'});
  globalThis.fetch=async url=>{const u=new URL(url),table=u.pathname.split('/').pop(),selection=u.searchParams.get('select');let data=[];
-  if(table==='customers')data=selection.includes('note')?[{note:'Source note',chewing_status:'Source chewing',sidebar_blocks_json:[]}]:[{customer_id:'REMOTE-1',customer_name:'Remote student',sdt:'',is_customized:true,token:'never-return',link:'https://example.test/private'}];
+  if(table==='customers')data=selection.startsWith('note,')?[{note:'Source note',chewing_status:'Source chewing',sidebar_blocks_json:[]}]:[{customer_id:'REMOTE-1',customer_name:'Remote student',sdt:'',is_customized:true,token:'never-return',link:'https://example.test/private'}];
   if(table==='customer_tasks')data=[{id:'task',day:1,title:'Source exercise'},{id:'deleted',day:2,is_deleted:true}];
   return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
  };

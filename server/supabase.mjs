@@ -4,7 +4,7 @@ import { fail,required } from './domain.mjs';
 
 // Explicit projections exclude learner tokens, device credentials and clinical notes.
 export const projections={
- customers:'id,customer_id,customer_name,sdt,email,dia_chi,san_pham,gia_tien,trang_thai_gan,trang_thai,ma_vd,start_date,end_date,duration_days,video_date,status,is_customized,created_at,updated_at',
+ customers:'id,customer_id,customer_name,sdt,email,dia_chi,is_deposit,deposit_amount,is_consultation,san_pham,gia_tien,trang_thai_gan,trang_thai,ma_vd,start_date,end_date,duration_days,video_date,status,is_customized,created_at,updated_at',
  products:'id,id_sp,ten_sp,gia_nhap,gia_ban,trang_thai,created_at,updated_at',
  courses:'id,name,description,fee,duration,status,created_at',
  master_video_tasks:'id,video_date,day,type,title,detail,nhom,sort_order',
@@ -38,7 +38,7 @@ export async function readPlanCatalog(){
 }
 export async function readPlanProfile(customerId){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;const rows=await remote(config(),'/rest/v1/customers?select=note,chewing_status,sidebar_blocks_json,app_title,app_slogan&customer_id=eq.'+encodeURIComponent(customerId)+'&limit=1');return rows[0]||null;}
 // Learner links are returned only by the scoped profile route, never the global state.
-const learnerColumns='customer_id,customer_name,sdt,email,dia_chi,start_date,end_date,duration_days,require_google_auth,require_device_limit,link,updated_at,san_pham,gia_tien,is_customized,video_date,ma_vd,status';
+const learnerColumns='customer_id,customer_name,sdt,email,dia_chi,note,is_deposit,deposit_amount,is_consultation,trang_thai,start_date,end_date,duration_days,require_google_auth,require_device_limit,link,updated_at,san_pham,gia_tien,is_customized,video_date,ma_vd,status';
 export async function readLearner(customerId){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;return (await remote(config(),'/rest/v1/customers?select='+learnerColumns+'&customer_id=eq.'+encodeURIComponent(customerId)+'&limit=1'))[0]||null;}
 export async function writeLearner(customerId,updatedAt,patch){if(!updatedAt)fail('Hồ sơ nguồn chưa có phiên bản cập nhật.',409);const allowed=['sdt','email','dia_chi','start_date','end_date','duration_days','require_google_auth','require_device_limit','san_pham','gia_tien','is_customized','video_date','ma_vd'];const body=Object.fromEntries(Object.entries(patch).filter(([k])=>allowed.includes(k)));body.updated_at=now();const rows=await remote(config(),'/rest/v1/customers?select='+learnerColumns+'&customer_id=eq.'+encodeURIComponent(customerId)+'&updated_at=eq.'+encodeURIComponent(updatedAt),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(body)});if(!rows?.length)fail('Phác đồ đã thay đổi. Mở lại hồ sơ để cập nhật.',409);return rows[0];}
 export async function readLearnerActivity(customerId,custom=false){if(process.env.PLAN_REMOTE_CATALOG==='0')return {attendance:[],tasks:[]};async function rows(table,columns){const out=[];for(let offset=0;offset<20000;offset+=500){const batch=await remote(config(),'/rest/v1/'+table+'?select='+columns+'&customer_id=eq.'+encodeURIComponent(customerId)+'&order=id.asc&offset='+offset+'&limit=500');out.push(...batch);if(batch.length<500)return out;}fail('Lịch sử quá lớn.');}const [attendance,tasks]=await Promise.all([rows('attendance_logs','id,access_date,created_at'),custom?rows('customer_tasks','id,day,type,title,detail,link,nhom,sort_order,is_deleted'):[]]);return {attendance,tasks};}

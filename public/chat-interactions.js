@@ -1,3 +1,6 @@
+import {contactPhones,contactAddress,latestContact} from './chat-contact-data.js';
+import {showQuickChatOrder} from './quick-order.js';
+import {icon} from './icons.js';
 import {openForward} from './chat-forward.js';
 let typingPeers=[];
 let H,typingId='',lastInput=0,lastPost=0,polled=false,selectionConversation='',selected=new Set(),selecting=false;
@@ -28,6 +31,7 @@ export function enhanceMessageInteractions(){
    if(m.direction!=='note'){const ch=H.state.connections.find(c=>c.id===H.state.conversations.find(c=>c.id===id)?.connectionId),supported=ch?.mode==='demo'||ch?.provider==='zalo_personal';if(supported)tools.insertAdjacentHTML('beforeend',`<div class="message-reaction-selector"><button type="button" data-message-action="react" data-id="${esc(m.id)}" data-reaction="heart" aria-label="Gửi tim" title="Thả cảm xúc">♡</button><div class="message-reaction-palette">${Object.entries(emojis).map(([reaction,emoji])=>`<button type="button" data-message-action="react" data-id="${esc(m.id)}" data-reaction="${reaction}" aria-label="${reaction}">${emoji}</button>`).join('')}</div></div>`);}
    row.insertAdjacentHTML('afterbegin','<input type="checkbox" class="message-select-box" aria-label="Chọn tin nhắn" data-message-choice="'+esc(m.id)+'">');
   }
+  row.querySelector('.message-contact-order')?.remove();row.classList.toggle('has-contact-order',m.direction==='incoming'&&!!(contactPhones(m.text).length||contactAddress(m.text)));if(row.classList.contains('has-contact-order'))row.insertAdjacentHTML('beforeend',`<button type=button class=message-contact-order data-message-action=order data-id="${esc(m.id)}" aria-label="Tạo đơn từ thông tin khách gửi" title="Tạo đơn từ số điện thoại / địa chỉ mới nhất">${icon('bag',16)}</button>`);
   row.querySelector('.message-reactions')?.remove();const reaction=row.querySelector('.message-reaction-selector');if(reaction){row.append(reaction);reaction.classList.toggle('has-reactions',!!m.reactions?.length);const trigger=reaction.querySelector(':scope > button');trigger.textContent=m.reactions?.length?[...new Set(m.reactions.map(r=>r.emoji))].join('')+(m.reactions.length>1?' '+m.reactions.length:''):'♡';}
  }
  selectionBar();tick();
@@ -41,6 +45,7 @@ export function initMessageInteractions(host){H=host;setInterval(tick,1000);
  document.addEventListener('click',async event=>{
   const bubble=event.target.closest('.bubble');if(bubble){const row=bubble.closest('[data-message]');document.querySelectorAll('.message-revealed').forEach(n=>{if(n!==row)n.classList.remove('message-revealed');});row.classList.add('message-revealed');setTimeout(()=>row.classList.remove('message-revealed'),5000);}
   const button=event.target.closest('[data-message-action]');if(!button)return;const action=button.dataset.messageAction,id=button.dataset.id;try{
+   if(action==='order'){let c=H.state.conversations.find(c=>c.id===form().dataset.id),m=H.state.messages.find(m=>m.id===id);const info=latestContact(H.state.messages.filter(m=>m.conversationId===c.id),{senderId:c.threadType===1?m.senderId:undefined});if(c.threadType===1){if(!m.senderId)throw Error('Tin nhắn chưa có mã thành viên để mở đơn hàng.');c=await H.api('/care/conversations/'+c.id+'/relationships/open-member',{method:'POST',body:{memberId:m.senderId}});await H.refresh(false);}await showQuickChatOrder(H,c,info);return;}
    if(action==='react'){button.disabled=true;const m=await H.api('/chat/messages/'+id+'/reaction',{method:'POST',body:{reaction:button.dataset.reaction}});Object.assign(H.state.messages.find(m=>m.id===id),m);enhanceMessageInteractions();H.toast('Đã gửi cảm xúc');}
    if(action==='select'){selecting=true;selected.add(id);enhanceMessageInteractions();}
    if(action==='select-all'){for(const row of document.querySelectorAll('[data-message]:not([hidden])'))if(selected.size<100)selected.add(row.dataset.message);selectionBar();}
