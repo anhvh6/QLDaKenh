@@ -8,5 +8,5 @@ export function topicGroups(S,conversationId){
   used.add(topics.some(p=>p.id===id)?id:'');
  }
  const numbered=templates.map((t,index)=>({...t,number:Number.isInteger(t.quickReplyIndex)?t.quickReplyIndex:(t.sortOrder??index+1)-1})).filter(t=>t.enabled!==false);
- return [...topics,{id:'',name:'Khác',color:'#64786c'}].map(topic=>({...topic,used:used.has(topic.id),rows:numbered.filter(t=>topicId(t)===topic.id)})).filter(t=>t.rows.length).sort((a,b)=>Number(a.used)-Number(b.used));
+ return [...topics,{id:'',name:'Khác',color:'#64786c',sortOrder:Math.max(0,...topics.map(t=>Number(t.sortOrder)||0))+1}].map(topic=>({...topic,used:used.has(topic.id),rows:numbered.filter(t=>topicId(t)===topic.id)})).filter(t=>t.rows.length).sort((a,b)=>Number(a.used)-Number(b.used));
 }
