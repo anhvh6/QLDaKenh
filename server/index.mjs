@@ -12,10 +12,12 @@ import {filterDeletedChats} from './chat-delete.mjs';
 import {learnerRoute} from './learner-profile.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {botRoute,botTick,botState,recoverBotJobs} from './chatbot.mjs';
-import {mediaRoute,usageFor} from './media.mjs';
+import {mediaRoute} from './media.mjs';
+import {mediaUsage} from './media-usage.mjs';
 import {defaultNameSettings} from '../public/chat-names.js';
 import {chatRoute} from './chat.mjs';
 import http from 'node:http';
+import {sendJSON} from './http-json.mjs';
 import { readFileSync,createReadStream,createWriteStream,existsSync,statSync,unlinkSync,readdirSync } from 'node:fs';
 import { join,resolve,extname,basename,sep } from 'node:path';
 import { randomBytes,scryptSync,timingSafeEqual,createHash,createHmac } from 'node:crypto';
@@ -39,7 +41,7 @@ const port=Number(process.env.PORT||4317);const host=process.env.HOST||(process.
 const hashPassword=(p,salt=randomBytes(16).toString('hex'))=>`${salt}:${scryptSync(p,salt,64).toString('hex')}`;
 const verify=(p,hash)=>{const [salt,h]=hash.split(':');return timingSafeEqual(Buffer.from(hashPassword(p,salt).split(':')[1],'hex'),Buffer.from(h,'hex'));};
 const sha=s=>createHash('sha256').update(s).digest('hex');
-function json(res,data,status=200){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));}
+const json=sendJSON;
 async function body(req,limit=2e6){let n=0;const chunks=[];for await(const b of req){n+=b.length;if(n>limit)domain.fail('Dữ liệu quá lớn.',413);chunks.push(b);}const raw=Buffer.concat(chunks);try{return {raw,value:raw.length?JSON.parse(raw):{}};}catch{domain.fail('JSON không hợp lệ.');}}
 function userFor(req){const token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hub_session='))?.slice(12);if(!token)return null;const s=db.prepare('SELECT u.id,u.email,u.name,u.role,s.csrf FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1').get(sha(token),Date.now());return s||null;}
 function login(res,user){const token=randomBytes(32).toString('hex');const csrf=randomBytes(24).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(sha(token),user.id,csrf,Date.now()+7*86400000);res.setHeader('Set-Cookie',`hub_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800`);return {...user,csrf,password:undefined};}
@@ -75,7 +77,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   state.messages=state.messages.map(m=>{if(!m.quoteSource||!isTypeCode(m.text)&&!/video|voice|audio/i.test(m.messageType||''))return m;const content=parseZaloContent(m.quoteSource);return {...m,...content,attachments:content.attachments?.length?content.attachments:m.attachments||[]};});state.conversations=state.conversations.map(c=>isTypeCode(c.lastMessage)?{...c,lastMessage:/video/i.test(c.lastMessage)?'Video':/voice|audio/i.test(c.lastMessage)?'Tin nhắn thoại':/photo|image/i.test(c.lastMessage)?'Ảnh':'Tệp đính kèm'}:c);
   filterDeletedChats(state);
   Object.assign(state,botState(user,state));
-  state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a,state.messages,state.publications)}));
+  state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];const assetUsage=mediaUsage(state.assets,state.messages,state.publications);state.assets=state.assets.map(a=>({...a,usage:assetUsage.get(a.id)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
   state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,link:p.customer?.link,status:studyPlanStatus(p,o)};});
   state.savedPlanSummaries=all('study_plans').map(p=>({id:p.id,customerId:p.customerId,handoffId:p.handoffId||'draft:'+p.customerId,name:p.customer?.customer_name||get('customers',p.customerId)?.name||'Học viên',phone:p.customer?.sdt||'',startDate:p.customer?.start_date,endDate:p.customer?.end_date,durationDays:p.customer?.duration_days||0,group:p.customer?.ma_vd||'',amount:Number(p.customer?.gia_tien||0),updatedAt:p.updatedAt,version:p.version,status:studyPlanStatus(p,get('orders',p.lastOrderId))})).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));

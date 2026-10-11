@@ -46,7 +46,7 @@ async function refresh(renderNow=true){S=await api('/state');$('#care-updates')?
 let updatingInbox=false;
 async function refreshInbox(){
  if(updatingInbox||inboxInteractionActive())return;updatingInbox=true;const previousRoute=route;
- try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute||inboxInteractionActive())return;
+ try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute||inboxInteractionActive())return;if(JSON.stringify(next)===JSON.stringify(S))return;
  const form=$('#reply-form'),active=document.activeElement;
  if($('.modal-backdrop')||active?.closest('[data-care-form="inline-order"]'))return;
  if(!form){S=next;render();return;}const values=[...form.elements].map(el=>({name:el.name,value:el.value,checked:el.checked}));

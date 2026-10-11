@@ -1,3 +1,4 @@
+import {deletedLearner} from './learner-progress.js';
 export const nameConditions={manual:'Gán thủ công cho khách',zalo_not_friend:'Chưa kết bạn Zalo',zalo_friend:'Đã kết bạn Zalo',deposit:'Đã cọc tiền (chưa thu đủ)',no_plan:'Chưa có phác đồ',plan_active:'Phác đồ còn hiệu lực',plan_expiring:'Phác đồ sắp hết hạn',plan_expired:'Phác đồ đã hết hạn',tag:'Có nhãn hội thoại'};
 export const defaultNameSettings={id:'chat-names',version:0,expiringDays:7,rules:[
  {id:'expired',label:'Phác đồ đã hết hạn',condition:'plan_expired',color:'#B42318',enabled:true},
@@ -13,7 +14,7 @@ export function nameStatuses(S,c,config=S.chatNameSettings||defaultNameSettings,
  if(c.threadType===1)return [];
  const p=S.customers.find(p=>p.id===c.customerId)||{},ch=S.connections.find(ch=>ch.id===c.connectionId),j=(S.journeys||[]).find(j=>j.customerId===p.id);
  const plan=(S.chatPlanSummaries||[]).find(r=>r.customerId===p.id),saved=(S.plan_handoffs||[]).some(h=>h.customerId===p.id&&h.status==='saved_local');
- const hasPlan=!!plan||saved||!!(p.origin==='taophacdo'&&(p.video_date||p.is_customized));
+ const hasPlan=!deletedLearner(p)&&!deletedLearner(plan)&&(!!plan||saved||!!(p.origin==='taophacdo'&&(p.video_date||p.is_customized)));
  const start=plan?.startDate||j?.startDate||p.start_date,end=plan?.endDate||j?.endDate||p.end_date;
  const endTime=end?Date.parse(end+'T23:59:59.999+07:00'):NaN,startTime=start?Date.parse(start+'T00:00:00+07:00'):-Infinity;
  const valid=hasPlan&&(!plan?.status||!['INACTIVE','CANCELLED','REVOKED'].includes(String(plan.status).toUpperCase()));
