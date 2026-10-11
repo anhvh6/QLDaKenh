@@ -1,3 +1,5 @@
+import {parseZaloContent} from './zalo-message-content.mjs';
+import {isTypeCode} from '../public/chat-media-content.js';
 import {quickReplyRoute} from './quick-replies.mjs';
 import {refreshLearnerStatuses} from './learner-status-sync.mjs';
 import {consultationTick} from './consultation-review.mjs';
@@ -70,6 +72,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   await refreshLearnerStatuses();
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
   const learnerFacts=new Map(all('learner_source_facts').map(f=>[f.id,f]));state.customers=state.customers.map(c=>{const f=learnerFacts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
+  state.messages=state.messages.map(m=>{if(!m.quoteSource||!isTypeCode(m.text)&&!/video|voice|audio/i.test(m.messageType||''))return m;const content=parseZaloContent(m.quoteSource);return {...m,...content,attachments:content.attachments?.length?content.attachments:m.attachments||[]};});state.conversations=state.conversations.map(c=>isTypeCode(c.lastMessage)?{...c,lastMessage:/video/i.test(c.lastMessage)?'Video':/voice|audio/i.test(c.lastMessage)?'Tin nhắn thoại':/photo|image/i.test(c.lastMessage)?'Ảnh':'Tệp đính kèm'}:c);
   filterDeletedChats(state);
   Object.assign(state,botState(user,state));
   state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];state.assets=state.assets.map(a=>({...a,usage:usageFor(a,state.messages,state.publications)}));

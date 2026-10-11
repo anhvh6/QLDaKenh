@@ -1,4 +1,5 @@
 const paths={
+ tag:'M3 3h8l10 10-8 8L3 11z M7 7h.01',
  grid:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
  calendar:'M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2 M7 14h2 M12 14h2 M17 14h1 M7 18h2 M12 18h2',
  edit:'M12 20H4V4h10 M16 3l5 5-10 10-5 1 1-5z',

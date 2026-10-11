@@ -1,3 +1,4 @@
+import {enhanceTopicMenus} from './chat-topic-menus.js';
 import {previewQuickReply,topicPill} from './quick-replies.js';
 import {groupLearner} from './group-learner.js';
 import {initConsultationReview,enhanceConsultationReview} from './consultation-review.js';
@@ -16,7 +17,7 @@ import {defaultFilters,filterThreads,assignedIds,normalize,safeLink} from './inb
 let H,F=structuredClone(defaultFilters),selected=new Set(),selectionMode=false,searchIn='',lastConv='',mediaTab='all',threadLimit=150,totalThreads=0,listQuery='';
 const mentionStaff=new Map();let jumpTarget='',jumpUntil=0;const drafts=new Map();const uploading=new Set();let skipCapture=false;let openMenus=[];
 let pendingDelete=[],threadHolding=false;
-export const inboxInteractionActive=()=>threadHolding||Boolean(document.querySelector('.message-tools:hover,.message-tools:focus-within,.message-more[open]'));
+export const inboxInteractionActive=()=>threadHolding||Boolean(document.querySelector('.message-tools:hover,.message-tools:focus-within,.message-more[open],.chat-topic-menu:hover,.chat-topic-menu:focus-within,.chat-header-tags:hover,.chat-header-tags:focus-within'));
 function initSendHold(){
  let hold=null,suppressUntil=0;
  const cancel=()=>{if(hold)clearTimeout(hold.timer);hold=null;threadHolding=false;};
@@ -144,7 +145,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of
  if(c.threadType===1){head.querySelector('.row small').textContent=(S.connections.find(x=>x.id===c.connectionId)?.name||'')+' · Hội thoại nhóm';}if(c.threadType===1)head.querySelector('h3').textContent=(c.localGroupName&&c.title?c.title:c.group?.name||c.title)||S.customers.find(p=>p.id===c.customerId)?.name||'Nhóm';
  for(const m of document.querySelectorAll('.chat-menu'))if(openMenus.includes(m.querySelector('summary').textContent))m.open=true;
  const side=$('.chat-side');side.insertAdjacentHTML('beforeend',`<div class="side-section"><h4>Ghi chú nội bộ</h4>${S.messages.filter(m=>m.conversationId===c.id&&m.direction==='note').slice(-5).map(m=>`<p class="small">${e(m.text)}<br><span class="muted">${e(date(m.createdAt))}</span></p>`).join('')||'<p class="muted">Chưa có ghi chú</p>'}${b('Viết ghi chú','note')}</div>`);
- enhanceChatNames(H);enhanceRichCards(H);enhanceMessageInteractions();enhanceConsultationReview();
+ enhanceChatNames(H);enhanceTopicMenus(H,c);enhanceRichCards(H);enhanceMessageInteractions();enhanceConsultationReview();
 }
 async function bulk(patch){const items=[...selected].map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));await H.api('/chat/bulk',{method:'POST',body:{items,patch}});selected.clear();H.closeModal();await H.refresh();}
 function insertText(text){const c=active(),d=draft(c.id);rememberInboxDraft();d.text+=(d.text?'\n':'')+text;H.closeModal();paint();$('#reply-form textarea').focus();}
