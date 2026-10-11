@@ -52,6 +52,30 @@ test('Zalo persistence, history, listener and routing',async t=>{
   const {reply}=await import('../server/domain.mjs');const c=all('conversations').find(c=>c.connectionId==='z1'&&c.threadType===0);const original=api.sendMessage;api.sendMessage=async()=>{zalo.ingestMessage('z1',make('race-id',{isSelf:true,data:{...make().data,msgId:'race-id',cliMsgId:'race-client',content:'Echo race'}}));return {message:{msgId:'race-id'}};};
   try{const m=await reply({id:'owner',role:'owner'},c.id,{text:'Echo race',version:c.version});assert.equal(m.externalClientId,'race-client');assert.equal(m.externalId,'race-id');}finally{api.sendMessage=original;}
  });
+ await t.test('one album send keeps every native ID and never duplicates self echoes',async()=>{
+  const {saveSendReceipt}=await import('../server/chat-send-receipt.mjs');const c=all('conversations').find(c=>c.connectionId==='z1'&&c.threadType===0),original=api.sendMessage;let calls=0;
+  const photos=[{url:'https://example.com/1.jpg',type:'image'},{url:'https://example.com/2.jpg',type:'image'}];
+  const image=(id,url,self=true)=>make(id,{isSelf:self,data:{...make().data,msgId:id,cliMsgId:'cli-'+id,msgType:'chat.photo',content:{href:url,params:JSON.stringify({groupLayoutId:'album-qa'})}}});
+  const pending=put('messages',{conversationId:c.id,direction:'outgoing',status:'sending',text:'Album QA',attachments:photos});
+  api.sendMessage=async(...args)=>{calls++;assert.deepEqual(args[0].attachments,['first.png','second.png']);zalo.ingestMessage('z1',image('album-1',photos[0].url));zalo.ingestMessage('z1',image('album-2',photos[1].url));return {message:{msgId:'album-text',cliMsgId:'cli-text'},attachment:[{msgId:'album-1',cliMsgId:'cli-album-1'},{msgId:'album-2',cliMsgId:'cli-album-2'}]};};
+  try{const r=await zalo.sendMessage('z1','friend1',0,'Album QA',{attachments:['first.png','second.png']});const saved=saveSendReceipt(pending,r,photos);assert.equal(calls,1);assert.equal(saved.attachments.length,2);assert.equal(saved.externalMessages.length,3);assert.equal(all('messages').filter(m=>m.id===pending.id||m.externalId?.startsWith('album-')).length,1);assert.equal(zalo.ingestMessage('z1',image('album-2',photos[1].url)),false);assert.equal(get('messages',pending.id).attachments.length,2);
+   api.sendMessage=async()=>({});await assert.rejects(zalo.sendMessage('z1','friend1',0,'No confirmation'),{unknown:true});
+  }finally{api.sendMessage=original;}
+ });
+ await t.test('incoming album groups exact layout IDs but not unrelated senders',()=>{
+  const image=(id,sender)=>make(id,{data:{...make().data,msgId:id,uidFrom:sender,msgType:'chat.photo',content:{href:'https://example.com/'+id+'.jpg',params:JSON.stringify({groupLayoutId:'incoming-album'})}}});
+  zalo.ingestMessage('z1',image('incoming-1','friend1'));zalo.ingestMessage('z1',image('incoming-2','friend1'));zalo.ingestMessage('z1',image('incoming-3','other'));
+  const rows=all('messages').filter(m=>m.albumId==='incoming-album');assert.equal(rows.length,2);assert.equal(rows.find(m=>m.senderId==='friend1').attachments.length,2);assert.equal(zalo.ingestMessage('z1',image('incoming-2','friend1')),false);
+ });
+ await t.test('message and conversation lookup use indexes instead of scanning all records',()=>{
+  const messagePlan=db.prepare("EXPLAIN QUERY PLAN SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=?").all('c','m');assert.match(JSON.stringify(messagePlan),/idx_messages_conversation/);
+  const channelPlan=db.prepare("EXPLAIN QUERY PLAN SELECT id FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=? AND coalesce(json_extract(data,'$.threadType'),0)=?").all('z1','friend1',0);assert.match(JSON.stringify(channelPlan),/idx_zalo_conversation/);
+ });
+ await t.test('receipt reconciliation rolls back duplicate removal if saving fails',async()=>{
+  const {saveSendReceipt}=await import('../server/chat-send-receipt.mjs');const pending=put('messages',{id:'receipt-rollback',conversationId:'rollback-receipt-c',text:'Original',direction:'outgoing'}),echo=put('messages',{conversationId:pending.conversationId,direction:'outgoing',externalId:'rollback-echo'});
+  db.exec("CREATE TEMP TRIGGER fail_receipt BEFORE INSERT ON records WHEN NEW.kind='messages' AND NEW.id='receipt-rollback' BEGIN SELECT RAISE(ABORT,'receipt failed'); END");
+  try{assert.throws(()=>saveSendReceipt(pending,{id:'rollback-echo'},[]),/receipt failed/);assert.ok(get('messages',echo.id));}finally{db.exec('DROP TRIGGER fail_receipt');}
+ });
  await t.test('disconnect stops ingest and preserves history',async()=>{const count=all('messages').length;await zalo.disconnect('z1');api.listener.emit('message',make('999'));assert.equal(all('messages').length,count);assert.equal(get('connections','z1').status,'disconnected');});
 });
 

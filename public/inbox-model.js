@@ -9,10 +9,11 @@ export function inboxQueues(S,time=Date.now()){
  for(const r of S.chat_reminders||[]){if(r.status!=='pending')continue;const due=Date.parse(r.dueAt);if(due>time)scheduled.add(r.conversationId);}
  return {action,scheduled};
 }
+export function conversationConnected(S,c){if(!Array.isArray(S.connections))return true;const ch=S.connections.find(ch=>ch.id===c?.connectionId);return !!ch&&(ch.status==='connected'||ch.mode==='demo'&&ch.status==='demo')&&(ch.provider!=='zalo_personal'||!ch.listenerState||ch.listenerState==='listening');}
 export function filterThreads(S,q='',status='all',f=defaultFilters){
- const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map(),queues=inboxQueues(S),disconnected=new Set((S.connections||[]).filter(ch=>ch.status==='disconnected').map(ch=>ch.id));
+ const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map(),queues=inboxQueues(S);
  if(q)for(const m of S.messages)texts.set(m.conversationId,(texts.get(m.conversationId)||'')+' '+m.text);
- return S.conversations.filter(c=>c.kind!=='comment'&&!disconnected.has(c.connectionId)).map(c=>({...c,customerName:chatName(c,customers.get(c.customerId))})).filter(c=>{
+ return S.conversations.filter(c=>c.kind!=='comment'&&conversationConnected(S,c)).map(c=>({...c,customerName:chatName(c,customers.get(c.customerId))})).filter(c=>{
   const p=customers.get(c.customerId)||{},tags=c.tags||[],ids=assignedIds(c),phone=p.phone||p.sdt;
   if(status==='unread'&&!c.unread||status==='personal'&&c.threadType===1||status==='group'&&c.threadType!==1||status==='action-needed'&&!queues.action.has(c.id)||status==='scheduled'&&!queues.scheduled.has(c.id)||status==='waiting-reply'&&!c.waitingSince)return false;
   if(!inboxTabs.some(([key])=>key===status)&&c.status!==status)return false;

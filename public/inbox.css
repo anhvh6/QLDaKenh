@@ -156,3 +156,7 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
  .inbox-topbar-tools .chat-toolbar .chat-menu-panel{left:auto;right:0}
  .main:has(>.inbox-topbar)>.content.inbox-page{height:calc(100dvh - 52px)}
 }
+
+.chat>.chat-pins{flex-shrink:0;background:#fff;border-bottom:1px solid var(--line);padding:8px 16px;max-height:140px;overflow:auto}.chat-pins summary{cursor:pointer;font-size:12px;font-weight:600}.chat-pins .btn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.chat-media-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;max-width:500px}.chat-media-group .chat-attachment{margin:0;min-width:0}.chat-media-group .chat-attachment img{display:block;width:100%;height:180px;object-fit:cover;border-radius:6px}.chat-media-group .chat-attachment:has(video),.chat-media-group .chat-attachment:not(:has(img)){grid-column:1/-1}

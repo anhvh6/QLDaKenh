@@ -13,6 +13,8 @@ export const db = new DatabaseSync(join(dataDir, 'hub.sqlite'));
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
 CREATE TABLE IF NOT EXISTS records(kind TEXT NOT NULL,id TEXT NOT NULL,data TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,updated_at TEXT NOT NULL,PRIMARY KEY(kind,id));
 CREATE INDEX IF NOT EXISTS idx_records_kind_updated ON records(kind,updated_at);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON records(json_extract(data,'$.conversationId')) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_zalo_conversation ON records(json_extract(data,'$.connectionId'),json_extract(data,'$.externalUserId'),coalesce(json_extract(data,'$.threadType'),0)) WHERE kind='conversations';
 CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,password TEXT NOT NULL,active INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),csrf TEXT NOT NULL,expires INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS secrets(id TEXT PRIMARY KEY,value TEXT NOT NULL);

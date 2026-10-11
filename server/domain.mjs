@@ -131,6 +131,7 @@ export function runWorkflows(trigger,entity){for(const w of all('workflows').fil
  if(w.action==='tag'&&entity.conversationId){const conv=get('conversations',entity.conversationId);if(conv)put('conversations',{...conv,tags:[...new Set([...(conv.tags||[]),w.value])]});}
  if(w.action==='notify')notification(w.name,w.value,'inbox');if(w.action==='task')put('tasks',{name:w.value||w.name,status:'open',entityId:entity.id});put('workflows',{...w,runs:(w.runs||0)+1,lastRun:now()});audit('automation',w.name,entity.id);
 }}
+import {saveSendReceipt} from './chat-send-receipt.mjs';
 export async function reply(user,id,input){permission(user,'inbox');const conv=get('conversations',id);if(!conv||conv.deletedAt)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);let text=String(input.text||'').trim();if(text.length>5000)fail('Nội dung quá dài.');const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');if(conv.groupUnavailable&&!input.note)fail('Tài khoản đã rời nhóm hoặc nhóm đã giải tán.');
  const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['chat']).includes('chat')||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z]+$/.test(a.url))fail('Media không hợp lệ.');if(a.connectionId)assertChannel(user,a.connectionId);return a;});
  if(!text&&!assets.length)fail('Nhập nội dung hoặc chọn media.');
@@ -147,7 +148,7 @@ export async function reply(user,id,input){permission(user,'inbox');const conv=g
  let msg=put('messages',{conversationId:id,direction:input.note?'note':'outgoing',senderType:user.botId?'ai':'staff',botId:user.botId||null,botRunId:user.botRunId||null,text,mentions,attachments:assets.map(({id,url,name,type})=>({assetId:id,url,name,type})),quoteId:quoted?.id||null,retryOf:retrySource?.id||null,status:'sending',actor:user.id});
  if(retrySource)put('messages',{...retrySource,retryMessageId:msg.id});
  try{let result;if(input.note)result={};else if(ch.mode==='demo')result={demo:true};else {if(ch.status!=='connected')fail('Kênh chưa được kết nối thực tế.');result=await sendMessage(ch,conv,text,options);}
- msg=put('messages',{...get('messages',msg.id),status:input.note?'internal':ch.mode==='demo'?'demo':'accepted',externalId:result.message_id||result.id||get('messages',msg.id)?.externalId||null,externalClientId:result.clientId||get('messages',msg.id)?.externalClientId||null});
+ msg=saveSendReceipt(msg,result,assets.map(({id,url,name,type})=>({assetId:id,url,name,type})));
  const current=get('conversations',id);put('conversations',{...current,sending:false,lastMessage:input.note?current.lastMessage:text,lastAt:input.note?current.lastAt:now(),unread:input.note?current.unread:false,waitingSince:input.note?current.waitingSince:null,slaAlerted:input.note?current.slaAlerted:false,firstResponseSeconds:!input.note&&current.waitingSince?Math.round((Date.now()-Date.parse(current.waitingSince))/1000):current.firstResponseSeconds,assignee:user.id});audit(user.id,input.note?'note_added':'message_sent',id);if(!input.note)finishMentionTasks(user,id,msg.id);return msg;
  }catch(e){put('messages',{...msg,status:e.unknown?'unknown':'failed',error:e.message});put('conversations',{...get('conversations',id),sending:false});throw e;}
 }

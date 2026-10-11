@@ -19,3 +19,11 @@ test('recall only outgoing sent messages, calls native IDs, preserves failures a
  const missing=put('messages',{conversationId:'recall-c',direction:'outgoing',status:'accepted'});await assert.rejects(interactionRoute('/api/chat/messages/'+missing.id+'/recall','POST',{version:missing.version},a),{status:409});assert.equal(get('messages',missing.id).recalledAt,undefined);
 });
 test('reaction can use saved native quote client ID',async()=>{const m=put('messages',{conversationId:'recall-c',direction:'incoming',externalId:'msg2',quoteSource:{cliMsgId:'client2'}});let args;await interactionRoute('/api/chat/messages/'+m.id+'/reaction','POST',{reaction:'heart'},a,async(...x)=>{args=x;return {};});assert.deepEqual(args,['recall-ch','thread',1,'msg2','client2','heart']);});
+
+test('album recall resumes only unconfirmed components after partial failure',async()=>{
+ const m=put('messages',{conversationId:'recall-c',direction:'outgoing',status:'accepted',text:'Album',externalMessages:[{id:'a1',clientId:'c1'},{id:'a2',clientId:'c2'}]}),p='/api/chat/messages/'+m.id+'/recall',calls=[];
+ await assert.rejects(interactionRoute(p,'POST',{version:m.version},a,undefined,undefined,async(...args)=>{calls.push(args[3]);if(args[3]==='a2')throw Error('Interrupted');}),/Interrupted/);
+ assert.deepEqual(get('messages',m.id).recalledExternalIds,['a1']);assert.equal(get('messages',m.id).text,'Album');
+ const r=await interactionRoute(p,'POST',{version:get('messages',m.id).version},a,undefined,undefined,async(...args)=>calls.push(args[3]));
+ assert.ok(r.recalledAt);assert.deepEqual(calls,['a1','a2','a2']);
+});

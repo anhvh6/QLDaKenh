@@ -6,5 +6,6 @@ export function mediaContent(data={}){
  const link=[info.hdUrl,info.videoUrl,info.audioUrl,info.normalUrl,info.href,info.url,info.fileUrl,...(type==='image'?[info.thumb]:[])].map(url).find(Boolean)||'';
  const caption=[c.title,typeof c.description==='string'?c.description:''].filter(v=>v&&!isTypeCode(v)&&!url(v)).join('\n');
  const text=typeof data.content==='string'&&!Object.keys(c).length&&!isTypeCode(data.content)?data.content:caption;
- return {text:text||(link?'':type==='video'?'Video không còn liên kết phát.':type==='image'?'Ảnh không còn liên kết xem.':'Tệp đính kèm'),attachments:link?[{url:link,name:caption||(type==='video'?'Video':type==='image'?'Ảnh':'Tệp đính kèm'),type,poster:url(info.thumb)}]:[]};
+ const properties=object(data.propertyExt),group={...object(object(properties.ext).groupMediaMsg),...object(object(info.extMsgProp).groupMediaMsg),...object(info.groupMediaMsg)},albumId=type==='image'?String(info.groupLayoutId||group.groupLayoutId||''):'';
+ return {...(albumId?{albumId}:{}),text:text||(link?'':type==='video'?'Video không còn liên kết phát.':type==='image'?'Ảnh không còn liên kết xem.':'Tệp đính kèm'),attachments:link?[{url:link,name:caption||(type==='video'?'Video':type==='image'?'Ảnh':'Tệp đính kèm'),type,poster:url(info.thumb)}]:[]};
 }
