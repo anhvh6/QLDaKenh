@@ -1,3 +1,4 @@
+import {chatTagStyle} from './chat-list-style.js';
 import {icon} from './icons.js';
 import {sendQuickReply} from './quick-replies.js';
 import {topicGroups} from './chat-topic-model.js';
@@ -28,11 +29,18 @@ document.addEventListener('click',async ev=>{
   if(selection){view.selected=view.selected===selection.dataset.topicSelect?null:selection.dataset.topicSelect;paintTopics(c);return;}
   if(expand){view.expanded=!view.expanded;paintTopics(c);return;}
   const t=H.state.templates.find(t=>t.id===reply.dataset.topicReply);if(!t||reply.disabled)return;
-  reply.disabled=true;
-  try{const result=await sendQuickReply(H,c,t);view.selected=null;view.expanded=false;await H.refresh(false);H.render();H.toast(result.status==='done'?'Đã gửi tin nhắn nhanh':result.status==='failed'?'Đã gửi '+result.nextIndex+'/'+result.blocks.length+' nội dung. '+result.error+' Bấm lại để tiếp tục phần chưa gửi.':'Chưa rõ kết quả. Kiểm tra trên kênh trước khi gửi lại.',result.status!=='done');}
+  reply.disabled=true;view.selected=null;view.expanded=false;paintTopics(c);
+  try{const result=await sendQuickReply(H,c,t);H.render();if(result.status!=='done')H.toast(result.status==='failed'?'Đã gửi '+result.nextIndex+'/'+result.blocks.length+' nội dung. '+result.error+' Bấm lại để tiếp tục phần chưa gửi.':'Chưa rõ kết quả. Kiểm tra trên kênh trước khi gửi lại.',true);}
   catch(error){H.toast(error.message,true);}finally{reply.disabled=false;}return;
  }
- const tag=ev.target.closest('[data-header-tag]');if(!tag||!H||tag.disabled)return;const menu=tag.closest('.chat-header-tags'),c=H.state.conversations.find(c=>c.id===menu.dataset.conversation);tag.disabled=true;try{const tags=(c.tags||[]).includes(tag.dataset.headerTag)?c.tags.filter(t=>t!==tag.dataset.headerTag):[...(c.tags||[]),tag.dataset.headerTag];Object.assign(c,await H.api('/conversations/'+c.id,{method:'PATCH',body:{tags,version:c.version}}));for(const b of menu.querySelectorAll('[data-header-tag]')){const on=tags.includes(b.dataset.headerTag);b.classList.toggle('assigned',on);b.setAttribute('aria-pressed',String(on));b.querySelector('small').textContent=on?'✓':'';}const assigned=sorted(H.state.tags).find(t=>tags.includes(t.name));menu.querySelector('summary').classList.toggle('has-tags',!!assigned);menu.querySelector('summary').style.color=assigned?color(assigned.color):'var(--muted,#869087)';}catch(err){H.toast(err.message,true);}finally{tag.disabled=false;}});
+ const tag=ev.target.closest('[data-header-tag]');if(!tag||!H||tag.disabled)return;
+ const menu=tag.closest('.chat-header-tags'),c=H.state.conversations.find(c=>c.id===menu.dataset.conversation),previous=[...(c.tags||[])],version=c.version;
+ if(menu.dataset.saving)return;menu.dataset.saving='true';
+ c.tags=previous.includes(tag.dataset.headerTag)?previous.filter(t=>t!==tag.dataset.headerTag):[...previous,tag.dataset.headerTag];
+ const paintTags=()=>{for(const b of menu.querySelectorAll('[data-header-tag]')){const on=c.tags.includes(b.dataset.headerTag);b.classList.toggle('assigned',on);b.setAttribute('aria-pressed',String(on));b.querySelector('small').textContent=on?'✓':'';}
+ const assigned=sorted(H.state.tags).find(t=>c.tags.includes(t.name));menu.querySelector('summary').classList.toggle('has-tags',!!assigned);menu.querySelector('summary').style.color=assigned?color(assigned.color):'var(--muted,#869087)';
+ const card=[...document.querySelectorAll('.conversation-item')].find(el=>el.dataset.id===c.id),meta=card?.querySelector('.chat-list-meta');if(meta)meta.innerHTML=c.tags.slice(0,2).map(name=>`<span class="chat-list-tag" style="${chatTagStyle(H.state.tags.find(t=>t.name===name)?.color)}">${e(name)}</span>`).join('');};
+ paintTags();try{const saved=await H.api('/conversations/'+c.id,{method:'PATCH',body:{tags:c.tags,version}});Object.assign(c,saved);const current=H.state.conversations.find(x=>x.id===c.id);if(current&&current!==c)Object.assign(current,saved);paintTags();}catch(err){c.tags=previous;paintTags();H.toast(err.message,true);}finally{delete menu.dataset.saving;}});
 
 document.addEventListener('keydown',ev=>{if(ev.key!=='Escape'||!H)return;const c=H.state.conversations.find(c=>c.id===document.querySelector('#reply-form')?.dataset.id);if(c&&(topicView(c).selected!==null||topicView(c).expanded)){topicView(c).selected=null;topicView(c).expanded=false;paintTopics(c);}});
 

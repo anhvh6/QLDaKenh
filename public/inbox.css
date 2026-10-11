@@ -139,7 +139,7 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 /* Place long-message actions inside their bubble so menus stay in the chat. */
 .bubble-wrap.outgoing .message-tools{right:0;left:auto;top:100%;transform:none}.bubble-wrap.incoming .message-tools{left:0;right:auto;top:100%;transform:none}.incoming .message-more>div{left:0;right:auto}.bubble-wrap:has(.message-more[open]){z-index:40}
 
-.chat-list-compact .chat-list-meta .chat-list-tag{font-size:12px;font-weight:700;line-height:1.25;padding:2px 6px;letter-spacing:.1px;text-shadow:none}
+.chat-list-compact .chat-list-meta .chat-list-tag{font-size:10px;font-weight:400;line-height:1.25;padding:2px 5px;letter-spacing:0;text-shadow:none}
 @media(min-width:761px){
  .topbar.inbox-topbar{height:52px;padding:0 12px;overflow:visible;background:#fff;opacity:1;border-bottom:1px solid var(--line)}
  .topbar.inbox-topbar>:not(.inbox-topbar-tools){display:none!important}

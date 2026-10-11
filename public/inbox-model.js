@@ -10,9 +10,9 @@ export function inboxQueues(S,time=Date.now()){
  return {action,scheduled};
 }
 export function filterThreads(S,q='',status='all',f=defaultFilters){
- const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map(),queues=inboxQueues(S);
+ const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map(),queues=inboxQueues(S),disconnected=new Set((S.connections||[]).filter(ch=>ch.status==='disconnected').map(ch=>ch.id));
  if(q)for(const m of S.messages)texts.set(m.conversationId,(texts.get(m.conversationId)||'')+' '+m.text);
- return S.conversations.filter(c=>c.kind!=='comment').map(c=>({...c,customerName:chatName(c,customers.get(c.customerId))})).filter(c=>{
+ return S.conversations.filter(c=>c.kind!=='comment'&&!disconnected.has(c.connectionId)).map(c=>({...c,customerName:chatName(c,customers.get(c.customerId))})).filter(c=>{
   const p=customers.get(c.customerId)||{},tags=c.tags||[],ids=assignedIds(c),phone=p.phone||p.sdt;
   if(status==='unread'&&!c.unread||status==='personal'&&c.threadType===1||status==='group'&&c.threadType!==1||status==='action-needed'&&!queues.action.has(c.id)||status==='scheduled'&&!queues.scheduled.has(c.id)||status==='waiting-reply'&&!c.waitingSince)return false;
   if(!inboxTabs.some(([key])=>key===status)&&c.status!==status)return false;

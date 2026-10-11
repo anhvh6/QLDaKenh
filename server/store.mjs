@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,source TEXT NOT NULL,recei
 CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,entity TEXT,detail TEXT,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL);
 INSERT OR IGNORE INTO migrations VALUES(1,datetime('now'));`);
+db.exec(`CREATE TABLE IF NOT EXISTS record_revision(id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER NOT NULL);
+INSERT OR IGNORE INTO record_revision VALUES(1,0);
+CREATE TRIGGER IF NOT EXISTS records_revision_insert AFTER INSERT ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS records_revision_update AFTER UPDATE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS records_revision_delete AFTER DELETE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;`);
+export const recordRevision=()=>db.prepare('SELECT value FROM record_revision WHERE id=1').get().value;
 export const uid = (prefix='id') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();
 import syncFetch from 'sync-fetch';
