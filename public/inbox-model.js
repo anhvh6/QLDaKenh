@@ -29,4 +29,4 @@ export function filterThreads(S,q='',status='all',f=defaultFilters){
   return true;
  }).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned)||(f.sort==='waiting'?(Date.parse(a.waitingSince)||Infinity)-(Date.parse(b.waitingSince)||Infinity):f.sort==='oldest'?Date.parse(a.lastAt||0)-Date.parse(b.lastAt||0):Date.parse(b.lastAt||0)-Date.parse(a.lastAt||0)));
 }
-export function safeLink(url){try{const u=new URL(url,typeof location==='object'?location.origin:'http://localhost');return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'';}catch{return '';}}
+export function safeLink(url){if(typeof url!=='string'||!url.trim())return '';try{const u=new URL(url,typeof location==='object'?location.origin:'http://localhost');return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'';}catch{return '';}}

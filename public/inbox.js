@@ -1,3 +1,5 @@
+import {renderChatText} from './chat-text-content.js';
+import {linkPreviewSlots,enhanceChatContent} from './chat-content-ui.js';
 import {enhanceTopicMenus} from './chat-topic-menus.js';
 import {previewQuickReply,topicPill} from './quick-replies.js';
 import {groupLearner} from './group-learner.js';
@@ -73,7 +75,7 @@ export function chatMessages(messages,conv,S){
   const state={internal:'Ghi chú nội bộ',accepted:'API đã nhận',received:'Đã nhận',sent:'Đã gửi',sending:'Đang gửi',failed:'Gửi lỗi',unknown:'Cần kiểm tra trên Zalo',demo:'Mô phỏng'}[m.status]||m.status;
   return header+`<div class="bubble-wrap ${e(m.direction)} ${m.status==='failed'?'message-failed':''} ${(S.chatMentions||[]).some(t=>t.messageId===m.id)?'message-task-pending':''}" data-message="${e(m.id)}" ${messageQuery&&!normalize(m.text).includes(normalize(messageQuery))?'hidden':''}>
   ${m.senderType==='ai'?`<small class="message-sender">AI · ${e(S.chatbots?.find(b=>b.id===m.botId)?.name||'Chatbot')}</small>`:''}${m.senderType!=='ai'&&(conv.threadType===1)?`<strong class="message-sender">${e(m.senderName||(m.direction==='incoming'?(conv.threadType===1?'Thành viên':S.customers.find(p=>p.id===conv.customerId)?.name):S.users.find(u=>u.id===m.actor)?.name)||(m.direction==='incoming'?'Khách':'Bạn'))}</strong>`:''}
-  <div class="bubble" title="Nhấn giữ để sao chép">${quote?`<button type="button" class="quote-block" data-chat="jump" data-id="${e(quote.id)}">↪ ${e(quote.text?.slice(0,200))}</button>`:''}${richMessage(m)??('<span>'+e(m.text)+'</span>'+attachments)}</div>
+  <div class="bubble" title="Nhấn giữ để sao chép">${quote?`<button type="button" class="quote-block" data-chat="jump" data-id="${e(quote.id)}">↪ ${e(quote.text?.slice(0,200))}</button>`:''}${(richMessage(m,S,conv)??('<span>'+renderChatText(m,S,conv)+'</span>'+attachments))+linkPreviewSlots(m)}</div>
   <small>${e(date(m.createdAt))} · ${e(state)}${m.error?' · '+e(m.error):''}${m.pinned?' · 📌 Ghim nội bộ':''}</small>
   <div class="message-tools">${m.status==='failed'&&m.direction==='outgoing'&&!m.retryMessageId?b('↻ Gửi lại','retry-message',m.id,'aria-label="Gửi lại tin nhắn lỗi"'):m.retryMessageId?'<small>Đã tạo lượt gửi lại</small>':''}${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b(m.pinned?'Bỏ ghim':'Ghim','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
  }).join('');
@@ -145,7 +147,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of
  if(c.threadType===1){head.querySelector('.row small').textContent=(S.connections.find(x=>x.id===c.connectionId)?.name||'')+' · Hội thoại nhóm';}if(c.threadType===1)head.querySelector('h3').textContent=(c.localGroupName&&c.title?c.title:c.group?.name||c.title)||S.customers.find(p=>p.id===c.customerId)?.name||'Nhóm';
  for(const m of document.querySelectorAll('.chat-menu'))if(openMenus.includes(m.querySelector('summary').textContent))m.open=true;
  const side=$('.chat-side');side.insertAdjacentHTML('beforeend',`<div class="side-section"><h4>Ghi chú nội bộ</h4>${S.messages.filter(m=>m.conversationId===c.id&&m.direction==='note').slice(-5).map(m=>`<p class="small">${e(m.text)}<br><span class="muted">${e(date(m.createdAt))}</span></p>`).join('')||'<p class="muted">Chưa có ghi chú</p>'}${b('Viết ghi chú','note')}</div>`);
- enhanceChatNames(H);enhanceTopicMenus(H,c);enhanceRichCards(H);enhanceMessageInteractions();enhanceConsultationReview();
+ enhanceChatNames(H);enhanceTopicMenus(H,c);enhanceRichCards(H);enhanceChatContent(H,c);enhanceMessageInteractions();enhanceConsultationReview();
 }
 async function bulk(patch){const items=[...selected].map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));await H.api('/chat/bulk',{method:'POST',body:{items,patch}});selected.clear();H.closeModal();await H.refresh();}
 function insertText(text){const c=active(),d=draft(c.id);rememberInboxDraft();d.text+=(d.text?'\n':'')+text;H.closeModal();paint();$('#reply-form textarea').focus();}

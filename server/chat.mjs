@@ -1,3 +1,4 @@
+import {linkPreview} from './chat-link-preview.mjs';
 import {consultationRoute} from './consultation-review.mjs';
 import {readContactCard} from './zalo.mjs';
 import {createChatReminder} from './chat-reminders.mjs';
@@ -33,6 +34,8 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){
+ const preview=path.match(/^\/api\/chat\/messages\/([^/]+)\/link-preview$/);if(preview&&method==='POST'){const m=get('messages',preview[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);return linkPreview(m,input.url);}
+
  const review=consultationRoute(path,method,input,user);if(review!==undefined)return review;
  if(path==='/api/chat/delete'&&method==='POST')return deleteChats(user,input);
  let taskMatch=path.match(/^\/api\/chat\/conversations\/([^/]+)\/(task-staff|staff-tasks)$/);
