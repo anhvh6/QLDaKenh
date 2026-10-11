@@ -19,7 +19,7 @@ import {defaultFilters,filterThreads,assignedIds,normalize,safeLink} from './inb
 let H,F=structuredClone(defaultFilters),selected=new Set(),selectionMode=false,searchIn='',lastConv='',mediaTab='all',threadLimit=150,totalThreads=0,listQuery='';
 const mentionStaff=new Map();let jumpTarget='',jumpUntil=0;const drafts=new Map();const uploading=new Set();let skipCapture=false;let openMenus=[];
 let pendingDelete=[],threadHolding=false;
-export const inboxInteractionActive=()=>threadHolding||Boolean(document.querySelector('.message-tools:hover,.message-tools:focus-within,.message-more[open],.chat-topic-menu:hover,.chat-topic-menu:focus-within,.chat-header-tags:hover,.chat-header-tags:focus-within'));
+export const inboxInteractionActive=()=>threadHolding||Boolean(document.querySelector('.message-tools:hover,.message-tools:focus-within,.message-more[open],.chat-topic-bar:hover,.chat-topic-bar:focus-within,.chat-header-tags:hover,.chat-header-tags:focus-within'));
 function initSendHold(){
  let hold=null,suppressUntil=0;
  const cancel=()=>{if(hold)clearTimeout(hold.timer);hold=null;threadHolding=false;};

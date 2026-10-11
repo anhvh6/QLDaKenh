@@ -1,5 +1,26 @@
 import {icon} from './icons.js';
 const selectedReplies=new Set();
+const directRuns=new Map(),sendingConversations=new Set();
+export async function sendQuickReply(host,c,t){
+ const conversationKey=host.state.user.id+':'+c.id,key=conversationKey+':'+t.id;
+ if(sendingConversations.has(conversationKey))throw Error('Đang gửi tin nhắn nhanh, vui lòng chờ.');
+ let context=directRuns.get(key);
+ if(!context){
+  const unfinished=(host.state.template_runs||[]).find(r=>r.conversationId===c.id&&r.templateId===t.id&&['unknown','sending','pending'].includes(r.status));
+  if(unfinished)throw Error('Chuỗi trước chưa rõ kết quả. Kiểm tra trên kênh trước khi gửi lại.');
+  const latest=(host.state.template_runs||[]).filter(r=>r.conversationId===c.id&&r.templateId===t.id).sort((a,b)=>String(b.updatedAt||b.createdAt).localeCompare(String(a.updatedAt||a.createdAt)))[0];
+  context={requestId:crypto.randomUUID(),...(latest?.status==='failed'?{runId:latest.id}:{})};directRuns.set(key,context);
+ }
+ if(context.unknown)throw Error('Chưa rõ kết quả gửi. Kiểm tra trên kênh trước khi gửi lại.');
+ sendingConversations.add(conversationKey);
+ try{
+  const result=await host.api('/care/conversations/'+c.id+'/template',{method:'POST',key:context.requestId,body:context.runId?{runId:context.runId}:{templateId:t.id,requestId:context.requestId}});
+  if(result.status==='done')directRuns.delete(key);
+  else if(result.status==='failed'){context.runId=result.id;context.requestId=crypto.randomUUID();}
+  else context.unknown=true;
+  return result;
+ }finally{sendingConversations.delete(conversationKey);}
+}
 let H,draft=null,search='',topicFilter='',importFile='',importBusy=false,uploading=false,sendContext=null,importTopics=false;
 const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replaceAll('đ','d');
