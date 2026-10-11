@@ -41,3 +41,11 @@ document.addEventListener('pointerdown',ev=>{if(ev.pointerType!=='touch'&&ev.but
 document.addEventListener('click',ev=>{if(!H||ev.composedPath().some(el=>el.classList?.contains('chat-topic-bar')))return;const c=H.state.conversations.find(c=>c.id===document.querySelector('#reply-form')?.dataset.id);if(c&&(topicView(c).selected!==null||topicView(c).expanded)){topicView(c).selected=null;topicView(c).expanded=false;paintTopics(c);}});
 
 document.addEventListener('wheel',ev=>{const strip=ev.target.closest('.chat-topic-strip');if(!strip||strip.closest('.expanded')||strip.scrollWidth<=strip.clientWidth)return;const delta=Math.abs(ev.deltaX)>Math.abs(ev.deltaY)?ev.deltaX:ev.deltaY;if(delta){strip.scrollLeft+=delta;ev.preventDefault();}},{passive:false});
+
+// Hover near either end to reveal more topics without using a trackpad.
+let topicScrollFrame=0,topicScrollStrip=null,topicScrollSpeed=0;
+function stopTopicScroll(){cancelAnimationFrame(topicScrollFrame);topicScrollFrame=0;topicScrollStrip=null;topicScrollSpeed=0;}
+function scrollTopicEdge(){if(!topicScrollStrip?.isConnected||topicScrollStrip.closest('.expanded')){stopTopicScroll();return;}topicScrollStrip.scrollLeft+=topicScrollSpeed;topicScrollFrame=requestAnimationFrame(scrollTopicEdge);}
+document.addEventListener('pointermove',ev=>{if(ev.pointerType==='touch')return;const strip=ev.target.closest('.chat-topic-strip');if(!strip||strip.closest('.expanded')||strip.scrollWidth<=strip.clientWidth){stopTopicScroll();return;}const bounds=strip.getBoundingClientRect(),edge=Math.min(60,bounds.width/4),x=ev.clientX-bounds.left,speed=x<edge?-4:x>bounds.width-edge?4:0;if(!speed){stopTopicScroll();return;}topicScrollStrip=strip;topicScrollSpeed=speed;if(!topicScrollFrame)topicScrollFrame=requestAnimationFrame(scrollTopicEdge);});
+document.addEventListener('pointerout',ev=>{if(topicScrollStrip&&!topicScrollStrip.contains(ev.relatedTarget))stopTopicScroll();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopTopicScroll();});

@@ -138,3 +138,21 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 
 /* Place long-message actions inside their bubble so menus stay in the chat. */
 .bubble-wrap.outgoing .message-tools{right:0;left:auto;top:100%;transform:none}.bubble-wrap.incoming .message-tools{left:0;right:auto;top:100%;transform:none}.incoming .message-more>div{left:0;right:auto}.bubble-wrap:has(.message-more[open]){z-index:40}
+
+.chat-list-compact .chat-list-meta .chat-list-tag{font-size:12px;font-weight:700;line-height:1.25;padding:2px 6px;letter-spacing:.1px;text-shadow:none}
+@media(min-width:761px){
+ .topbar.inbox-topbar{height:52px;padding:0 12px;overflow:visible;background:#fff;opacity:1;border-bottom:1px solid var(--line)}
+ .topbar.inbox-topbar>:not(.inbox-topbar-tools){display:none!important}
+ .inbox-topbar-tools{display:flex;align-items:center;gap:8px;width:100%;min-width:0;flex-wrap:nowrap}
+ .inbox-topbar-tools>.toolbar{flex:1;min-width:0;padding:0;margin:0;background:none}
+ .inbox-topbar-tools .tabs{display:flex;gap:2px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0;border:0}
+ .inbox-topbar-tools .tabs::-webkit-scrollbar{display:none}
+ .inbox-topbar-tools .tab{flex:none;font-size:11px;white-space:nowrap;padding:6px 8px}
+ .inbox-topbar-tools .tab.chat-filter-populated{color:#c45b12;font-weight:700}
+ .inbox-topbar-tools>.conversation-search{display:flex;align-items:center;gap:6px;flex:0 1 260px;min-width:160px;padding:0;border:0}
+ .inbox-topbar-tools .conversation-search input{width:100%;min-width:0;font-size:12px;padding:7px 10px}
+ .inbox-topbar-tools .conversation-search .btn{flex:none;min-height:32px;padding:4px 8px}
+ .inbox-topbar-tools>.chat-toolbar{flex:none;padding:0;margin:0;gap:8px;flex-wrap:nowrap}
+ .inbox-topbar-tools .chat-toolbar .chat-menu-panel{left:auto;right:0}
+ .main:has(>.inbox-topbar)>.content.inbox-page{height:calc(100dvh - 52px)}
+}
