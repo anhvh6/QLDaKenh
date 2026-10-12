@@ -20,7 +20,7 @@ const button=page.getByRole('button',{name:'Xóa hội thoại đã chọn',exac
 for(const width of [1440,900,390]){
  await page.setViewportSize({width,height:900});
  await page.locator('.conversation-list').evaluate(el=>{el.scrollTop=el.scrollHeight;});
- assert.ok(await button.isVisible());
+ await page.waitForFunction(()=>{const el=document.querySelector('[data-chat=bulk-delete]');if(!el)return false;const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));});assert.ok(await button.isVisible());
  const bounds=await button.boundingBox();assert.ok(bounds.y>=0&&bounds.y+bounds.height<900,'Delete stays in viewport after scrolling');
  assert.equal(await button.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),true,'Delete button is not covered');
  await button.click();await page.locator('#chat-delete-form').waitFor();await page.keyboard.press('Escape');
@@ -31,5 +31,9 @@ await page.setViewportSize({width:1440,height:900});
 await page.locator('[data-chat-select]').nth(1).check();
 assert.match(await page.locator('.chat-bulk').innerText(),/2 đã chọn/);
 await button.click();await page.locator('#chat-delete-form').waitFor();await page.keyboard.press('Escape');
+await page.route('**/api/state',route=>route.fulfill({status:502,contentType:'text/html',body:'<html>Bad Gateway</html>'}));
+await page.reload();await page.getByRole('button',{name:'Thử tải lại',exact:true}).waitFor();
+assert.ok(await page.getByText('Máy chủ đang quá tải hoặc tạm gián đoạn. Vui lòng thử lại.',{exact:true}).isVisible());
+await page.unroute('**/api/state');await page.getByRole('button',{name:'Thử tải lại',exact:true}).click();await page.locator('.sidebar').waitFor();
 assert.deepEqual(errors,[]);console.log('Single/multiple selection deletion controls visible and usable on desktop/mobile after scrolling.');
 }finally{await browser?.close();server.kill();}

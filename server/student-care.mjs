@@ -39,9 +39,9 @@ export function validateCareStaff(input){
 export function filterCareNotifications(rows,user,source=studentCareState()){
  return rows.filter(n=>(!n.recipientId||n.recipientId===user.id)&&(!n.conversationId||(()=>{const c=source.conversations.find(c=>c.id===n.conversationId);return c&&!c.deletedAt&&canReadCare(source,c,user)&&receivesCare(source,c,user);})()));
 }
-function exceptionPreview(stages,previous,includeAll=false){
- const source=studentCareState(),rows=[];
- for(const c of source.conversations){if(c.deletedAt)continue;const stage=carePolicy(source,c).stage;
+function exceptionPreview(stages,previous,includeAll=false,source=studentCareState(),policies=new Map()){
+ const rows=[];
+ for(const c of source.conversations){if(c.deletedAt||!Object.keys(c.carePermissions||{}).length)continue;const stage=(policies.get(c.id)||carePolicy(source,c)).stage;
  if(includeAll||JSON.stringify(stages[stage])!==JSON.stringify(previous?.stages?.[stage])){
   if(!stages[stage])continue;
   for(const [id,p] of Object.entries(c.carePermissions||{})){const u=source.users.find(u=>u.id===id&&u.active);if(u)rows.push({stage,stageName:learnerStages[stage].name,employee:u.name,employeeId:id,conversationId:c.id,conversationVersion:c.version,customer:c.threadType===1?c.title||c.group?.name||'Nhóm':source.customers.find(x=>x.id===c.customerId)?.name||'Khách hàng',receive:p.receive,mute:!p.receive||p.mute});}
@@ -52,11 +52,12 @@ function exceptionPreview(stages,previous,includeAll=false){
 }
 export function scopeCareChats(state,user){
  const source=studentCareState();
- if(user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true).rows;
+ const policies=new Map(source.conversations.map(c=>[c.id,carePolicy(source,c)]));
+ if(user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true,source,policies).rows;
  if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source);
- state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user)).map(c=>c.id);
- state.conversationCare=state.conversations.map(c=>({id:c.id,...carePolicy(source,c)}));
- state.conversations=state.conversations.map(c=>({...c,careHidden:!visibleCare(source,c,user),careTaskPrompt:!carePolicy(source,c).staffPermissions[user.id]?.receive&&careTaskAccess(source,c,user).prompt}));
+ state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user,policies.get(c.id))).map(c=>c.id);
+ state.conversationCare=state.conversations.map(c=>({id:c.id,...policies.get(c.id)}));
+ state.conversations=state.conversations.map(c=>({...c,careHidden:!visibleCare(source,c,user,policies.get(c.id)),careTaskPrompt:!policies.get(c.id).staffPermissions[user.id]?.receive&&careTaskAccess(source,c,user).prompt}));
  const ids=new Set(state.conversations.map(c=>c.id));
  state.messages=state.messages.filter(m=>ids.has(m.conversationId));
  state.conversationCare=state.conversationCare.filter(c=>ids.has(c.id));

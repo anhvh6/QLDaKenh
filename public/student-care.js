@@ -20,5 +20,5 @@ export function careTaskAccess(state,c,user){
  return {active:live.length>0,prompt:live.length>0&&live.every(closed)};
 }
 export function canReadCare(){return true;}
-export function visibleCare(state,c,user){return normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]).receive||careTaskAccess(state,c,user).active;}
-export function receivesCare(state,c,user){const p=normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]);return p.receive&&!p.mute||!p.receive&&careTaskAccess(state,c,user).active;}
+export function visibleCare(state,c,user,policy=carePolicy(state,c)){return normalizeCarePermission(policy.staffPermissions[user.id]).receive||careTaskAccess(state,c,user).active;}
+export function receivesCare(state,c,user,policy=carePolicy(state,c)){const p=normalizeCarePermission(policy.staffPermissions[user.id]);return p.receive&&!p.mute||!p.receive&&careTaskAccess(state,c,user).active;}
