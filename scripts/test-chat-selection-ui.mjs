@@ -25,13 +25,13 @@ for(const width of [1440,900,390]){
  assert.equal(await button.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),true,'Delete button is not covered');
  await button.click();await page.locator('#chat-delete-form').waitFor();await page.keyboard.press('Escape');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
- await page.screenshot({path:'test-results/chat-delete-selection-'+width+'.png'});
+ await page.locator('.chat-bulk summary').click();const menuBox=await page.locator('.chat-bulk .chat-menu-panel').boundingBox();assert.ok(menuBox.x>=0&&menuBox.x+menuBox.width<=width,'Bulk menu fits the viewport');await page.locator('.chat-bulk summary').click();await page.screenshot({path:'test-results/chat-delete-selection-'+width+'.png'});
 }
 await page.setViewportSize({width:1440,height:900});
 await page.locator('[data-chat-select]').nth(1).check();
 assert.match(await page.locator('.chat-bulk').innerText(),/2 đã chọn/);
 await button.click();await page.locator('#chat-delete-form').waitFor();await page.keyboard.press('Escape');
-await page.route('**/api/state',route=>route.fulfill({status:502,contentType:'text/html',body:'<html>Bad Gateway</html>'}));
+await page.getByRole('button',{name:'Hủy chọn hội thoại',exact:true}).click();assert.equal(await page.locator('[data-chat-select]').count(),0);assert.equal(await page.locator('.chat-bulk').count(),0);await page.route('**/api/state',route=>route.fulfill({status:502,contentType:'text/html',body:'<html>Bad Gateway</html>'}));
 await page.reload();await page.getByRole('button',{name:'Thử tải lại',exact:true}).waitFor();
 assert.ok(await page.getByText('Máy chủ đang quá tải hoặc tạm gián đoạn. Vui lòng thử lại.',{exact:true}).isVisible());
 await page.unroute('**/api/state');await page.getByRole('button',{name:'Thử tải lại',exact:true}).click();await page.locator('.sidebar').waitFor();

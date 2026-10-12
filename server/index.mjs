@@ -19,6 +19,7 @@ import {defaultNameSettings} from '../public/chat-names.js';
 import {chatRoute} from './chat.mjs';
 import http from 'node:http';
 import {sendJSON} from './http-json.mjs';
+import {StateCache} from './state-cache.mjs';
 import { readFileSync,createReadStream,createWriteStream,existsSync,statSync,unlinkSync,readdirSync } from 'node:fs';
 import { join,resolve,extname,basename,sep } from 'node:path';
 import { randomBytes,scryptSync,timingSafeEqual,createHash,createHmac } from 'node:crypto';
@@ -45,6 +46,7 @@ const hashPassword=(p,salt=randomBytes(16).toString('hex'))=>`${salt}:${scryptSy
 const verify=(p,hash)=>{const [salt,h]=hash.split(':');return timingSafeEqual(Buffer.from(hashPassword(p,salt).split(':')[1],'hex'),Buffer.from(h,'hex'));};
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const json=sendJSON;
+const stateCache=new StateCache();
 async function body(req,limit=2e6){let n=0;const chunks=[];for await(const b of req){n+=b.length;if(n>limit)domain.fail('Dữ liệu quá lớn.',413);chunks.push(b);}const raw=Buffer.concat(chunks);try{return {raw,value:raw.length?JSON.parse(raw):{}};}catch{domain.fail('JSON không hợp lệ.');}}
 function userFor(req){const token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hub_session='))?.slice(12);if(!token)return null;const s=db.prepare('SELECT u.id,u.email,u.name,u.role,s.csrf FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1').get(sha(token),Date.now());return s||null;}
 function login(res,user){const token=randomBytes(32).toString('hex');const csrf=randomBytes(24).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(sha(token),user.id,csrf,Date.now()+7*86400000);res.setHeader('Set-Cookie',`hub_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800`);return {...user,csrf,password:undefined};}
@@ -79,6 +81,9 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  const genericObject=path.match(/^\/api\/records\/(customers|contents)\/([^/]+)$/);if(genericObject){const r=get(genericObject[1],genericObject[2]);if(r){if(genericObject[1]==='customers')care.assertCustomer(user,r.id);else for(const id of r.channels||[])care.assertChannel(user,id);}}
 
  if(path==='/api/state'&&method==='GET'){
+  const users=db.prepare('SELECT id,name,email,role,active FROM users').all();
+  const revision=recordRevision()+':'+JSON.stringify(users),cacheKey=user.id+':'+user.role+':'+user.csrf;
+  const cached=stateCache.get(cacheKey,revision);if(cached)return cached;
   void refreshLearnerStatuses();
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
   const learnerFacts=new Map(all('learner_source_facts').map(f=>[f.id,f]));state.customers=state.customers.map(c=>{const f=learnerFacts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
@@ -94,7 +99,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
   if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
   state.carrierOrders=carrierOrdersState(user);state.shippingAccounts=shippingState(user);state.integrations={ai:!!secret('ai').token,aiModel:secret('ai').model||'',ghn:!!secret('shipping').token};
-  state.users=db.prepare('SELECT id,name,email,role,active FROM users').all();state.careSettings=get('settings','care')||{slaMinutes:3};state.taophacdo=user.role==='owner'?integrationState(user):null;return scopeCareChats(care.scopeState(state,user),user);
+  state.users=users;state.careSettings=get('settings','care')||{slaMinutes:3};state.taophacdo=user.role==='owner'?integrationState(user):null;return stateCache.set(cacheKey,revision,scopeCareChats(care.scopeState(state,user),user));
  }
  if(path==='/api/logout'&&method==='POST'){db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id,user.csrf);res.setHeader('Set-Cookie','hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');return {ok:true};}
  if(path.startsWith('/api/proxy/supabase/')){
