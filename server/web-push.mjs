@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {all,get,put,remove,secret,saveSecret,db,now} from './store.mjs';
 import {permission,fail} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
-import {studentCareState} from './student-care.mjs';
+import {filterCareNotifications,studentCareState} from './student-care.mjs';
 import {canReadCare,receivesCare} from '../public/student-care.js';
 import {channelConnected} from '../public/chat-connection-state.js';
 const preferences=p=>Object.fromEntries(['sound','preview','messages','reminders','handoffs'].map(k=>[k,p?.[k]!==false]));
@@ -65,7 +65,7 @@ export async function pushTick(send=sendPush){
    const r={...JSON.parse(row.data),id:row.id},key=row.kind+':'+r.id;
    const eventAt=r.pushReceivedAt||r.createdAt;
    const payload=!seen.has(key)&&Date.parse(eventAt)>=Date.parse(s.createdAt)&&Date.parse(eventAt)>Date.now()-3600000?eventFor(row.kind,r,user,s.preferences):null;
-   if(payload){try{await send(s,{...payload,badge:all('notifications').filter(n=>!n.read&&(!n.recipientId||n.recipientId===user.id)).length||1});sent++;lastDeliveredAt=now();}catch(error){if([404,410].includes(error.statusCode))remove('push_subscriptions',s.id);else put('push_subscriptions',{...s,cursor,cursorId,seen:[...seen].slice(-600),retryAt:Date.now()+60000,lastDeliveredAt,deliveryError:'Dịch vụ push chưa nhận được thông báo'+(error.statusCode?' (HTTP '+error.statusCode+')':'. Kiểm tra kết nối máy chủ.')});failed=true;break;}}
+   if(payload){try{await send(s,{...payload,badge:filterCareNotifications(all('notifications'),user).filter(n=>!n.read).length||1});sent++;lastDeliveredAt=now();}catch(error){if([404,410].includes(error.statusCode))remove('push_subscriptions',s.id);else put('push_subscriptions',{...s,cursor,cursorId,seen:[...seen].slice(-600),retryAt:Date.now()+60000,lastDeliveredAt,deliveryError:'Dịch vụ push chưa nhận được thông báo'+(error.statusCode?' (HTTP '+error.statusCode+')':'. Kiểm tra kết nối máy chủ.')});failed=true;break;}}
    seen.add(key);cursor=row.updated_at;cursorId=row.id;if(sent>=5)break;
   }
   if(!failed)put('push_subscriptions',{...s,cursor:rows.length?cursor:until,cursorId:rows.length?cursorId:'',seen:[...seen].slice(-600),retryAt:null,lastDeliveredAt,deliveryError:null});

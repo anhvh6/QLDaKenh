@@ -34,6 +34,7 @@ export function patchChat(user,id,input){
   next.notificationAssignment='manual';
  }
  if(input.notificationAssignment!==undefined){if(!['stage','manual'].includes(input.notificationAssignment))fail('Chế độ phân công không hợp lệ.');next.notificationAssignment=input.notificationAssignment;if(input.notificationAssignment==='stage'){next.assigneeIds=[];next.assignee='';}}
+ if(input.carePermissions!==undefined){next.carePermissions=validateCareStaff({staffPermissions:input.carePermissions}).staffPermissions;}
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){

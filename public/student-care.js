@@ -1,29 +1,16 @@
 import {learnerStages,progressFor} from './learner-progress.js';
 import {groupLearner} from './group-learner.js';
 import {nameStatuses} from './chat-names.js';
-const unique=ids=>[...new Set(ids||[])];
-export function stageInfo(state,stage){
- const info=learnerStages[stage]||learnerStages.NEW,color=state.studentCareSettings?.stages?.[stage]?.color;
- return {...info,color:/^#[0-9a-f]{6}$/i.test(color||'')?color:info.color};
+export function normalizeCarePermission(p){return {receive:p?.receive!==false,mute:p?.receive===false||p?.mute===true};}
+export function stageInfo(state,stage){const info=learnerStages[stage]||learnerStages.NEW,color=state.studentCareSettings?.stages?.[stage]?.color;return {...info,color:/^#[0-9a-f]{6}$/i.test(color||'')?color:info.color};}
+export function carePolicy(state,c){
+ const learner=groupLearner(state,c)||state.customers?.find(p=>p.id===c.customerId),stage=learner?progressFor(state,learner).stage:'NEW';
+ const personal=c.threadType===1?{...c,threadType:0,customerId:learner?.id||c.customerId}:c;
+ const policies=[state.studentCareSettings?.stages?.[stage],...nameStatuses(state,personal).filter(r=>r.staffPermissions)];
+ const inheritedPermissions={},staffPermissions={};
+ const ids=new Set([...(state.users||[]).filter(u=>u.active!==false&&u.active!==0&&['owner','manager','support'].includes(u.role)).map(u=>u.id),...policies.flatMap(p=>Object.keys(p?.staffPermissions||{})),...Object.keys(c.carePermissions||{})]);
+ for(const id of ids){let p=normalizeCarePermission();for(const policy of policies)if(policy?.staffPermissions?.[id])p=normalizeCarePermission(policy.staffPermissions[id]);inheritedPermissions[id]=p;staffPermissions[id]=normalizeCarePermission(c.carePermissions?.[id]||p);}
+ return {stage,configured:true,manual:Object.keys(c.carePermissions||{}).length>0,inheritedPermissions,staffPermissions,notifyStaffIds:[...ids].filter(id=>staffPermissions[id].receive&&!staffPermissions[id].mute),readStaffIds:[...ids].filter(id=>staffPermissions[id].receive)};
 }
-export function carePolicy(state,conversation){
- const learner=groupLearner(state,conversation)||state.customers?.find(p=>p.id===conversation.customerId);
- const stage=learner?progressFor(state,learner).stage:'NEW';
- const stagePolicy=state.studentCareSettings?.stages?.[stage];
- const personal=conversation.threadType===1?{...conversation,threadType:0,customerId:learner?.id||conversation.customerId}:conversation;
- const rules=nameStatuses(state,personal).filter(r=>r.staffConfigured===true);
- const policies=[...(stagePolicy?.staffConfigured?[stagePolicy]:[]),...rules];
- const inherited=unique(policies.flatMap(p=>p.notifyStaffIds||[]));
- const manual=conversation.notificationAssignment==='manual'||(conversation.notificationAssignment!=='stage'&&conversation.assigneeIds?.length);
- const notifyStaffIds=manual?unique(conversation.assigneeIds??(conversation.assignee?[conversation.assignee]:[])):inherited;
- return {stage,manual:Boolean(manual),configured:policies.length>0||Boolean(manual),readConfigured:policies.length>0,notifyStaffIds,readStaffIds:unique([...policies.flatMap(p=>[...(p.readStaffIds||[]),...(p.notifyStaffIds||[])]),...notifyStaffIds])};
-}
-export function canReadCare(state,conversation,user){
- if(['owner','manager'].includes(user.role))return true;
- const policy=carePolicy(state,conversation);
- return !policy.readConfigured||policy.readStaffIds.includes(user.id);
-}
-export function receivesCare(state,conversation,user){
- const policy=carePolicy(state,conversation);
- return policy.configured?policy.notifyStaffIds.includes(user.id):true;
-}
+export function canReadCare(state,c,user){return normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]).receive;}
+export function receivesCare(state,c,user){const p=normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]);return p.receive&&!p.mute;}
