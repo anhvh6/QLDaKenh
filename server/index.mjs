@@ -26,7 +26,7 @@ import { randomBytes,scryptSync,timingSafeEqual,createHash,createHmac } from 'no
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { backup } from 'node:sqlite';
-import { db,dataDir,all,get,put,transaction,now,uid,audit,secret,saveSecret,notification,recordRevision } from './store.mjs';
+import { db,dataDir,all,get,put,transaction,now,uid,audit,secret,saveSecret,notification,stateRevision } from './store.mjs';
 import { seed } from './seed.mjs';
 import * as domain from './domain.mjs';
 import {filterDisconnectedChats} from '../public/chat-connection-state.js';
@@ -82,7 +82,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const users=db.prepare('SELECT id,name,email,role,active FROM users').all();
-  const revision=recordRevision()+':'+JSON.stringify(users),cacheKey=user.id+':'+user.role;
+  const revision=stateRevision()+':'+JSON.stringify(users),cacheKey=user.id+':'+user.role;
   const cached=stateCache.get(cacheKey,revision);if(cached)return {...cached,user};
   void refreshLearnerStatuses();
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
@@ -162,7 +162,7 @@ const server=http.createServer(async(req,res)=>{try{
  if(path==='/api/health')return json(res,{ok:true,service:'Moc Hub'});
  const carrierHook=path.match(/^\/api\/shipping\/webhooks\/viettelpost\/([^/]+)$/);if(carrierHook){if(req.method!=='POST')domain.fail('Chỉ chấp nhận POST.',405);const payload=await body(req,256000);const result=receiveVtpWebhook(carrierHook[1],req.headers,payload.value);json(res,result);if(!all('carrier_orders').some(o=>o.accountId===carrierHook[1]&&o.tracking===String(payload.value.DATA.ORDER_NUMBER))&&!all('shipments').some(s=>s.accountId===carrierHook[1]&&s.tracking===String(payload.value.DATA.ORDER_NUMBER)))void importVtpOrder(carrierHook[1],String(payload.value.DATA.ORDER_NUMBER)).catch(()=>{});return;}
  if(path.startsWith('/api/webhooks/'))return await webhook(req,res,url);
- if(path==='/api/events'&&req.method==='GET'){if(!user)domain.fail('Vui lòng đăng nhập.',401);res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});let revision=recordRevision(),lastHeartbeat=Date.now();res.write('event: ready\ndata: {}\n\n');const timer=setInterval(()=>{if(Date.now()-lastHeartbeat>=15000){if(!userFor(req)){clearInterval(timer);res.end();return;}lastHeartbeat=Date.now();res.write(': keepalive\n\n');}const next=recordRevision();if(next!==revision){if(!userFor(req)){clearInterval(timer);res.end();return;}revision=next;res.write('event: changed\ndata: {}\n\n');}},250);req.on('close',()=>clearInterval(timer));return;}
+ if(path==='/api/events'&&req.method==='GET'){if(!user)domain.fail('Vui lòng đăng nhập.',401);res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});let revision=stateRevision(),lastHeartbeat=Date.now();res.write('event: ready\ndata: {}\n\n');const timer=setInterval(()=>{if(Date.now()-lastHeartbeat>=15000){if(!userFor(req)){clearInterval(timer);res.end();return;}lastHeartbeat=Date.now();res.write(': keepalive\n\n');}const next=stateRevision();if(next!==revision){if(!userFor(req)){clearInterval(timer);res.end();return;}revision=next;res.write('event: changed\ndata: {}\n\n');}},250);req.on('close',()=>clearInterval(timer));return;}
  if(path==='/api/bootstrap'){const setup=!db.prepare('SELECT id FROM users LIMIT 1').get();return json(res,{setup,user});}
  if(path==='/api/setup'&&req.method==='POST'){
   checkOrigin(req);if(db.prepare('SELECT id FROM users LIMIT 1').get())domain.fail('Hệ thống đã được thiết lập.',409);const {value:b}=await body(req);

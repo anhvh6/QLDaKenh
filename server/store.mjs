@@ -29,6 +29,15 @@ CREATE TRIGGER IF NOT EXISTS records_revision_insert AFTER INSERT ON records BEG
 CREATE TRIGGER IF NOT EXISTS records_revision_update AFTER UPDATE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS records_revision_delete AFTER DELETE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;`);
 export const recordRevision=()=>db.prepare('SELECT value FROM record_revision WHERE id=1').get().value;
+// Channel sync timestamps/progress must not broadcast a full CRM refresh.
+db.exec(`CREATE TABLE IF NOT EXISTS state_revision(id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER NOT NULL);
+INSERT OR IGNORE INTO state_revision VALUES(1,0);
+CREATE TRIGGER IF NOT EXISTS state_revision_insert AFTER INSERT ON records WHEN NEW.kind!='push_subscriptions' BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS state_revision_delete AFTER DELETE ON records WHEN OLD.kind!='push_subscriptions' BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS state_revision_update AFTER UPDATE ON records WHEN NEW.kind!='push_subscriptions' AND (NEW.kind!='connections' OR
+ json_extract(NEW.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error') IS NOT json_extract(OLD.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error'))
+ BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;`);
+export const stateRevision=()=>db.prepare('SELECT value FROM state_revision WHERE id=1').get().value;
 export const uid = (prefix='id') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();
 import syncFetch from 'sync-fetch';
@@ -77,7 +86,7 @@ export function put(kind, data, expected) {
   if(kind==='messages'&&!prev&&data.direction==='incoming'&&data.history!==true)record.pushReceivedAt=now();
   delete record.version;
   const newVersion = prev ? prev.version + 1 : 1;
-  db.prepare('INSERT OR REPLACE INTO records(kind, id, data, version, updated_at) VALUES(?,?,?,?,?)').run(kind, id, JSON.stringify(record), newVersion, record.updatedAt);
+  db.prepare('INSERT INTO records(kind, id, data, version, updated_at) VALUES(?,?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data,version=excluded.version,updated_at=excluded.updated_at').run(kind, id, JSON.stringify(record), newVersion, record.updatedAt);
   return get(kind, id);
 }
 
