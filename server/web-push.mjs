@@ -3,6 +3,9 @@ import {createHash} from 'node:crypto';
 import {all,get,put,remove,secret,saveSecret,db,now} from './store.mjs';
 import {permission,fail} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
+import {studentCareState} from './student-care.mjs';
+import {canReadCare,receivesCare} from '../public/student-care.js';
+import {channelConnected} from '../public/chat-connection-state.js';
 const preferences=p=>Object.fromEntries(['sound','preview','messages','reminders','handoffs'].map(k=>[k,p?.[k]!==false]));
 export function validSubscription(s){
  try{const u=new URL(s?.endpoint);return u.protocol==='https:'&&!u.username&&!u.password&&(!u.port||u.port==='443')&&['fcm.googleapis.com','updates.push.services.mozilla.com','push.services.mozilla.com','web.push.apple.com','notify.windows.com'].some(h=>u.hostname===h||u.hostname.endsWith('.'+h))&&s.endpoint.length<2048&&/^[A-Za-z0-9_-]{87}$/.test(s.keys?.p256dh)&&/^[A-Za-z0-9_-]{22}$/.test(s.keys?.auth);}catch{return false;}
@@ -33,6 +36,7 @@ export async function sendPush(s,payload){const keys=pushKeys();return webpush.s
 // The user authorized message previews; each device can still hide them on its lock screen.
 export function eventFor(kind,r,user,p){
  if(kind==='notifications'){
+  if(r.id.startsWith('care-message:'))return null;
   if(r.read||(r.recipientId&&r.recipientId!==user.id)||(!p.reminders&&r.id.startsWith('chat-reminder:')))return null;
  }else if(kind==='messages'){
   if(!p.messages||r.direction!=='incoming'||r.deletedAt||r.history===true)return null;
@@ -42,6 +46,7 @@ export function eventFor(kind,r,user,p){
  }else return null;
  const c=r.conversationId?get('conversations',r.conversationId):null;
  if(r.conversationId){if(!c||c.deletedAt)return null;try{assertChannel(user,c.connectionId);}catch{return null;}}
+ if(c){const state=studentCareState();if(!channelConnected(get('connections',c.connectionId))||!canReadCare(state,c,user)||kind==='messages'&&!receivesCare(state,c,user))return null;}
  const type=kind==='messages'?'message':kind==='staff_handoffs'?'handoff':r.id.startsWith('chat-reminder:')?'reminder':'notification';
  let title={message:'Có tin nhắn mới',handoff:'Yêu cầu nhân viên xử lý',reminder:'Đến giờ nhắc hẹn',notification:'Có thông báo mới'}[type],body='Mở MeGa Phương để xem nội dung.';
  if(type==='message'&&p.preview!==false){const name=(c?.customerId?get('customers',c.customerId)?.name:null)||c?.title||'Khách hàng';title=(c?.threadType===1?(r.senderName||'Thành viên')+' · '+(c.title||'Nhóm'):name).slice(0,100);body=String(r.contactCard?'Đã gửi danh thiếp':r.sticker?'Đã gửi sticker':r.text||((r.attachments||[]).length?'Đã gửi tệp hoặc hình ảnh':'Bạn có tin nhắn mới.')).slice(0,350);}

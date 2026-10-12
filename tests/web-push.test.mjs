@@ -8,7 +8,7 @@ const {put,get,all,db,now}=await import('../server/store.mjs');
 const {validSubscription,pushRoute,pushTick,eventFor,pushKeys}=await import('../server/web-push.mjs');
 const user={id:'push-owner',role:'owner'},staff={id:'push-staff',role:'support'},outsider={id:'push-outsider',role:'support'};
 for(const u of [user,staff,outsider]){db.prepare('INSERT INTO users VALUES(?,?,?,?,?,1)').run(u.id,u.id+'@test.invalid',u.id,u.role,'unused');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(u.id,u.id,'unused',Date.now()+3600000);}
-put('connections',{id:'push-channel'});put('team_members',{userId:staff.id,teamId:'push-team'});put('channel_teams',{teamId:'push-team',connectionId:'push-channel'});put('conversations',{id:'push-chat',connectionId:'push-channel',title:'Private customer'});
+put('connections',{id:'push-channel',status:'connected'});put('team_members',{userId:staff.id,teamId:'push-team'});put('channel_teams',{teamId:'push-team',connectionId:'push-channel'});put('conversations',{id:'push-chat',connectionId:'push-channel',title:'Private customer'});
 const sub={endpoint:'https://fcm.googleapis.com/fcm/send/test-only',keys:{p256dh:'A'.repeat(87),auth:'B'.repeat(22)}},prefs={messages:true,reminders:true,handoffs:true,sound:true};
 test('subscription validation rejects private networks, credentials, lookalike domains and invalid keys',()=>{
  assert.equal(validSubscription(sub),true);

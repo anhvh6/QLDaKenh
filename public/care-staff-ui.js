@@ -1,0 +1,8 @@
+export const careEscape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function staffControls(policy={},users=[],editable=true){
+ const e=careEscape,disabled=editable?'':'disabled';
+ return `<div class="care-staff-config"><label class="check-label"><input type="checkbox" name="staffConfigured" ${policy.staffConfigured?'checked':''} ${disabled}>Áp dụng quyền nhân viên cho trạng thái này</label><p class="help-text">Nhận thông tin: thông báo và đọc/trả lời. Đọc thông tin: đọc/trả lời, không nhận thông báo. Nhân viên vẫn cần quyền truy cập kênh.</p><div class="care-staff-table"><div class="care-staff-heading"><strong>Nhân viên</strong><span>Nhận thông tin</span><span>Đọc thông tin</span></div>${users.filter(u=>u.active!==false&&u.active!==0&&['owner','manager','support'].includes(u.role)).map(u=>`<div class="care-staff-row"><span>${e(u.name)}</span><label><input type="checkbox" name="notifyStaffIds" value="${e(u.id)}" aria-label="${e(u.name)} nhận thông tin" ${(policy.notifyStaffIds||[]).includes(u.id)?'checked':''} ${disabled}></label><label><input type="checkbox" name="readStaffIds" value="${e(u.id)}" aria-label="${e(u.name)} đọc thông tin" ${(policy.readStaffIds||[]).includes(u.id)?'checked':''} ${disabled}></label></div>`).join('')||'<p>Chưa có nhân viên chăm sóc.</p>'}</div></div>`;
+}
+export function readStaffControls(row){
+ return {staffConfigured:row.querySelector('[name=staffConfigured]').checked,notifyStaffIds:[...row.querySelectorAll('[name=notifyStaffIds]:checked')].map(el=>el.value),readStaffIds:[...row.querySelectorAll('[name=readStaffIds]:checked')].map(el=>el.value)};
+}

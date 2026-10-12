@@ -28,6 +28,7 @@ import { db,dataDir,all,get,put,transaction,now,uid,audit,secret,saveSecret,noti
 import { seed } from './seed.mjs';
 import * as domain from './domain.mjs';
 import {filterDisconnectedChats} from '../public/chat-connection-state.js';
+import {studentCareRoute,scopeCareChats,assertCareConversation} from './student-care.mjs';
 import {planRoute,syncPlanHandoff} from './plan-bridge.mjs';
 import * as care from './taophacdo.mjs';
 import {supabaseRoute,integrationState} from './supabase.mjs';
@@ -50,6 +51,11 @@ const throttles=new Map();const busy=new Set();
 function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host&&origin.host!==req.headers['x-forwarded-host'])domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
 const generic=/^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req,res,url,user,input){const path=url.pathname;const method=req.method;
+ const careConversation=path.match(/^\/api\/(?:chat\/|care\/|chatbot\/)?conversations\/([^/]+)/);
+ const careMessage=path.match(/^\/api\/chat\/messages\/([^/]+)/);
+ const guardedConversation=careConversation?get('conversations',careConversation[1]):careMessage?get('conversations',get('messages',careMessage[1])?.conversationId):input.conversationId?get('conversations',input.conversationId):null;
+ if(guardedConversation)assertCareConversation(user,guardedConversation);
+ const studentCare=await studentCareRoute(path,method,input,user);if(studentCare!==undefined)return studentCare;
  const quickReply=await quickReplyRoute(path,method,input,user);if(quickReply!==undefined)return quickReply;
  const shipping=await shippingRoute(path,method,input,user);if(shipping!==undefined)return shipping;
  const interaction=await interactionRoute(path,method,input,user);if(interaction!==undefined)return interaction;
@@ -83,10 +89,11 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
   state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,link:p.customer?.link,status:studyPlanStatus(p,o)};});
   state.savedPlanSummaries=all('study_plans').map(p=>({id:p.id,customerId:p.customerId,handoffId:p.handoffId||'draft:'+p.customerId,name:p.customer?.customer_name||get('customers',p.customerId)?.name||'Học viên',phone:p.customer?.sdt||'',startDate:p.customer?.start_date,endDate:p.customer?.end_date,durationDays:p.customer?.duration_days||0,group:p.customer?.ma_vd||'',amount:Number(p.customer?.gia_tien||0),updatedAt:p.updatedAt,version:p.version,status:studyPlanStatus(p,get('orders',p.lastOrderId))})).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  state.studentCareSettings=get('settings','student-care')||{version:0,stages:{}};
   state.settings=get('settings','general')||{id:'general',name:'Mộc Workspace',timezone:'Asia/Ho_Chi_Minh'};
   if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
   state.carrierOrders=carrierOrdersState(user);state.shippingAccounts=shippingState(user);state.integrations={ai:!!secret('ai').token,aiModel:secret('ai').model||'',ghn:!!secret('shipping').token};
-  state.users=db.prepare('SELECT id,name,email,role,active FROM users').all();state.careSettings=get('settings','care')||{slaMinutes:3};state.taophacdo=user.role==='owner'?integrationState(user):null;return care.scopeState(state,user);
+  state.users=db.prepare('SELECT id,name,email,role,active FROM users').all();state.careSettings=get('settings','care')||{slaMinutes:3};state.taophacdo=user.role==='owner'?integrationState(user):null;return scopeCareChats(care.scopeState(state,user),user);
  }
  if(path==='/api/logout'&&method==='POST'){db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id,user.csrf);res.setHeader('Set-Cookie','hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');return {ok:true};}
  if(path.startsWith('/api/proxy/supabase/')){

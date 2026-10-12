@@ -14,10 +14,11 @@ import {defaultNameSettings,nameConditions} from '../public/chat-names.js';
 const groupJobs=new Set();
 const friendJobs=new Set();
 
+import {assertCareConversation,validateCareStaff} from './student-care.mjs';
 export function chatConversation(user,id){
  permission(user,'inbox');const c=get('conversations',id);
  if(!c||c.deletedAt||c.kind==='comment')fail('Không tìm thấy hội thoại chat.',404);
- assertChannel(user,c.connectionId);return c;
+ assertChannel(user,c.connectionId);assertCareConversation(user,c);return c;
 }
 export function patchChat(user,id,input){
  const c=chatConversation(user,id);if(input.version!==c.version)fail('Hội thoại đã thay đổi. Hãy tải lại.',409);
@@ -30,7 +31,9 @@ export function patchChat(user,id,input){
   if(!Array.isArray(ids)||ids.length>20)fail('Danh sách nhân viên không hợp lệ.');
   for(const uid of ids){const u=db.prepare('SELECT id,role FROM users WHERE id=? AND active=1').get(uid);if(!u)fail('Nhân viên không tồn tại.');permission(u,'inbox');assertChannel(u,c.connectionId);}
   next.assigneeIds=[...new Set(ids)];next.assignee=next.assigneeIds[0]||'';
+  next.notificationAssignment='manual';
  }
+ if(input.notificationAssignment!==undefined){if(!['stage','manual'].includes(input.notificationAssignment))fail('Chế độ phân công không hợp lệ.');next.notificationAssignment=input.notificationAssignment;if(input.notificationAssignment==='stage'){next.assigneeIds=[];next.assignee='';}}
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){
@@ -73,7 +76,7 @@ export async function chatRoute(path,method,input,user){
   const prev=get('settings','chat-names');if(input.version!==(prev?.version||0))fail('Cấu hình đã thay đổi. Hãy tải lại.',409);
   if(!Number.isInteger(input.expiringDays)||input.expiringDays<1||input.expiringDays>90)fail('Ngưỡng sắp hết hạn phải từ 1–90 ngày.');
   if(!Array.isArray(input.rules)||input.rules.length>50)fail('Tối đa 50 quy tắc.');
-  const ids=new Set(),rules=input.rules.map(r=>{if(!r||typeof r!=='object')fail('Quy tắc không hợp lệ.');if(typeof r.id!=='string'||! /^[a-zA-Z0-9_-]{1,100}$/.test(r.id)||ids.has(r.id))fail('Mã quy tắc không hợp lệ hoặc trùng.');ids.add(r.id);if(!Object.hasOwn(nameConditions,r.condition)||!/^#[0-9a-f]{6}$/i.test(r.color)||typeof r.enabled!=='boolean')fail('Điều kiện hoặc màu không hợp lệ.');return {id:r.id,label:required(r.label,'Tên trạng thái',80),color:r.color,condition:r.condition,enabled:r.enabled,value:r.condition==='tag'?required(r.value,'Tên nhãn',40):''};});
+  const ids=new Set(),rules=input.rules.map(r=>{if(!r||typeof r!=='object')fail('Quy tắc không hợp lệ.');if(typeof r.id!=='string'||! /^[a-zA-Z0-9_-]{1,100}$/.test(r.id)||ids.has(r.id))fail('Mã quy tắc không hợp lệ hoặc trùng.');ids.add(r.id);if(!Object.hasOwn(nameConditions,r.condition)||!/^#[0-9a-f]{6}$/i.test(r.color)||typeof r.enabled!=='boolean')fail('Điều kiện hoặc màu không hợp lệ.');return {id:r.id,label:required(r.label,'Tên trạng thái',80),color:r.color,condition:r.condition,enabled:r.enabled,...validateCareStaff(r),value:r.condition==='tag'?required(r.value,'Tên nhãn',40):''};});
   const result=put('settings',{id:defaultNameSettings.id,expiringDays:input.expiringDays,rules},prev?.version);audit(user.id,'chat_name_settings_updated',result.id);return result;
  }
  const cardDetails=path.match(/^\/api\/chat\/messages\/([^/]+)\/card$/);if(cardDetails&&method==='GET'){const m=get('messages',cardDetails[1]);if(!m||m.deletedAt||!m.contactCard)fail('Không tìm thấy danh thiếp.',404);const c=chatConversation(user,m.conversationId);if(m.contactCard.qrCodeImage&&m.contactCard.phone)return m.contactCard;const contact=m.contactId?get('conversations',m.contactId):null,person=contact?.connectionId===c.connectionId?get('customers',contact.customerId):null;const card=await readContactCard(c.connectionId,m.contactCard.userId||(person?contact.externalUserId:''),{...m.contactCard,phone:m.contactCard.phone||person?.phone||'',avatar:m.contactCard.avatar||person?.zaloAvatar||person?.avatar||''});const current=get('messages',m.id);if(current&&!current.deletedAt)put('messages',{...current,contactCard:card});return card;}
