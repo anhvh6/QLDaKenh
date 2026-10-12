@@ -54,3 +54,18 @@ test('exceptions list includes hidden chats and individual edits retain other st
  assert.equal(c.carePermissions.owner,undefined);assert.deepEqual(c.carePermissions.a,{receive:true,mute:true});
  await assert.rejects(studentCareRoute('/api/chat/student-care-exceptions','PATCH',{conversationId:c.id,employeeId:'a',version:c.version,reset:true},a),e=>e.status===403);
 });
+
+test('appointment reminders use the same stage for settings, exceptions and resetting assignments',async()=>{
+ put('customers',{id:'appointment-learner',name:'Appointment'});
+ put('chat_reminders',{id:'appointment-reminder',customerId:'appointment-learner',status:'pending'});
+ let c=put('conversations',{id:'appointment-chat',customerId:'appointment-learner',connectionId:'channel',kind:'message',threadType:0});
+ put('settings',{id:'chat-names',expiringDays:7,rules:[{id:'no-plan',condition:'no_plan',enabled:true,color:'#123456',staffPermissions:{a:{receive:true,mute:false}}}]});
+ const previous=get('settings','student-care');await studentCareRoute('/api/chat/student-care-settings','PUT',{version:previous.version,stages:{APPOINTMENT:{color:'#123456',staffPermissions:{a:{receive:true,mute:true}}}}},owner);
+ assert.equal(carePolicy(studentCareState(),c).stage,'APPOINTMENT');assert.equal(receivesCare(studentCareState(),c,a),false);
+ c=patchChat(owner,c.id,{version:c.version,carePermissions:{a:{receive:true,mute:false}}});
+ assert.ok((await studentCareRoute('/api/chat/student-care-exceptions','GET',{},owner)).some(r=>r.conversationId===c.id&&r.stage==='APPOINTMENT'));
+ const body={version:get('settings','student-care').version,stages:{APPOINTMENT:{color:'#456789',staffPermissions:{a:{receive:false,mute:true}}}}};
+ const preview=await studentCareRoute('/api/chat/student-care-settings/preview','POST',body,owner);assert.ok(preview.rows.some(r=>r.conversationId===c.id));
+ await studentCareRoute('/api/chat/student-care-settings','PUT',{...body,exceptionToken:preview.exceptionToken},owner);
+ c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(canReadCare(studentCareState(),c,a),false);
+});

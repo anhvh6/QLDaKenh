@@ -6,7 +6,7 @@ export function stageInfo(state,stage){const info=learnerStages[stage]||learnerS
 export function carePolicy(state,c){
  const learner=groupLearner(state,c)||state.customers?.find(p=>p.id===c.customerId),stage=learner?progressFor(state,learner).stage:'NEW';
  const personal=c.threadType===1?{...c,threadType:0,customerId:learner?.id||c.customerId}:c;
- const policies=[state.studentCareSettings?.stages?.[stage],...nameStatuses(state,personal).filter(r=>r.staffPermissions)];
+ const policies=[...nameStatuses(state,personal).filter(r=>r.staffPermissions).reverse(),state.studentCareSettings?.stages?.[stage]];
  const inheritedPermissions={},staffPermissions={};
  const ids=new Set([...(state.users||[]).filter(u=>u.active!==false&&u.active!==0&&['owner','manager','support'].includes(u.role)).map(u=>u.id),...policies.flatMap(p=>Object.keys(p?.staffPermissions||{})),...Object.keys(c.carePermissions||{})]);
  for(const id of ids){let p=normalizeCarePermission();for(const policy of policies)if(policy?.staffPermissions?.[id])p=normalizeCarePermission(policy.staffPermissions[id]);inheritedPermissions[id]=p;staffPermissions[id]=normalizeCarePermission(c.carePermissions?.[id]||p);}

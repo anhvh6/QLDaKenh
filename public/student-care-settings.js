@@ -2,7 +2,7 @@ import {learnerStages} from './learner-progress.js';
 import {stageInfo} from './student-care.js';
 import {staffControls,readStaffControls,careEscape as e,initCareStaffControls} from './care-staff-ui.js';
 function exceptionSection(state,stage,editable){
- const rows=(state.careExceptions||[]).filter(r=>r.stage===stage);if(!rows.length)return '';
+ const rows=(state.careExceptions||[]).filter(r=>r.stage===stage);if(!rows.length)return '<section class="care-exceptions"><h3>Ngoại lệ (0)</h3><p class="help-text">Chưa có quyền riêng cho hội thoại ở trạng thái này. Quyền đang theo cấu hình trong Cài đặt.</p></section>';
  return `<section class="care-exceptions"><h3>Ngoại lệ (${rows.length})</h3><div style="overflow:auto"><table class="table"><thead><tr><th>STT</th><th>Nhân viên</th><th>Tên KH / Nhóm</th><th>Nhận thông tin</th><th>Tắt thông báo</th><th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${e(r.employee)}</td><td>${e(r.customer)}</td><td>${r.receive?'✓':'—'}</td><td>${r.mute?'✓':'—'}</td><td>${editable?`<button type="button" class="btn" data-edit-care-exception="${e(r.conversationId)}" data-employee="${e(r.employeeId)}">Sửa</button>`:''}</td></tr>`).join('')}</tbody></table></div></section>`;
 }
 export function studentCareSettingsPage(state){
