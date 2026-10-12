@@ -82,8 +82,8 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const users=db.prepare('SELECT id,name,email,role,active FROM users').all();
-  const revision=recordRevision()+':'+JSON.stringify(users),cacheKey=user.id+':'+user.role+':'+user.csrf;
-  const cached=stateCache.get(cacheKey,revision);if(cached)return cached;
+  const revision=recordRevision()+':'+JSON.stringify(users),cacheKey=user.id+':'+user.role;
+  const cached=stateCache.get(cacheKey,revision);if(cached)return {...cached,user};
   void refreshLearnerStatuses();
   const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
   const learnerFacts=new Map(all('learner_source_facts').map(f=>[f.id,f]));state.customers=state.customers.map(c=>{const f=learnerFacts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
