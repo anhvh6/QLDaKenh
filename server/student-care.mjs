@@ -6,7 +6,9 @@ import {carePolicy,canReadCare,receivesCare} from '../public/student-care.js';
 import {studyPlanStatus} from './plan-access.mjs';
 
 export function studentCareState(){
- return {chat_reminders:all('chat_reminders'),users:db.prepare('SELECT id,name,role,active FROM users').all(),customers:all('customers'),conversations:all('conversations'),connections:all('connections'),orders:all('orders'),journeys:all('journeys'),plan_handoffs:all('plan_handoffs'),chatNameSettings:get('settings','chat-names'),studentCareSettings:get('settings','student-care')||{version:0,stages:{}},chatPlanSummaries:all('study_plans').map(p=>({customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,get('orders',p.lastOrderId))}))};
+ const facts=new Map(all('learner_source_facts').map(f=>[f.id,f]));
+ const customers=all('customers').map(c=>{const f=facts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
+ return {chat_reminders:all('chat_reminders'),users:db.prepare('SELECT id,name,role,active FROM users').all(),customers,conversations:all('conversations'),connections:all('connections'),orders:all('orders'),journeys:all('journeys'),plan_handoffs:all('plan_handoffs'),chatNameSettings:get('settings','chat-names'),studentCareSettings:get('settings','student-care')||{version:0,stages:{}},chatPlanSummaries:all('study_plans').map(p=>({customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,get('orders',p.lastOrderId))}))};
 }
 export function assertCareConversation(user,c){
  if(!canReadCare(studentCareState(),c,user))fail('Bạn chưa được cấp quyền đọc thông tin cho trạng thái học viên này.',403);

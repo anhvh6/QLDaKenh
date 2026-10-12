@@ -69,3 +69,16 @@ test('appointment reminders use the same stage for settings, exceptions and rese
  await studentCareRoute('/api/chat/student-care-settings','PUT',{...body,exceptionToken:preview.exceptionToken},owner);
  c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(canReadCare(studentCareState(),c,a),false);
 });
+
+test('remote learner facts override stored plan stage consistently for access, reset and exceptions',async()=>{
+ put('customers',{id:'remote-learner',name:'Hoang Anh',learnerProgress:{stage:'STUDYING'}});
+ put('learner_source_facts',{id:'remote-learner',learnerProgress:{stage:'APPOINTMENT',manualOverride:true,planOverride:true}});
+ let c=put('conversations',{id:'remote-chat',customerId:'remote-learner',connectionId:'channel',kind:'message',threadType:0});
+ assert.equal(carePolicy(studentCareState(),c).stage,'APPOINTMENT');
+ c=patchChat(owner,c.id,{version:c.version,carePermissions:{a:{receive:true,mute:true}}});
+ const rows=await studentCareRoute('/api/chat/student-care-exceptions','GET',{},owner);assert.ok(rows.some(r=>r.conversationId===c.id&&r.stage==='APPOINTMENT'));
+ const previous=get('settings','student-care');const body={version:previous.version,stages:{...previous.stages,APPOINTMENT:{color:'#123456',staffPermissions:{a:{receive:true,mute:false}}}}};
+ const preview=await studentCareRoute('/api/chat/student-care-settings/preview','POST',body,owner);assert.ok(preview.rows.some(r=>r.conversationId===c.id));
+ await studentCareRoute('/api/chat/student-care-settings','PUT',{...body,exceptionToken:preview.exceptionToken},owner);
+ c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(receivesCare(studentCareState(),c,a),true);
+});
