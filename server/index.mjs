@@ -54,7 +54,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  const careConversation=path.match(/^\/api\/(?:chat\/|care\/|chatbot\/)?conversations\/([^/]+)/);
  const careMessage=path.match(/^\/api\/chat\/messages\/([^/]+)/);
  const guardedConversation=careConversation?get('conversations',careConversation[1]):careMessage?get('conversations',get('messages',careMessage[1])?.conversationId):input.conversationId?get('conversations',input.conversationId):null;
- if(guardedConversation)assertCareConversation(user,guardedConversation);
+ if(guardedConversation&&!(path==='/api/chat/student-care-exceptions'&&user.role==='owner'))assertCareConversation(user,guardedConversation);
  const studentCare=await studentCareRoute(path,method,input,user);if(studentCare!==undefined)return studentCare;
  const quickReply=await quickReplyRoute(path,method,input,user);if(quickReply!==undefined)return quickReply;
  const shipping=await shippingRoute(path,method,input,user);if(shipping!==undefined)return shipping;

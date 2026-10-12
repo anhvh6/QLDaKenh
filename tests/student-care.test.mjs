@@ -46,3 +46,11 @@ test('old permissions reset to full and invalid inputs rejected',async()=>{
  const body={version:get('settings','student-care').version,stages:{NEW:{color:'#123456',staffPermissions:{missing:{receive:true,mute:false}}}}};
  await assert.rejects(studentCareRoute('/api/chat/student-care-settings','PUT',body,a),e=>e.status===403);await assert.rejects(studentCareRoute('/api/chat/student-care-settings','PUT',body,owner));
 });
+
+test('exceptions list includes hidden chats and individual edits retain other staff overrides',async()=>{
+ let c=get('conversations','group');c=patchChat(owner,c.id,{version:c.version,carePermissions:{owner:{receive:false,mute:true},a:{receive:true,mute:true}}});
+ const rows=await studentCareRoute('/api/chat/student-care-exceptions','GET',{},owner);assert.ok(rows.some(r=>r.conversationId===c.id&&r.employeeId==='owner'));
+ c=await studentCareRoute('/api/chat/student-care-exceptions','PATCH',{conversationId:c.id,employeeId:'owner',version:c.version,reset:true},owner);
+ assert.equal(c.carePermissions.owner,undefined);assert.deepEqual(c.carePermissions.a,{receive:true,mute:true});
+ await assert.rejects(studentCareRoute('/api/chat/student-care-exceptions','PATCH',{conversationId:c.id,employeeId:'a',version:c.version,reset:true},a),e=>e.status===403);
+});

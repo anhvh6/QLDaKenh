@@ -37,10 +37,10 @@ export function validateCareStaff(input){
 export function filterCareNotifications(rows,user,source=studentCareState()){
  return rows.filter(n=>(!n.recipientId||n.recipientId===user.id)&&(!n.conversationId||(()=>{const c=source.conversations.find(c=>c.id===n.conversationId);return c&&!c.deletedAt&&canReadCare(source,c,user)&&receivesCare(source,c,user);})()));
 }
-function exceptionPreview(stages,previous){
+function exceptionPreview(stages,previous,includeAll=false){
  const source=studentCareState(),rows=[];
  for(const c of source.conversations){if(c.deletedAt)continue;const stage=carePolicy(source,c).stage;
- if(!stages[stage]||JSON.stringify(stages[stage].staffPermissions)!==JSON.stringify(previous?.stages?.[stage]?.staffPermissions||{})){
+ if(includeAll||JSON.stringify(stages[stage])!==JSON.stringify(previous?.stages?.[stage])){
   if(!stages[stage])continue;
   for(const [id,p] of Object.entries(c.carePermissions||{})){const u=source.users.find(u=>u.id===id&&u.active);if(u)rows.push({stage,stageName:learnerStages[stage].name,employee:u.name,employeeId:id,conversationId:c.id,conversationVersion:c.version,customer:c.threadType===1?c.title||c.group?.name||'Nhóm':source.customers.find(x=>x.id===c.customerId)?.name||'Khách hàng',receive:p.receive,mute:!p.receive||p.mute});}
  }
@@ -50,6 +50,7 @@ function exceptionPreview(stages,previous){
 }
 export function scopeCareChats(state,user){
  const source=studentCareState();
+ if(user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true).rows;
  if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source);
  state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user)).map(c=>c.id);
  state.conversationCare=state.conversations.map(c=>({id:c.id,...carePolicy(source,c)}));
@@ -63,6 +64,18 @@ export function scopeCareChats(state,user){
  return state;
 }
 export async function studentCareRoute(path,method,input,user){
+ if(path==='/api/chat/student-care-exceptions'){
+  permission(user,'inbox');if(user.role!=='owner')fail('Chỉ chủ hệ thống được sửa ngoại lệ.',403);
+  if(method==='GET'){const source=studentCareState();return exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true).rows;}
+  if(method==='PATCH'){
+   const c=get('conversations',input.conversationId);if(!c||c.deletedAt)fail('Không tìm thấy hội thoại.',404);
+   if(input.version!==c.version)fail('Hội thoại đã thay đổi. Hãy tải lại.',409);
+   staffIds([input.employeeId],'nhân viên');const permissions={...c.carePermissions};
+   if(input.reset===true)delete permissions[input.employeeId];else permissions[input.employeeId]=validateCareStaff({staffPermissions:{[input.employeeId]:input.permission}}).staffPermissions[input.employeeId];
+   const result=put('conversations',{...c,carePermissions:permissions},c.version);audit(user.id,'care_exception_updated',c.id,{employeeId:input.employeeId});return result;
+  }
+ }
+
  if(!((path==='/api/chat/student-care-settings'&&method==='PUT')||(path==='/api/chat/student-care-settings/preview'&&method==='POST')))return;
  permission(user,'inbox');if(user.role!=='owner')fail('Chỉ chủ hệ thống được cấu hình trạng thái học viên.',403);
  const previous=get('settings','student-care');if(input.version!==(previous?.version||0))fail('Cấu hình đã thay đổi. Hãy tải lại.',409);
