@@ -132,8 +132,8 @@ function menu(label,body,cls=''){return '<details class="chat-menu '+cls+'"><sum
 function placeInboxToolbar(){
  const root=document.querySelector('.inbox-layout'),list=root?.querySelector('.conversation-list'),topbar=document.querySelector('.topbar');if(H?.route()!=='inbox'||!list||!topbar)return;
  const desktop=matchMedia('(min-width:761px)').matches;let portal=topbar.querySelector('.inbox-topbar-tools');
- if(desktop){if(!portal){portal=document.createElement('div');portal.className='inbox-topbar-tools';portal.setAttribute('aria-label','Công cụ hội thoại');topbar.append(portal);}for(const selector of ['.toolbar','.conversation-search','.chat-toolbar']){const tools=list.querySelector(':scope > '+selector);if(tools)portal.append(tools);}topbar.classList.add('inbox-topbar');}
- else{if(portal){const tools=portal.querySelector('.toolbar'),search=portal.querySelector('.conversation-search'),manage=portal.querySelector('.chat-toolbar');if(manage)list.prepend(manage);if(search)list.prepend(search);if(tools)list.prepend(tools);portal.remove();}topbar.classList.remove('inbox-topbar');}
+ if(desktop){if(!portal){portal=document.createElement('div');portal.className='inbox-topbar-tools';portal.setAttribute('aria-label','Công cụ hội thoại');topbar.append(portal);}for(const selector of ['.toolbar','.conversation-search','.chat-toolbar','.chat-bulk']){const tools=list.querySelector(':scope > '+selector);if(tools)portal.append(tools);}topbar.classList.add('inbox-topbar');}
+ else{if(portal){const tools=portal.querySelector('.toolbar'),search=portal.querySelector('.conversation-search'),manage=portal.querySelector('.chat-toolbar');const bulk=portal.querySelector('.chat-bulk');if(bulk)list.prepend(bulk);if(manage)list.prepend(manage);if(search)list.prepend(search);if(tools)list.prepend(tools);portal.remove();}topbar.classList.remove('inbox-topbar');}
 }
 window.addEventListener('resize',placeInboxToolbar);
 export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of selected)if(!H.state.conversations.some(c=>c.id===id))selected.delete(id);
