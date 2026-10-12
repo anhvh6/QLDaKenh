@@ -36,8 +36,12 @@ export function validateCareStaff(input){
  const staffPermissions={};for(const [id,p] of Object.entries(permissions)){if(!p||typeof p.receive!=='boolean'||typeof p.mute!=='boolean')fail('Quyền nhân viên không hợp lệ.');staffPermissions[id]={receive:p.receive,mute:!p.receive||p.mute};}
  return {staffPermissions};
 }
-export function filterCareNotifications(rows,user,source=studentCareState()){
- return rows.filter(n=>(!n.recipientId||n.recipientId===user.id)&&(!n.conversationId||(()=>{const c=source.conversations.find(c=>c.id===n.conversationId);return c&&!c.deletedAt&&canReadCare(source,c,user)&&receivesCare(source,c,user);})()));
+export function filterCareNotifications(rows,user,source=studentCareState(),policies=new Map()){
+ const conversations=new Map(source.conversations.map(c=>[c.id,c])),access=new Map();
+ return rows.filter(n=>{if(n.recipientId&&n.recipientId!==user.id)return false;if(!n.conversationId)return true;
+  if(!access.has(n.conversationId)){const c=conversations.get(n.conversationId);access.set(n.conversationId,!!c&&!c.deletedAt&&canReadCare(source,c,user)&&receivesCare(source,c,user,policies.get(c.id)||carePolicy(source,c)));}
+  return access.get(n.conversationId);
+ });
 }
 function exceptionPreview(stages,previous,includeAll=false,source=studentCareState(),policies=new Map()){
  const rows=[];
@@ -54,7 +58,7 @@ export function scopeCareChats(state,user){
  const source=studentCareState();
  const policies=new Map(source.conversations.map(c=>[c.id,carePolicy(source,c)]));
  if(user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true,source,policies).rows;
- if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source);
+ if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source,policies);
  state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user,policies.get(c.id))).map(c=>c.id);
  state.conversationCare=state.conversations.map(c=>({id:c.id,...policies.get(c.id)}));
  state.conversations=state.conversations.map(c=>({...c,careHidden:!visibleCare(source,c,user,policies.get(c.id)),careTaskPrompt:!policies.get(c.id).staffPermissions[user.id]?.receive&&careTaskAccess(source,c,user).prompt}));
