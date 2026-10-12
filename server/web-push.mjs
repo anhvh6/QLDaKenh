@@ -68,6 +68,7 @@ export async function pushTick(send=sendPush){
    if(payload){try{await send(s,{...payload,badge:filterCareNotifications(all('notifications'),user).filter(n=>!n.read).length||1});sent++;lastDeliveredAt=now();}catch(error){if([404,410].includes(error.statusCode))remove('push_subscriptions',s.id);else put('push_subscriptions',{...s,cursor,cursorId,seen:[...seen].slice(-600),retryAt:Date.now()+60000,lastDeliveredAt,deliveryError:'Dịch vụ push chưa nhận được thông báo'+(error.statusCode?' (HTTP '+error.statusCode+')':'. Kiểm tra kết nối máy chủ.')});failed=true;break;}}
    seen.add(key);cursor=row.updated_at;cursorId=row.id;if(sent>=5)break;
   }
-  if(!failed)put('push_subscriptions',{...s,cursor:rows.length?cursor:until,cursorId:rows.length?cursorId:'',seen:[...seen].slice(-600),retryAt:null,lastDeliveredAt,deliveryError:null});
+  // Empty polls do not change user-visible state and must not trigger SSE refreshes.
+  if(!failed&&(rows.length||s.retryAt||s.deliveryError))put('push_subscriptions',{...s,cursor:rows.length?cursor:until,cursorId:rows.length?cursorId:'',seen:[...seen].slice(-600),retryAt:null,lastDeliveredAt,deliveryError:null});
  }}finally{busy=false;}
 }

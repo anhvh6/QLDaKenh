@@ -46,6 +46,7 @@ async function api(path,options={}){const headers={'Content-Type':'application/j
 function toast(text,error=false){const t=document.createElement('div');t.className='toast'+(error?' error':'');t.innerHTML=icon(error?'help':'check',18)+`<span>${e(text)}</span>`;$('#toast-root').append(t);setTimeout(()=>t.remove(),error?10000:text.includes('Đã tạo đơn')?15000:4200);}
 let stateLoads=0,stateRetryAfter=0,stateFailures=0;
 async function refresh(renderNow=true){stateLoads++;try{S=await api('/state');updateChatNotifications(S.notifications||[]);$('#care-updates')?.remove();if(renderNow)render();stateFailures=0;stateRetryAfter=0;}catch(err){stateFailures++;stateRetryAfter=Date.now()+Math.min(120000,15000*2**Math.min(stateFailures,3));throw err;}finally{stateLoads--;}}
+async function refreshBackground(){if(stateLoads||Date.now()<stateRetryAfter||document.hidden)return;return refresh();}
 let updatingInbox=false,inboxRefreshPending=false,inboxRefreshTimer;
 function queueInboxRefresh(){inboxRefreshPending=true;clearTimeout(inboxRefreshTimer);inboxRefreshTimer=setTimeout(()=>{if(route==='inbox')refreshInbox().catch(()=>{});},250);}
 async function refreshInbox(){
@@ -363,7 +364,7 @@ initPlans({get state(){return S;},api,refresh,render,modal,closeModal,toast,navi
 initDeviceNotifications({getS:()=>S,api,toast,openSettings:()=>{closeModal();filter='notifications';route='settings';history.replaceState(null,'','#settings');document.body.classList.remove('menu-open');render();}});
 initQuickReplies({get state(){return S;},api,refresh,render,modal,closeModal,toast});
 initConversationTags({get state(){return S;},api,refresh,render,modal,closeModal,toast});
-initCare({get state(){return S;},api,refresh,refreshInbox,render,modal,closeModal,toast,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});
+initCare({get state(){return S;},api,refresh,refreshInbox,refreshBackground,render,modal,closeModal,toast,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});
 initStudentCareSettings({get state(){return S;},api,refresh,toast,modal,closeModal});
 initProductsManagement({get state(){return S;},render});
 initShipping({get state(){return S;},route:()=>route,api,refresh,render,modal,closeModal,toast});

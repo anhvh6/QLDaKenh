@@ -33,7 +33,7 @@ test('worker sends new events once, persists retry cursor and removes expired su
  await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);
  await new Promise(r=>setTimeout(r,5));
  put('messages',{id:'push-event1',conversationId:'push-chat',direction:'incoming',text:'Secret',createdAt:'2020-01-01T00:00:00.000Z'});
- const delivered=[];await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);assert.ok(all('push_subscriptions')[0].lastDeliveredAt);
+ const delivered=[];await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);const idleVersion=all('push_subscriptions')[0].version;await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);assert.equal(all('push_subscriptions')[0].version,idleVersion,'Empty push polling must not emit state-change revisions');assert.ok(all('push_subscriptions')[0].lastDeliveredAt);
  await new Promise(r=>setTimeout(r,5));put('messages',{id:'push-event2',conversationId:'push-chat',direction:'incoming'});
  await pushTick(async()=>{throw Object.assign(Error('retry'),{statusCode:503});});let saved=all('push_subscriptions')[0];assert.ok(saved.retryAt>Date.now());assert.match((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).error,/503/);put('push_subscriptions',{...saved,retryAt:null});
  await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,2);
