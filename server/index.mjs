@@ -1,3 +1,4 @@
+import {resumePurges} from './customer-purge.mjs';
 import {parseZaloContent} from './zalo-message-content.mjs';
 import {isTypeCode} from '../public/chat-media-content.js';
 import {quickReplyRoute} from './quick-replies.mjs';
@@ -145,7 +146,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 async function webhook(req,res,url){const id=url.pathname.split('/').pop();const c=get('connections',id);if(!c||c.provider!=='facebook')domain.fail('Webhook không tồn tại.',404);const sec=secret(id);
  if(req.method==='GET'){if(sec.verifyToken&&url.searchParams.get('hub.verify_token')===sec.verifyToken){res.writeHead(200,{'Content-Type':'text/plain'});res.end(url.searchParams.get('hub.challenge')||'');return;}domain.fail('Verify token không hợp lệ.',403);}
  const {raw,value}=await body(req);const signature=req.headers['x-hub-signature-256']||'';if(!sec.appSecret)domain.fail('Chưa có App Secret.',403);const expected='sha256='+createHmac('sha256',sec.appSecret).update(raw).digest('hex');if(signature.length!==expected.length||!timingSafeEqual(Buffer.from(signature),Buffer.from(expected)))domain.fail('Chữ ký không hợp lệ.',403);
- transaction(()=>{for(const entry of value.entry||[])for(const event of entry.messaging||[]){if(!event.message?.text||event.message.is_echo||String(event.recipient?.id)!==String(c.accountId))continue;const eventId=event.message.mid;if(!eventId||db.prepare('SELECT id FROM events WHERE id=?').get(id+eventId))continue;
+ transaction(()=>{for(const entry of value.entry||[])for(const event of entry.messaging||[]){if(!event.message?.text||event.message.is_echo||String(event.recipient?.id)!==String(c.accountId))continue;const tombstone=get('chat_purge_tombstones',id+':0:'+event.sender.id);if(tombstone&&(!Number.isFinite(event.timestamp)||new Date(event.timestamp).toISOString()<=tombstone.cutoff))continue;if(all('conversations').some(v=>v.connectionId===id&&v.externalUserId===event.sender.id&&v.purgePending))continue;const eventId=event.message.mid;if(!eventId||db.prepare('SELECT id FROM events WHERE id=?').get(id+eventId))continue;
   db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(id+eventId,id,now(),JSON.stringify(event));let conv=all('conversations').find(x=>x.connectionId===id&&x.kind==='message'&&x.externalUserId===event.sender.id);if(!conv){const customer=put('customers',{name:'Khách Facebook '+String(event.sender.id).slice(-6),phone:'',tags:[],consent:false});conv=put('conversations',{customerId:customer.id,connectionId:id,externalUserId:event.sender.id,kind:'message',status:'open',tags:[],mode:'api'});}
   const msg=put('messages',{conversationId:conv.id,direction:'incoming',text:event.message.text,externalId:eventId,status:'received'});put('conversations',{...conv,deletedAt:null,archived:conv.deletedAt?false:conv.archived,unread:true,status:'open',lastMessage:event.message.text,lastAt:now(),lastInboundAt:new Date(event.timestamp||Date.now()).toISOString()});domain.runWorkflows('message_received',msg);care.captureLead(get('conversations',conv.id),msg);
  }care.ingestComments(c,value.entry);});json(res,{ok:true});
@@ -196,3 +197,5 @@ for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>
 
 setInterval(()=>{try{reminderTick();consultationTick();}catch(error){console.error('Reminder tick:',error.message);}},10000).unref();
 setInterval(()=>pushTick().catch(error=>console.error('Push tick:',error.message)),5000).unref();
+
+setInterval(()=>resumePurges().catch(e=>console.error('Customer purge:',e.message)),30000).unref();

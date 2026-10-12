@@ -26,6 +26,8 @@ export function ingestMessage(id,message,{history=false}={}){
  channel(id);const data=message?.data,thread=String(message?.threadId||''),externalId=String(data?.msgId||'');
  if(!data||!thread||!externalId)throw new Error('Tin nhắn Zalo thiếu định danh.');
  const type=message.type===ThreadType.Group?ThreadType.Group:ThreadType.User,content=parseZaloContent(data),text=content.text,at=timestamp(data.ts);
+ const tombstone=get('chat_purge_tombstones',id+':'+type+':'+thread);if(tombstone&&(at<=tombstone.cutoff||history&&!all('conversations').some(c=>c.connectionId===id&&String(c.externalUserId)===thread&&(c.threadType||0)===type&&!c.deletedAt)))return false;
+ const locked=all('conversations').find(c=>c.connectionId===id&&String(c.externalUserId)===thread&&(c.threadType||0)===type&&c.purgePending);if(locked)return false;
  return transaction(()=>{
   const conv=conversation(id,thread,type,type===ThreadType.Group?`Nhóm Zalo ${thread}`:message.isSelf?undefined:data.dName);if(type===ThreadType.User&&!message.isSelf&&data.dName){const customer=get('customers',conv.customerId);if(customer&&!customer.nameEditedLocally&&customer.name!==data.dName)put('customers',{...customer,name:String(data.dName)});}
   const rows=db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND (json_extract(data,'$.externalId')=? OR EXISTS (SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) WHERE json_extract(value,'$.id')=?))").all(conv.id,externalId,externalId);

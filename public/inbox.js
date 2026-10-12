@@ -22,7 +22,7 @@ import {icon} from './icons.js';
 import {defaultFilters,filterThreads,assignedIds,normalize,safeLink} from './inbox-model.js';
 let H,F=structuredClone(defaultFilters),selected=new Set(),selectionMode=false,searchIn='',lastConv='',mediaTab='all',threadLimit=150,totalThreads=0,listQuery='';
 const mentionStaff=new Map();let jumpTarget='',jumpUntil=0;const drafts=new Map();const uploading=new Set();let skipCapture=false;let openMenus=[];
-let pendingDelete=[],threadHolding=false;
+let pendingDelete=[],pendingDeleteToken='',threadHolding=false;
 export const inboxInteractionActive=()=>threadHolding||Boolean(document.querySelector('.message-tools:hover,.message-tools:focus-within,.message-more[open],.chat-topic-bar:hover,.chat-topic-bar:focus-within,.chat-header-tags:hover,.chat-header-tags:focus-within'));
 function initSendHold(){
  let hold=null,suppressUntil=0;
@@ -33,7 +33,8 @@ function initSendHold(){
  document.addEventListener('click',event=>{if(Date.now()<suppressUntil&&event.target.closest('#reply-form [type=submit]')){event.preventDefault();event.stopImmediatePropagation();}},true);
  document.addEventListener('contextmenu',event=>{if(event.target.closest('#reply-form [type=submit]'))event.preventDefault();});
 }
-function deleteDialog(ids){pendingDelete=ids.map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));if(!pendingDelete.length)return;H.modal('Xóa '+pendingDelete.length+' hội thoại',`<form id="chat-delete-form"><p>Xóa hội thoại và lịch sử tin nhắn khỏi danh sách trong hệ thống này. Tin nhắn trên Zalo và các nền tảng gốc, hồ sơ khách hàng và đơn hàng vẫn được giữ.</p><p>Khi khách gửi tin mới, hội thoại sẽ xuất hiện lại với tin nhắn mới.</p><button type="submit" class="btn danger">Xóa hội thoại</button></form>`);}
+async function deleteDialog(ids){try{pendingDelete=ids.map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));if(!pendingDelete.length)return;const preview=await H.api('/chat/delete/preview',{method:'POST',body:{items:pendingDelete}});pendingDeleteToken=preview.token;H.modal('Xóa hội thoại và dữ liệu khách hàng',`<form id="chat-delete-form"><p>Xóa vĩnh viễn hồ sơ khách/học viên đại diện, tiến trình học, lịch sử mua sắm, tin nhắn và dữ liệu liên quan trong hệ thống và Supabase.</p><table><thead><tr><th>Khách hàng / học viên</th><th>Trạng thái hiện tại</th></tr></thead><tbody>${preview.profiles.map(p=>`<tr><td>${e(p.name)}</td><td>${e(p.stageName)}</td></tr>`).join('')}</tbody></table><p>Phạm vi: ${preview.conversationCount} hội thoại liên quan; ${preview.recordCount} bản ghi trên hệ thống.</p>${preview.requiresStageConfirm?'<label><input name="confirmStage" type="checkbox" required> Tôi đã kiểm tra trạng thái học viên và đồng ý xóa toàn bộ dữ liệu liên quan.</label>':''}<p>Tin nhắn trên nền tảng gốc không bị xóa. Tin mới về sau tạo hồ sơ mới.</p><button type="submit" class="btn danger">Xác nhận xóa vĩnh viễn</button></form>`);}catch(err){H.toast(err.message);}}
+
 export function compactChatHead(){
  if(H?.route()!=='inbox')return;const head=$('.chat-head'),panel=head?.querySelector('.chat-actions .chat-menu-panel');if(!panel)return;
  const identity=head.querySelector('.row:first-child>div:last-child');if(!identity)return;
@@ -259,7 +260,7 @@ export function initInbox(host){H=host;initConsultationReview(host);initForward(
   event.preventDefault();event.stopImmediatePropagation();const submit=form.querySelector('[type=submit],button:not([type])');if(submit?.disabled)return;if(submit)submit.disabled=true;
   try{
    const data=Object.fromEntries(new FormData(form));
-   if(form.id==='chat-delete-form'){const result=await H.api('/chat/delete',{method:'POST',body:{items:pendingDelete,confirm:true}});for(const id of result.deletedIds)drafts.delete(id);selected.clear();selectionMode=false;saveDrafts();H.closeModal();await H.refresh(false);H.openConversation(null);H.toast('Đã xóa '+result.deletedIds.length+' hội thoại.');}
+   if(form.id==='chat-delete-form'){const result=await H.api('/chat/delete',{method:'POST',body:{items:pendingDelete,confirm:true,previewToken:pendingDeleteToken,confirmStage:form.elements.confirmStage?.checked===true}});for(const id of result.deletedIds)drafts.delete(id);selected.clear();selectionMode=false;saveDrafts();H.closeModal();await H.refresh(false);H.openConversation(null);H.toast('Đã xóa '+result.deletedIds.length+' hội thoại.');}
    if(form.id==='chat-new-phone-form'){const created=await H.api('/chat/open-phone',{method:'POST',body:data});H.closeModal();await H.refresh(false);H.openConversation(created.id);}
    if(form.id==='chat-new-group-form'){data.memberIds=new FormData(form).getAll('memberIds');data.confirm=!!form.elements.confirm.checked;const created=await H.api('/chat/groups',{method:'POST',body:data});H.closeModal();await H.refresh(false);H.openConversation(created.id);H.toast(created.groupWarning||'Đã tạo nhóm và xác minh các thành viên trên Zalo.',!!created.groupWarning);}
    if(form.id==='chat-group-action-form'){const c=H.state.conversations.find(c=>c.id===form.dataset.id);data.memberIds=new FormData(form).getAll('memberIds');data.confirm=!!form.elements.confirm.checked;data.version=c.version;await H.api('/chat/conversations/'+c.id+'/group-action',{method:'POST',body:data});H.closeModal();await H.refresh();H.toast('Zalo đã xử lý thao tác. Đồng bộ thành viên để xem trạng thái mới.');}

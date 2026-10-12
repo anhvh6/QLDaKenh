@@ -3,7 +3,7 @@ import {consultationRoute} from './consultation-review.mjs';
 import {readContactCard} from './zalo.mjs';
 import {createChatReminder} from './chat-reminders.mjs';
 import {sendContactCard} from './zalo.mjs';
-import {deleteChats} from './chat-delete.mjs';
+import {purgeChats,purgePreview} from './customer-purge.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
@@ -42,7 +42,8 @@ export async function chatRoute(path,method,input,user){
  const preview=path.match(/^\/api\/chat\/messages\/([^/]+)\/link-preview$/);if(preview&&method==='POST'){const m=get('messages',preview[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);return linkPreview(m,input.url);}
 
  const review=consultationRoute(path,method,input,user);if(review!==undefined)return review;
- if(path==='/api/chat/delete'&&method==='POST')return deleteChats(user,input);
+ if(path==='/api/chat/delete/preview'&&method==='POST')return purgePreview(user,input);
+ if(path==='/api/chat/delete'&&method==='POST')return purgeChats(user,input);
  let taskMatch=path.match(/^\/api\/chat\/conversations\/([^/]+)\/(task-staff|staff-tasks)$/);
  if(taskMatch){const c=chatConversation(user,taskMatch[1]);const staff=db.prepare('SELECT id,name,role,active FROM users WHERE active=1').all().filter(u=>['owner','manager','support'].includes(u.role)).filter(u=>{try{assertChannel(u,c.connectionId);return true;}catch{return false;}});
  if(taskMatch[2]==='task-staff'&&method==='GET')return {users:staff.map(({id,name})=>({id,name}))};
