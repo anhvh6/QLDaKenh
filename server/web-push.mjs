@@ -45,7 +45,7 @@ export function eventFor(kind,r,user,p){
  const type=kind==='messages'?'message':kind==='staff_handoffs'?'handoff':r.id.startsWith('chat-reminder:')?'reminder':'notification';
  let title={message:'Có tin nhắn mới',handoff:'Yêu cầu nhân viên xử lý',reminder:'Đến giờ nhắc hẹn',notification:'Có thông báo mới'}[type],body='Mở MeGa Phương để xem nội dung.';
  if(type==='message'&&p.preview!==false){const name=(c?.customerId?get('customers',c.customerId)?.name:null)||c?.title||'Khách hàng';title=(c?.threadType===1?(r.senderName||'Thành viên')+' · '+(c.title||'Nhóm'):name).slice(0,100);body=String(r.contactCard?'Đã gửi danh thiếp':r.sticker?'Đã gửi sticker':r.text||((r.attachments||[]).length?'Đã gửi tệp hoặc hình ảnh':'Bạn có tin nhắn mới.')).slice(0,350);}
- return {title,body,url:type==='handoff'?'/#handoffs':c?'/?conversation='+encodeURIComponent(c.id)+'#inbox':'/#inbox',tag:c?'hub-chat-'+c.id:'hub-'+type};
+ return {title,body,url:type==='handoff'?'/#handoffs':c?'/?conversation='+encodeURIComponent(c.id)+'#'+(c.kind==='comment'?'comments':'inbox'):'/#inbox',tag:c?'hub-chat-'+c.id:'hub-'+type};
 }
 let busy=false;
 export async function pushTick(send=sendPush){

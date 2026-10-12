@@ -5,7 +5,8 @@ import {dataDir} from './store.mjs';
 import { all,get,put,remove,transaction,audit,notification,now,uid,secret,saveSecret,db } from './store.mjs';
 import {syncPlanHandoff} from './plan-bridge.mjs';
 import {captureLead,syncPaymentOrder,enrollmentFromOrder,assertChannel} from './taophacdo.mjs';
-import { providers,publish,continuePublish,sendMessage,ghn,validMediaURL } from './connectors.mjs';
+import { providers,publish,continuePublish,deletePublication,updatePublication,sendMessage,reactComment,deleteComment,ghn,validMediaURL } from './connectors.mjs';
+import {publicMediaUrl} from './public-media.mjs';
 export function fail(message,status=400){throw Object.assign(new Error(message),{status});}
 export function required(v,label,max=10000){if(typeof v!=='string'||!v.trim()||v.length>max)fail(`${label} không hợp lệ.`);return v.trim();}
 export function number(v,label,min=0,max=1e12){const n=Number(v);if(!Number.isFinite(n)||n<min||n>max||!Number.isInteger(n))fail(`${label} không hợp lệ.`);return n;}
@@ -24,13 +25,13 @@ export function editRecord(user,kind,id,input){
  }
  if(kind==='customers'){data.createdBy=prev?.createdBy||user.id;data.customer_id=prev?.customer_id||'LOCAL-'+uid('customer');if(prev?.origin==='taophacdo')for(const k of ['customer_id','is_customized','video_date','ma_vd','start_date','end_date','san_pham','gia_tien','status'])data[k]=prev[k];required(data.name,'Tên khách',200);data.tags=Array.isArray(data.tags)?data.tags.slice(0,20):[];data.consent=data.consent===true;}
  if(kind==='contents'){
-  required(data.title,'Tên nội dung',250);data.caption=String(data.caption||'').slice(0,30000);if(!['text','image','video'].includes(data.type))fail('Loại nội dung không hợp lệ.');
+  required(data.title,'Tên nội dung',250);data.caption=String(data.caption||'').slice(0,30000);if(!['text','image','video','audio'].includes(data.type))fail('Loại nội dung không hợp lệ.');
   data.channels=(data.channels||[]).filter(x=>get('connections',x));data.assets=(data.assets||[]).map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['post']).includes('post'))fail('Media không còn dùng cho đăng bài.');if(a.connectionId)assertChannel(user,a.connectionId);return id;});data.status='draft';data.approval='pending';
   // Editing an already scheduled content does not silently mutate the frozen publication.
  }
  if(kind==='connections'){
   if(!providers[data.provider])fail('Nền tảng không hợp lệ.');required(data.name,'Tên kênh',200);if(!['demo','assisted','api'].includes(data.mode))fail('Chế độ không hợp lệ.');
-  if(data.mode==='api'&&!providers[data.provider].publish&&!providers[data.provider].message)fail('Kênh này hiện chỉ hỗ trợ đăng thủ công.');
+  if(data.mode==='api'&&!providers[data.provider].publish&&!providers[data.provider].message&&!providers[data.provider].oauth)fail('Kênh này hiện chỉ hỗ trợ đăng thủ công.');
   data.status=data.mode==='demo'?'demo':data.mode==='assisted'?'assisted':'configured';data.verifiedAt=null;
  }
  if(['campaigns','templates','workflows','tasks'].includes(kind))required(data.name||data.title,'Tên',250);
@@ -44,33 +45,59 @@ export function editRecord(user,kind,id,input){
  if(kind==='connections'&&(input.token||input.appSecret)){saveSecret(result.id,{...secret(result.id),...(input.token?{token:input.token}:{}),...(input.appSecret?{appSecret:input.appSecret}:{}),...(input.verifyToken?{verifyToken:input.verifyToken}:{})});}
  return result;
 }
-export function deleteRecord(user,kind,id){permission(user,area[kind]||'admin');if(area[kind]==='admin'&&user.role!=='owner')fail('Chỉ chủ hệ thống được thực hiện.',403);const r=get(kind,id);if(!r)fail('Không tìm thấy.',404);
- if(kind==='connections'){put(kind,{...r,status:'disconnected'});db.prepare('DELETE FROM secrets WHERE id=?').run(id);for(const p of all('publications').filter(x=>x.connectionId===id&&['scheduled','awaiting_manual','blocked','failed'].includes(x.status)))put('publications',{...p,status:'cancelled'});}
+export async function deleteRecord(user,kind,id,input={}){permission(user,area[kind]||'admin');if(area[kind]==='admin'&&user.role!=='owner')fail('Chỉ chủ hệ thống được thực hiện.',403);const r=get(kind,id);if(!r)fail('Không tìm thấy.',404);let remoteDeleted=0;const remoteDeletedByProvider={};
+ if(kind==='connections'){
+  if(input.remove===true){if(r.status!=='disconnected')fail('Hãy ngắt kết nối nền tảng trước khi xóa.');put(kind,{...r,deletedAt:now()});}
+  else {if(r.provider==='zalo_personal')try{const zalo=await import('./zalo.mjs');await zalo.disconnect(id);}catch{}put(kind,{...r,status:'disconnected'});db.prepare('DELETE FROM secrets WHERE id=?').run(id);for(const p of all('publications').filter(x=>x.connectionId===id&&['scheduled','awaiting_manual','blocked','failed'].includes(x.status)))put('publications',{...p,status:'cancelled'});}
+ }
  else if(kind==='products'){put(kind,{...r,active:false});}
  else if(['contents','campaigns','templates','knowledge','workflows','tasks'].includes(kind)){
-  if(kind==='contents'&&all('publications').some(x=>x.contentId===id&&!['cancelled','draft'].includes(x.status)))fail('Nội dung có lịch sử xuất bản. Hãy giữ lại để truy vết.');remove(kind,id);
- }else fail('Mục này không hỗ trợ xóa trực tiếp.');audit(user.id,'delete',id,kind);return {ok:true};}
+  if(kind==='contents'){
+   const publications=all('publications').filter(x=>x.contentId===id);
+   if(input.deleteRemote===true)for(const p of publications.filter(x=>x.status==='published'&&x.mode==='api')){const connection=get('connections',p.connectionId);if(!providers[connection?.provider]?.delete)continue;const result=await deletePublication(connection,p);put('publications',{...p,status:result.unpublished?'unpublished_remote':'deleted_remote',deletedAt:now()});remoteDeleted++;remoteDeletedByProvider[connection.provider]=(remoteDeletedByProvider[connection.provider]||0)+1;}
+   for(const p of publications.filter(x=>['scheduled','awaiting_manual','failed','blocked'].includes(x.status)))put('publications',{...p,status:'cancelled'});
+  }remove(kind,id);
+ }else fail('Mục này không hỗ trợ xóa trực tiếp.');audit(user.id,'delete',id,{kind,remoteDeleted,remoteDeletedByProvider});return {ok:true,remoteDeleted,remoteDeletedByProvider};}
 export function schedule(user,id,input){permission(user,'content');const c=get('contents',id);if(!c)fail('Không tìm thấy nội dung.',404);if(input.version!==c.version)fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.',409);
  const channels=c.channels||[];if(!channels.length)fail('Chọn ít nhất một kênh.');if(!c.caption.trim())fail('Nhập nội dung bài đăng.');
  const scheduleAt=input.immediate?now():input.scheduleAt;if(!Number.isFinite(Date.parse(scheduleAt)))fail('Chọn lịch đăng hợp lệ.');if(!input.immediate&&Date.parse(scheduleAt)<Date.now()+10*60000)fail('Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
- if(all('publications').some(p=>p.contentId===id&&['scheduled','dispatching','processing','awaiting_manual','unknown'].includes(p.status)))fail('Nội dung đã có lịch đang chạy. Hủy các đích chưa gửi trước khi tạo lịch mới.');
- const frozen=channels.map(cid=>{const ch=get('connections',cid);if(!ch||ch.status==='disconnected')fail('Kênh đã ngắt kết nối.');const v=c.variants?.[cid]||{};const type=v.type||c.type;const mediaUrl=v.mediaUrl||c.mediaUrl||'';let mode=ch.mode;
+ const active=all('publications').filter(p=>p.contentId===id&&['scheduled','dispatching','processing','awaiting_manual','unknown'].includes(p.status));
+ if(active.some(p=>p.status!=='scheduled'))fail('Một đích đang được xử lý hoặc chờ đối soát; chưa thể thay đổi lịch.');
+ // schedule() only reuses publications still in `active`; a channel that already finished publishing would
+ // otherwise get a second, duplicate publish job instead of being updated or blocked (update-published is the
+ // Facebook-only path for that; every other connected provider has no edit/delete API support at all).
+ const alreadyLive=all('publications').filter(p=>p.contentId===id&&['published','demo_published','manually_confirmed'].includes(p.status));
+ if(alreadyLive.some(p=>channels.includes(p.connectionId)))fail('Một hoặc nhiều kênh đã đăng bài này rồi. Bỏ kênh đó khỏi danh sách trước khi lên lịch lại, để tránh đăng trùng.');
+ const frozen=channels.map(cid=>{const ch=get('connections',cid);if(!ch||ch.status==='disconnected')fail('Kênh đã ngắt kết nối.');const v=c.variants?.[cid]||{};const type=v.type||c.type;const asset=(c.assets||[]).map(id=>get('assets',id)).find(a=>a?.active!==false&&a?.type===type);const localUpload=['youtube','tiktok'].includes(ch.provider);const mediaUrl=v.mediaUrl||c.mediaUrl||(asset&&!localUpload?publicMediaUrl(asset):'');let mode=['youtube','tiktok'].includes(ch.provider)&&ch.status==='connected'?'api':ch.mode;
+  if(type!=='text'&&!asset&&!mediaUrl){const label=type==='video'?'video':type==='audio'?'âm thanh':'ảnh';const hasOtherMedia=(c.assets||[]).some(aid=>get('assets',aid)?.active!==false);fail(hasOtherMedia?`Định dạng "${label}" không khớp với media đã đính kèm. Đổi Định dạng cho khớp loại file.`:`Định dạng "${label}" cần một file ${label} đính kèm. Hãy tải file lên hoặc đổi Định dạng thành Văn bản / bài viết.`);}
   if(mode==='api'){
    if(!providers[ch.provider].publish)fail(`${ch.name}: chỉ hỗ trợ nhắn tin, hãy chọn chế độ hỗ trợ đăng.`);
    if(ch.status!=='connected')fail(`${ch.name}: cần kiểm tra kết nối trước.`);
    if(!providers[ch.provider].formats.includes(type))fail(`${ch.name}: API hiện chưa hỗ trợ định dạng ${type}; chuyển sang hỗ trợ đăng.`);
-   if(type!=='text')validMediaURL(mediaUrl);
+   if(type!=='text'&&!localUpload)validMediaURL(mediaUrl);
    if(ch.provider==='x'&&(v.caption||c.caption).length>280)fail('Bản X đang giới hạn văn bản ở 280 ký tự.');
   }
-  return {contentId:id,connectionId:cid,title:v.title||c.title,caption:v.caption||c.caption,type,assets:c.assets||[],mediaUrl,status:'scheduled',mode,scheduleAt,revision:c.version,attempts:0};
- });return transaction(()=>{const jobs=frozen.map(p=>put('publications',p));put('contents',{...c,status:'scheduled',scheduleAt,approval:'approved'});audit(user.id,'schedule',id,{targets:jobs.length});return jobs;});
+  return {contentId:id,connectionId:cid,title:v.title||c.title,caption:v.caption||c.caption,type,visibility:v.visibility||c.visibility||'public',assets:c.assets||[],mediaUrl,status:'scheduled',mode,scheduleAt,revision:c.version,attempts:0,error:''};
+ });return transaction(()=>{const jobs=frozen.map(next=>{const prev=active.find(p=>p.connectionId===next.connectionId);return put('publications',{...prev,...next,...(prev?{id:prev.id}:{} )});});for(const p of active.filter(p=>!channels.includes(p.connectionId)))put('publications',{...p,status:'cancelled'});put('contents',{...c,status:'scheduled',scheduleAt,approval:'approved'});audit(user.id,active.length?'reschedule':'schedule',id,{targets:jobs.length});return jobs;});
 }
-export function publicationAction(user,id,input){permission(user,'content');const p=get('publications',id);if(!p)fail('Không tìm thấy lịch.',404);
+export async function publicationAction(user,id,input){permission(user,'content');const p=get('publications',id);if(!p)fail('Không tìm thấy lịch.',404);
  if(input.action==='cancel'){if(!['scheduled','awaiting_manual','failed','blocked'].includes(p.status))fail('Không thể hủy tác vụ đã gửi hoặc chưa rõ kết quả.');return put('publications',{...p,status:'cancelled'});}
  if(input.action==='confirm'){if(p.status!=='awaiting_manual')fail('Đích này không chờ xác nhận thủ công.');let u;try{u=new URL(input.url);}catch{fail('Nhập URL bài đã đăng.');}if(!['https:','http:'].includes(u.protocol))fail('URL không hợp lệ.');return put('publications',{...p,status:'manually_confirmed',url:u.href,publishedAt:now()});}
  if(input.action==='retry'){if(!['failed','blocked'].includes(p.status))fail('Chỉ thử lại tác vụ đã thất bại rõ ràng. Tác vụ chưa rõ kết quả cần đối soát.');return put('publications',{...p,status:'scheduled',scheduleAt:now(),error:''});}
+ if(input.action==='publish_now'){if(p.status!=='scheduled')fail('Chỉ có thể đăng ngay tác vụ đang chờ lịch.');return put('publications',{...p,scheduleAt:now()});}
  if(input.action==='resolve'){if(!['unknown','processing'].includes(p.status))fail('Tác vụ không cần đối soát.');let u;try{u=new URL(input.url);}catch{fail('Cần URL đã kiểm tra thực tế.');}if(u.protocol!=='https:')fail('Cần URL HTTPS.');audit(user.id,'publication_reconciled',id);return put('publications',{...p,status:'manually_confirmed',url:u.href,publishedAt:now()});}
+ if(input.action==='delete_remote'){
+  if(p.status!=='published'||p.mode!=='api')fail('Chỉ xóa được bài đã xuất bản bằng API.');const connection=get('connections',p.connectionId);if(!connection)fail('Kênh xuất bản không còn tồn tại.',404);if(!providers[connection.provider]?.delete)fail('Nền tảng này chưa hỗ trợ xóa bài từ hệ thống.');
+  const result=await deletePublication(connection,p);audit(user.id,result.unpublished?'publication_unpublished_remote':'publication_deleted_remote',id,{provider:connection.provider});return put('publications',{...p,status:result.unpublished?'unpublished_remote':'deleted_remote',deletedAt:now()});
+ }
  fail('Hành động không hợp lệ.');
+}
+export async function updatePublishedContent(user,id){permission(user,'content');const content=get('contents',id);if(!content)fail('Không tìm thấy nội dung.',404);
+ const candidates=all('publications').filter(p=>p.contentId===id&&p.status==='published'&&p.mode==='api').sort((a,b)=>Date.parse(b.publishedAt||b.updatedAt||0)-Date.parse(a.publishedAt||a.updatedAt||0));const seen=new Set(),targets=[];
+ for(const p of candidates){if(seen.has(p.connectionId))continue;seen.add(p.connectionId);const connection=get('connections',p.connectionId);if(providers[connection?.provider]?.update)targets.push({p,connection});}
+ if(!targets.length)fail('Không tìm thấy bài đã đăng trên nền tảng có hỗ trợ cập nhật.',409);
+ const updatedByProvider={};for(const {p,connection} of targets){const variant=content.variants?.[connection.id]||{},type=variant.type||content.type,asset=(content.assets||[]).map(assetId=>get('assets',assetId)).find(item=>item?.active!==false&&item.type===type),next={...content,...variant,type,caption:variant.caption||content.caption,mediaUrl:variant.mediaUrl||content.mediaUrl||(asset?publicMediaUrl(asset):'')};await updatePublication(connection,p,next);put('publications',{...p,title:next.title,caption:next.caption,type:next.type,assets:next.assets||[],mediaUrl:next.mediaUrl,updatedRemoteAt:now()});updatedByProvider[connection.provider]=(updatedByProvider[connection.provider]||0)+1;}
+ audit(user.id,'publication_updated',id,{targets:targets.length,updatedByProvider});return {ok:true,updated:targets.length,updatedByProvider,note:'Blogger cập nhật nội dung và media; Facebook chỉ cập nhật phần chữ; YouTube cập nhật tiêu đề và mô tả. Media gốc của Facebook/YouTube được giữ nguyên.'};
 }
 export function createOrder(user,input,{allowCustomPrice=false,allowDraftAddress=false}={}){permission(user,'orders');const customer=get('customers',input.customerId);if(!customer)fail('Chọn khách hàng.');if(!Array.isArray(input.items)||!input.items.length)fail('Thêm ít nhất một sản phẩm.');if(input.conversationId){const conv=get('conversations',input.conversationId);if(!conv||conv.customerId!==customer.id)fail('Hội thoại không khớp khách hàng.');}
  const seen=new Set();const items=input.items.map(i=>{const p=get('products',i.productId);if(!p||p.active===false)fail('Sản phẩm không còn bán.');if(seen.has(p.id))fail('SKU bị lặp. Hãy gộp số lượng.');seen.add(p.id);return {productId:p.id,name:p.name,sku:p.sku,price:!allowCustomPrice||i.price===undefined?p.price:number(i.price,'Đơn giá',0,1e12),productType:p.productType||'physical',courseId:p.courseId||null,quantity:number(i.quantity,'Số lượng',1,10000)};});
@@ -132,14 +159,16 @@ export function runWorkflows(trigger,entity){for(const w of all('workflows').fil
  if(w.action==='notify')notification(w.name,w.value,'inbox');if(w.action==='task')put('tasks',{name:w.value||w.name,status:'open',entityId:entity.id});put('workflows',{...w,runs:(w.runs||0)+1,lastRun:now()});audit('automation',w.name,entity.id);
 }}
 export async function reply(user,id,input){permission(user,'inbox');const conv=get('conversations',id);if(!conv||conv.deletedAt)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);let text=String(input.text||'').trim();if(text.length>5000)fail('Nội dung quá dài.');const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');if(conv.groupUnavailable&&!input.note)fail('Tài khoản đã rời nhóm hoặc nhóm đã giải tán.');
- const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['chat']).includes('chat')||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z]+$/.test(a.url))fail('Media không hợp lệ.');if(a.connectionId)assertChannel(user,a.connectionId);return a;});
+ const ids=input.assetIds||[];if(!Array.isArray(ids)||ids.length>10)fail('Chọn tối đa 10 media.');const assets=ids.map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['chat']).includes('chat')||!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z0-9]+$/.test(a.url))fail('Media không hợp lệ.');if(a.connectionId)assertChannel(user,a.connectionId);return a;});
  if(!text&&!assets.length)fail('Nhập nội dung hoặc chọn media.');
- if(assets.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal'&&!input.note)fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
+ const commentMediaSupported=conv.kind==='comment'&&ch.provider==='facebook';
+ if(assets.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal'&&!commentMediaSupported&&!input.note)fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
+ if(assets.length>1&&commentMediaSupported)fail('Bình luận Facebook chỉ nhận 1 media mỗi lần trả lời.');
  let quoted=input.quoteId?get('messages',input.quoteId):null;if(input.quoteId&&(!quoted||quoted.deletedAt||quoted.conversationId!==id||quoted.direction==='note'))fail('Tin trích dẫn không hợp lệ.');
  const mentionText=String(input.text||'');let mentions=validateGroupMentions(conv,mentionText,input.mentions).map(m=>({...m,pos:m.pos-(mentionText.length-mentionText.trimStart().length)}));if(input.note&&mentions.length)fail('Ghi chú nội bộ không tag thành viên nhóm.');if(mentions.length&&ch.mode!=='demo'&&ch.provider!=='zalo_personal')fail('Kênh này chưa hỗ trợ tag thành viên nhóm qua API.');const nativeQuote=quoted&&ch.provider==='zalo_personal'&&quoted.quoteSource;
  if(quoted&&!nativeQuote){const prefix='> '+quoted.text.slice(0,1000)+'\n\n';text=prefix+text;mentions=mentions.map(m=>({...m,pos:m.pos+prefix.length}));}
  if(text.length>5000)fail('Nội dung kèm trích dẫn vượt 5000 ký tự.');
- const options={...(mentions.length?{mentions}:{}),...(nativeQuote?{quote:quoted.quoteSource}:{}),...(assets.length?{attachments:assets.map(a=>join(dataDir,'uploads',basename(a.url)))}:{})};
+ const options={...(mentions.length?{mentions}:{}),...(nativeQuote?{quote:quoted.quoteSource}:{}),...(assets.length?{attachments:assets.map(a=>join(dataDir,'uploads',basename(a.url))),assetRefs:assets}:{})};
  if(input.version!==conv.version)fail('Hội thoại vừa thay đổi. Tải lại trước khi gửi.',409);
  if(conv.sending)fail('Có một tin nhắn đang gửi. Vui lòng chờ.',409);put('conversations',{...conv,sending:true,assignee:user.id});
  const retrySource=input.retryOf?get('messages',input.retryOf):null;
@@ -151,6 +180,12 @@ export async function reply(user,id,input){permission(user,'inbox');const conv=g
  const current=get('conversations',id);put('conversations',{...current,sending:false,lastMessage:input.note?current.lastMessage:text,lastAt:input.note?current.lastAt:now(),unread:input.note?current.unread:false,waitingSince:input.note?current.waitingSince:null,slaAlerted:input.note?current.slaAlerted:false,firstResponseSeconds:!input.note&&current.waitingSince?Math.round((Date.now()-Date.parse(current.waitingSince))/1000):current.firstResponseSeconds,assignee:user.id});audit(user.id,input.note?'note_added':'message_sent',id);if(!input.note)finishMentionTasks(user,id,msg.id);return msg;
  }catch(e){put('messages',{...msg,status:e.unknown?'unknown':'failed',error:e.message});put('conversations',{...get('conversations',id),sending:false});throw e;}
 }
+export async function reactMessage(user,id,input){permission(user,'inbox');const msg=get('messages',id);if(!msg)fail('Không tìm thấy bình luận.',404);const conv=get('conversations',msg.conversationId);if(!conv)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);if(conv.kind!=='comment'||msg.direction!=='incoming')fail('Chỉ react được bình luận của khách.');
+ const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');const like=input.like!==false;
+ if(ch.mode!=='demo'){if(ch.provider!=='facebook')fail('Kênh này chưa hỗ trợ react bình luận.');if(ch.status!=='connected')fail('Kênh chưa được kết nối thực tế.');if(!msg.externalId)fail('Bình luận chưa có ID gốc.');await reactComment(ch,msg.externalId,like);}
+ audit(user.id,'comment_reacted',id,{like});return put('messages',{...msg,liked:like});
+}
+export async function deleteCommentMessage(user,id){permission(user,'inbox');const msg=get('messages',id);if(!msg||msg.deletedAt)fail('Không tìm thấy bình luận.',404);const conv=get('conversations',msg.conversationId);if(!conv)fail('Không tìm thấy hội thoại.',404);assertChannel(user,conv.connectionId);if(conv.kind!=='comment'||msg.direction!=='incoming')fail('Chỉ xóa được bình luận của khách.');const ch=get('connections',conv.connectionId);if(!ch)fail('Kênh không tồn tại.');if(ch.mode!=='demo'){if(ch.provider!=='facebook')fail('Kênh này chưa hỗ trợ xóa bình luận.');if(ch.status!=='connected')fail('Kênh chưa được kết nối thực tế.');if(!msg.externalId)fail('Bình luận chưa có ID gốc.');await deleteComment(ch,msg.externalId);}audit(user.id,'comment_deleted',id,{remote:ch.mode!=='demo'});return put('messages',{...msg,text:'Bình luận đã xóa',attachments:[],deletedAt:now(),status:'deleted'});}
 export function ingestDemo(user,input){permission(user,'inbox');assertChannel(user,input.connectionId);const ch=get('connections',input.connectionId);if(ch?.mode!=='demo')fail('Chỉ tạo tương tác mẫu trên kênh mẫu.');const c=get('customers',input.customerId);if(!c)fail('Chọn khách hàng.');const text=required(input.text,'Tin nhắn');const conv=put('conversations',{customerId:c.id,connectionId:ch.id,kind:input.kind||'message',status:'open',unread:true,assignee:'',lastMessage:text,lastAt:now(),tags:[],mode:'demo',productId:input.productId||null});const msg=put('messages',{conversationId:conv.id,direction:'incoming',text,status:'demo'});runWorkflows('message_received',{...msg,conversationId:conv.id});captureLead(get('conversations',conv.id),msg);return get('conversations',conv.id);}
 let ticking=false;
 export async function tick(){if(ticking)return;ticking=true;try{

@@ -48,6 +48,8 @@ Chi tiết: [TÍCH HỢP TAOPHACDO](docs/TAOPHACDO_INTEGRATION.md). Phạm vi đ
 
 ## Phạm vi connector hiện tại
 
+Thiết lập đăng nhập chính thức cho các nền tảng theo [hướng dẫn OAuth](docs/OAUTH_CONNECTIONS.md). Cách nhập token thủ công vẫn được giữ làm phương án dự phòng.
+
 | Kênh | Chức năng có mã thực thi | Cần bổ sung / điều kiện |
 |---|---|---|
 | Facebook Page | Đăng văn bản/ảnh/video qua token; trả lời tin nhắn văn bản, bình luận; webhook Messenger và feed comment | App, quyền duyệt, token, phiên bản Graph, HTTPS webhook công khai; chưa có OAuth UI/refresh tự động/Private Reply/ẩn xóa comment |

@@ -49,6 +49,8 @@ test('media IDs must be valid assets and quotes are attached to outgoing message
  await assert.rejects(reply(owner,'one',{text:'',assetIds:['missing'],version:get('conversations','one').version}));
  const a=put('assets',{id:'asset_123',url:'/uploads/asset_123.jpg',name:'Ảnh',type:'image'}),m=put('messages',{conversationId:'one',direction:'incoming',text:'Xin tư vấn'});
  const out=await reply(owner,'one',{text:'Dạ vâng',assetIds:[a.id],quoteId:m.id,version:get('conversations','one').version});assert.equal(out.quoteId,m.id);assert.equal(out.attachments.length,1);assert.equal(out.status,'demo');
+ const video=put('assets',{id:'asset_video',url:'/uploads/asset_video.mp4',name:'Video',type:'video'});
+ const videoOut=await reply(owner,'one',{text:'Video mẫu',assetIds:[video.id],version:get('conversations','one').version});assert.equal(videoOut.attachments[0].type,'video');
 });
 test('filters combine type, labels, staff, phone, date, unread and full-message search',()=>{
  const S={customers:[{id:'p1',name:'Nguyễn Mai',phone:'09001'},{id:'p2',name:'Nhóm B'}],messages:[{conversationId:'x',text:'Bài học số một'}],conversations:[
