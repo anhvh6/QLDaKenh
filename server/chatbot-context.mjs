@@ -19,6 +19,7 @@ export async function storedBotContext(customerId,options={},fetcher=fetch,heade
  const format=m=>({id:m.id,conversationId:m.conversationId,createdAt:m.createdAt,direction:m.direction,senderType:m.senderType||'staff',text:String(m.text||'').slice(0,8000),attachments:(m.attachments||[]).map(a=>({type:a.type,mime:a.mime||a.mimeType,name:a.name})),hasImage:(m.attachments||[]).some(a=>/image|photo/i.test(a.type||a.mime||a.mimeType||''))});
  context.history.source=process.env.PLAN_REMOTE_CATALOG==='0'?'local-test':'supabase-and-current-vps';
  context.history.chronological=history.slice(-200).map(format);
+ context.history.hasHistory=history.length>0;context.history.candidateMessages=history.length;
  context.intakeEvidence=history.filter(m=>m.direction==='outgoing'||m.direction==='incoming'&&((m.attachments||[]).some(a=>/image|photo/i.test(a.type||a.mime||a.mimeType||''))||String(m.text||'').trim())).map(format);
  return context;
 }
