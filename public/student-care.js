@@ -12,5 +12,13 @@ export function carePolicy(state,c){
  for(const id of ids){let p=normalizeCarePermission();for(const policy of policies)if(policy?.staffPermissions?.[id])p=normalizeCarePermission(policy.staffPermissions[id]);inheritedPermissions[id]=p;staffPermissions[id]=normalizeCarePermission(c.carePermissions?.[id]||p);}
  return {stage,configured:true,manual:Object.keys(c.carePermissions||{}).length>0,inheritedPermissions,staffPermissions,notifyStaffIds:[...ids].filter(id=>staffPermissions[id].receive&&!staffPermissions[id].mute),readStaffIds:[...ids].filter(id=>staffPermissions[id].receive)};
 }
-export function canReadCare(state,c,user){return normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]).receive;}
-export function receivesCare(state,c,user){const p=normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]);return p.receive&&!p.mute;}
+export function careTaskAccess(state,c,user){
+ const tasks=[...(state.staff_handoffs||state.staffHandoffs||[]).filter(t=>t.conversationId===c.id&&t.assignedStaffId===user.id),...(state.chat_reminders||[]).filter(t=>t.conversationId===c.id&&t.assignee===user.id)];
+ const closed=t=>['done','resolved','completed','cancelled'].includes(t.status)||!!t.completedAt;
+ const acknowledged=c.careTaskDismissed?.[user.id]||'';
+ const live=tasks.filter(t=>!closed(t)||String(t.completedAt||t.updatedAt||t.createdAt)>acknowledged);
+ return {active:live.length>0,prompt:live.length>0&&live.every(closed)};
+}
+export function canReadCare(){return true;}
+export function visibleCare(state,c,user){return normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]).receive||careTaskAccess(state,c,user).active;}
+export function receivesCare(state,c,user){const p=normalizeCarePermission(carePolicy(state,c).staffPermissions[user.id]);return p.receive&&!p.mute||!p.receive&&careTaskAccess(state,c,user).active;}

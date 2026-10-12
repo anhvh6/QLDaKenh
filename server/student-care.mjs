@@ -2,13 +2,13 @@ import {createHash} from 'node:crypto';
 import {all,get,put,db,audit} from './store.mjs';
 import {fail,permission} from './domain.mjs';
 import {learnerStages} from '../public/learner-progress.js';
-import {carePolicy,canReadCare,receivesCare} from '../public/student-care.js';
+import {carePolicy,canReadCare,receivesCare,visibleCare,careTaskAccess} from '../public/student-care.js';
 import {studyPlanStatus} from './plan-access.mjs';
 
 export function studentCareState(){
  const facts=new Map(all('learner_source_facts').map(f=>[f.id,f]));
  const customers=all('customers').map(c=>{const f=facts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
- return {chat_reminders:all('chat_reminders'),users:db.prepare('SELECT id,name,role,active FROM users').all(),customers,conversations:all('conversations'),connections:all('connections'),orders:all('orders'),journeys:all('journeys'),plan_handoffs:all('plan_handoffs'),chatNameSettings:get('settings','chat-names'),studentCareSettings:get('settings','student-care')||{version:0,stages:{}},chatPlanSummaries:all('study_plans').map(p=>({customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,get('orders',p.lastOrderId))}))};
+ return {staff_handoffs:all('staff_handoffs'),chat_reminders:all('chat_reminders'),users:db.prepare('SELECT id,name,role,active FROM users').all(),customers,conversations:all('conversations'),connections:all('connections'),orders:all('orders'),journeys:all('journeys'),plan_handoffs:all('plan_handoffs'),chatNameSettings:get('settings','chat-names'),studentCareSettings:get('settings','student-care')||{version:0,stages:{}},chatPlanSummaries:all('study_plans').map(p=>({customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,get('orders',p.lastOrderId))}))};
 }
 export function assertCareConversation(user,c){
  if(!canReadCare(studentCareState(),c,user))fail('Bạn chưa được cấp quyền đọc thông tin cho trạng thái học viên này.',403);
@@ -56,7 +56,7 @@ export function scopeCareChats(state,user){
  if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source);
  state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user)).map(c=>c.id);
  state.conversationCare=state.conversations.map(c=>({id:c.id,...carePolicy(source,c)}));
- state.conversations=state.conversations.filter(c=>canReadCare(source,c,user));
+ state.conversations=state.conversations.map(c=>({...c,careHidden:!visibleCare(source,c,user),careTaskPrompt:!carePolicy(source,c).staffPermissions[user.id]?.receive&&careTaskAccess(source,c,user).prompt}));
  const ids=new Set(state.conversations.map(c=>c.id));
  state.messages=state.messages.filter(m=>ids.has(m.conversationId));
  state.conversationCare=state.conversationCare.filter(c=>ids.has(c.id));

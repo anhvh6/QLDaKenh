@@ -36,7 +36,7 @@ export async function sendPush(s,payload){const keys=pushKeys();return webpush.s
 // The user authorized message previews; each device can still hide them on its lock screen.
 export function eventFor(kind,r,user,p){
  if(kind==='notifications'){
-  if(r.id.startsWith('care-message:'))return null;
+  if(r.id.startsWith('care-message:')||r.id.startsWith('chat-reminder:task:'))return null;
   if(r.read||(r.recipientId&&r.recipientId!==user.id)||(!p.reminders&&r.id.startsWith('chat-reminder:')))return null;
  }else if(kind==='messages'){
   if(!p.messages||r.direction!=='incoming'||r.deletedAt||r.history===true)return null;

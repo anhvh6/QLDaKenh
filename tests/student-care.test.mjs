@@ -22,9 +22,9 @@ const prefs={messages:true,preview:true};
 test('full defaults, permission matrix, personal and representative group',async()=>{
  const saved=await studentCareRoute('/api/chat/student-care-settings','PUT',{version:0,stages:{CONSULTED:{color:'#123456',staffPermissions:{a:{receive:true,mute:false},reader:{receive:true,mute:true},b:{receive:false,mute:false}}}}},owner);
  assert.deepEqual(saved.stages.CONSULTED.staffPermissions.b,{receive:false,mute:true});
- for(const id of ['personal','group']){const c=get('conversations',id),state=studentCareState();assert.equal(carePolicy(state,c).stage,'CONSULTED');assert.equal(canReadCare(state,c,reader),true);assert.equal(receivesCare(state,c,reader),false);assert.equal(canReadCare(state,c,b),false);assert.equal(eventFor('messages',{id:'m',conversationId:id,direction:'incoming'},reader,prefs),null);assert.ok(eventFor('messages',{id:'m',conversationId:id,direction:'incoming'},a,prefs));}
- assert.throws(()=>patchChat(b,'personal',{version:get('conversations','personal').version,unread:true}),e=>e.status===403);
- const scoped=scopeCareChats({...studentCareState(),messages:all('messages')},b);assert.equal(scoped.conversations.length,0);assert.equal(scoped.messages.length,0);
+ for(const id of ['personal','group']){const c=get('conversations',id),state=studentCareState();assert.equal(carePolicy(state,c).stage,'CONSULTED');assert.equal(canReadCare(state,c,reader),true);assert.equal(receivesCare(state,c,reader),false);assert.equal(canReadCare(state,c,b),true);assert.equal(eventFor('messages',{id:'m',conversationId:id,direction:'incoming'},reader,prefs),null);assert.ok(eventFor('messages',{id:'m',conversationId:id,direction:'incoming'},a,prefs));}
+ assert.ok(patchChat(b,'personal',{version:get('conversations','personal').version,unread:true}));
+ const scoped=scopeCareChats({...studentCareState(),messages:all('messages')},b);assert.ok(scoped.conversations.every(c=>c.careHidden));assert.ok(scoped.messages.length);
  const ch=get('connections','channel');put('connections',{...ch,mode:'demo'});assert.equal((await reply(reader,'personal',{version:get('conversations','personal').version,text:'Reply permitted'})).status,'demo');
  db.prepare('INSERT INTO users VALUES(?,?,?,?,?,1)').run('new','new@test.invalid','New','support','unused');assert.equal(receivesCare(studentCareState(),get('conversations','personal'),{id:'new',role:'support'}),true);
 });
@@ -39,7 +39,7 @@ test('exceptions take priority, confirmation protects defaults and rejects stale
  const fresh=await studentCareRoute('/api/chat/student-care-settings/preview','POST',body,owner);await studentCareRoute('/api/chat/student-care-settings','PUT',{...body,exceptionToken:fresh.exceptionToken},owner);
  assert.equal(canReadCare(studentCareState(),c,a),true);assert.equal(receivesCare(studentCareState(),c,b),true);
  notifyCareMessage(c,{id:'notify-exception',direction:'incoming',text:'New'});assert.equal(all('notifications').some(n=>n.messageId==='notify-exception'&&n.recipientId==='a'),false);assert.equal(all('notifications').some(n=>n.messageId==='notify-exception'&&n.recipientId==='b'),true);
- c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(canReadCare(studentCareState(),c,a),false);
+ c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(receivesCare(studentCareState(),c,a),false);
 });
 test('old permissions reset to full and invalid inputs rejected',async()=>{
  put('settings',{id:'student-care',stages:{CONSULTED:{staffConfigured:true,notifyStaffIds:[],readStaffIds:[]}}});assert.equal(receivesCare(studentCareState(),get('conversations','group'),reader),true);
@@ -67,7 +67,7 @@ test('appointment reminders use the same stage for settings, exceptions and rese
  const body={version:get('settings','student-care').version,stages:{APPOINTMENT:{color:'#456789',staffPermissions:{a:{receive:false,mute:true}}}}};
  const preview=await studentCareRoute('/api/chat/student-care-settings/preview','POST',body,owner);assert.ok(preview.rows.some(r=>r.conversationId===c.id));
  await studentCareRoute('/api/chat/student-care-settings','PUT',{...body,exceptionToken:preview.exceptionToken},owner);
- c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(canReadCare(studentCareState(),c,a),false);
+ c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(receivesCare(studentCareState(),c,a),false);
 });
 
 test('remote learner facts override stored plan stage consistently for access, reset and exceptions',async()=>{
@@ -81,4 +81,17 @@ test('remote learner facts override stored plan stage consistently for access, r
  const preview=await studentCareRoute('/api/chat/student-care-settings/preview','POST',body,owner);assert.ok(preview.rows.some(r=>r.conversationId===c.id));
  await studentCareRoute('/api/chat/student-care-settings','PUT',{...body,exceptionToken:preview.exceptionToken},owner);
  c=patchChat(owner,c.id,{version:c.version,carePermissions:{}});assert.equal(receivesCare(studentCareState(),c,a),true);
+});
+
+test('denied staff can search and reply; assigned tasks retain visibility and alerts until acknowledged',async()=>{
+ const {visibleCare,careTaskAccess}=await import('../public/student-care.js');
+ const {filterThreads}=await import('../public/inbox-model.js');
+ let c=get('conversations','remote-chat');c=patchChat(owner,c.id,{version:c.version,carePermissions:{b:{receive:false,mute:true}}});
+ let source=studentCareState();assert.equal(canReadCare(source,c,b),true);assert.equal(visibleCare(source,c,b),false);assert.equal(receivesCare(source,c,b),false);
+ let scoped=scopeCareChats({...source,user:b,messages:all('messages')},b);assert.equal(filterThreads(scoped).some(x=>x.id===c.id),false);assert.equal(filterThreads(scoped,'Hoang Anh').some(x=>x.id===c.id),true);
+ let task=put('staff_handoffs',{id:'hidden-task',conversationId:c.id,assignedStaffId:b.id,status:'open'});source=studentCareState();assert.equal(visibleCare(source,c,b),true);assert.equal(receivesCare(source,c,b),true);
+ assert.throws(()=>patchChat(b,c.id,{version:c.version,dismissCareTask:true}));
+ task=put('staff_handoffs',{...task,status:'resolved',completedAt:new Date().toISOString()},task.version);source=studentCareState();assert.equal(careTaskAccess(source,c,b).prompt,true);assert.equal(receivesCare(source,c,b),true);
+ c=patchChat(b,c.id,{version:c.version,dismissCareTask:true});source=studentCareState();assert.equal(visibleCare(source,c,b),false);assert.equal(receivesCare(source,c,b),false);
+ put('staff_handoffs',{conversationId:c.id,assignedStaffId:b.id,status:'open'});assert.equal(visibleCare(studentCareState(),c,b),true);
 });
