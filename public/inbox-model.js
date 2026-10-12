@@ -1,4 +1,6 @@
 import {chatName} from './chat-names.js';
+import {conversationConnected} from './chat-connection-state.js';
+export {conversationConnected} from './chat-connection-state.js';
 export const defaultFilters={type:'all',phone:'all',reply:'all',archive:'active',pinned:false,connectionId:'',tags:[],tagMode:'any',assignees:[],assigneeMode:'any',dateField:'lastAt',from:'',to:'',sort:'newest',customerId:''};
 export const assignedIds=c=>[...new Set([...(c.assigneeIds||[]),...(c.assignee?[c.assignee]:[])])];
 export const normalize=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
@@ -9,7 +11,6 @@ export function inboxQueues(S,time=Date.now()){
  for(const r of S.chat_reminders||[]){if(r.status!=='pending')continue;const due=Date.parse(r.dueAt);if(due>time)scheduled.add(r.conversationId);}
  return {action,scheduled};
 }
-export function conversationConnected(S,c){if(!Array.isArray(S.connections))return true;const ch=S.connections.find(ch=>ch.id===c?.connectionId);return !!ch&&(ch.status==='connected'||ch.mode==='demo'&&ch.status==='demo')&&(ch.provider!=='zalo_personal'||!ch.listenerState||ch.listenerState==='listening');}
 export function filterThreads(S,q='',status='all',f=defaultFilters){
  const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map(),queues=inboxQueues(S);
  if(q)for(const m of S.messages)texts.set(m.conversationId,(texts.get(m.conversationId)||'')+' '+m.text);

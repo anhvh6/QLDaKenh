@@ -27,6 +27,7 @@ import { backup } from 'node:sqlite';
 import { db,dataDir,all,get,put,transaction,now,uid,audit,secret,saveSecret,notification,recordRevision } from './store.mjs';
 import { seed } from './seed.mjs';
 import * as domain from './domain.mjs';
+import {filterDisconnectedChats} from '../public/chat-connection-state.js';
 import {planRoute,syncPlanHandoff} from './plan-bridge.mjs';
 import * as care from './taophacdo.mjs';
 import {supabaseRoute,integrationState} from './supabase.mjs';
@@ -77,6 +78,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
   state.messages=state.messages.map(m=>{if(!m.quoteSource||!isTypeCode(m.text)&&!/video|voice|audio/i.test(m.messageType||''))return m;const content=parseZaloContent(m.quoteSource);return {...m,...content,attachments:content.attachments?.length?content.attachments:m.attachments||[]};});state.conversations=state.conversations.map(c=>isTypeCode(c.lastMessage)?{...c,lastMessage:/video/i.test(c.lastMessage)?'Video':/voice|audio/i.test(c.lastMessage)?'Tin nhắn thoại':/photo|image/i.test(c.lastMessage)?'Ảnh':'Tệp đính kèm'}:c);
   filterDeletedChats(state);
   Object.assign(state,botState(user,state));
+  filterDisconnectedChats(state);
   state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];const assetUsage=mediaUsage(state.assets,state.messages,state.publications);state.assets=state.assets.map(a=>({...a,usage:assetUsage.get(a.id)}));
   state.chatNameSettings=get('settings','chat-names')||defaultNameSettings;
   state.chatPlanSummaries=all('study_plans').map(p=>{const o=get('orders',p.lastOrderId);return {customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,link:p.customer?.link,status:studyPlanStatus(p,o)};});
