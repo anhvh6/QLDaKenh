@@ -11,7 +11,7 @@ import {initBot,chatbotPage,enhanceBot,handoffPage} from './chatbot-ui.js';
 import {initMedia,mediaLibrary} from './media-library.js';
 import {attachLibraryMedia} from './inbox.js';
 import {chatNameSettingsPage} from './chat-names.js';
-import {initInbox,inboxThreads,chatMessages,enhanceInbox,compactChatHead,rememberInboxDraft,inboxInteractionActive} from './inbox.js';
+import {initInbox,inboxThreads,chatMessages,enhanceInbox,compactChatHead,rememberInboxDraft,inboxInteractionActive,enhanceLiveMessages} from './inbox.js';
 import { icon } from './icons.js';
 import {initPlans,planPage,planOrderCTA} from './plans.js';
 import {initCare,carePage,enhanceCare} from './care.js';
@@ -47,11 +47,12 @@ function toast(text,error=false){const t=document.createElement('div');t.classNa
 let stateLoads=0,stateRetryAfter=0,stateFailures=0;
 async function refresh(renderNow=true){stateLoads++;try{S=await api('/state');updateChatNotifications(S.notifications||[]);$('#care-updates')?.remove();if(renderNow)render();stateFailures=0;stateRetryAfter=0;}catch(err){stateFailures++;stateRetryAfter=Date.now()+Math.min(120000,15000*2**Math.min(stateFailures,3));throw err;}finally{stateLoads--;}}
 async function refreshBackground(){if(stateLoads||Date.now()<stateRetryAfter||document.hidden)return;return refresh();}
-let updatingInbox=false,inboxRefreshPending=false,inboxRefreshTimer;
-function queueInboxRefresh(){inboxRefreshPending=true;clearTimeout(inboxRefreshTimer);inboxRefreshTimer=setTimeout(()=>{if(route==='inbox')refreshInbox().catch(()=>{});},250);}
-async function refreshInbox(){
- if(updatingInbox||inboxInteractionActive()||$('.modal-backdrop')){queueInboxRefresh();return;}inboxRefreshPending=false;updatingInbox=true;const previousRoute=route;
- try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute)return;if(inboxInteractionActive()) {queueInboxRefresh();return;}if(JSON.stringify(next)===JSON.stringify(S))return;
+let updatingInbox=false,inboxRefreshPending=false,inboxRefreshTimer,inboxPaintDeferred=false;
+function queueInboxRefresh(){inboxRefreshPending=true;clearTimeout(inboxRefreshTimer);inboxRefreshTimer=setTimeout(()=>{if(route==='inbox')refreshInbox(true).catch(()=>{});},250);}
+async function refreshInbox(paintOnly=false){
+ if(paintOnly&&inboxInteractionActive()){queueInboxRefresh();return;}
+ if(updatingInbox||$('.modal-backdrop')){queueInboxRefresh();return;}inboxRefreshPending=false;updatingInbox=true;const previousRoute=route;
+ try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute)return;if(inboxInteractionActive()){syncIncomingWhileInteracting(next);inboxPaintDeferred=true;queueInboxRefresh();return;}if(!inboxPaintDeferred&&JSON.stringify(next)===JSON.stringify(S))return;inboxPaintDeferred=false;
  const form=$('#reply-form'),active=document.activeElement;
  if($('.modal-backdrop')||active?.closest('[data-care-form="inline-order"]')){queueInboxRefresh();return;}
  if(!form){S=next;updateChatNotifications(S.notifications||[]);render();return;}const values=[...form.elements].map(el=>({name:el.name,value:el.value,checked:el.checked}));
@@ -62,6 +63,12 @@ async function refreshInbox(){
  if(focus){const el=[...(newForm?.elements||[])].find(x=>x.name===focus.name);el?.focus({preventScroll:true});if(el?.setSelectionRange&&focus.start!==null)el.setSelectionRange(focus.start,focus.end);}
  const updated=$('.chat-messages');if(updated&&!atBottom)updated.scrollTop=top;
  }finally{updatingInbox=false;if(inboxRefreshPending)queueInboxRefresh();}
+}
+function syncIncomingWhileInteracting(next){
+ const form=$('#reply-form'),chat=$('.chat-messages'),c=next.conversations.find(c=>c.id===form?.dataset.id);if(!chat||!c||!conversationConnected(next,c))return;
+ const known=new Set([...chat.querySelectorAll('[data-message]')].map(row=>row.dataset.message));const incoming=next.messages.filter(m=>m.conversationId===c.id&&!m.deletedAt&&!m.history&&!known.has(m.id)).sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+ S=next;updateChatNotifications(next.notifications||[]);
+ if(incoming.length){const bottom=chat.scrollHeight-chat.clientHeight-chat.scrollTop<60;chat.insertAdjacentHTML('beforeend',chatMessages(incoming,c,S));enhanceLiveMessages();if(bottom)chat.scrollTop=chat.scrollHeight;}
 }
 function navigate(next){filter='all';query='';if(next!=='inbox')selectedConversation=null;location.hash=next;route=next;document.body.classList.remove('menu-open');render();}
 function render(){if(!S||!Array.isArray(S.conversations)||!Array.isArray(S.notifications))return;const previousList=$('.conversation-list'),listTop=previousList?.scrollTop||0,listAnchor=previousList&&[...previousList.querySelectorAll('.conversation-item')].find(el=>el.getBoundingClientRect().bottom>previousList.getBoundingClientRect().top+60),anchorId=listAnchor?.dataset.id,anchorOffset=listAnchor&&listAnchor.getBoundingClientRect().top-previousList.getBoundingClientRect().top;loadInbox();rememberInboxDraft();const name=navs.find(x=>x[0]===route)?.[2]||'Tổng quan';const unread=S.conversations.filter(x=>x.unread&&!x.careHidden&&conversationConnected(S,x)).length;const ncount=S.notifications.filter(x=>!x.read).length;updateDeviceBadge(ncount+S.conversations.filter(c=>c.unread&&S.notificationConversationIds?.includes(c.id)).length);const pushConversation=new URLSearchParams(location.search).get("conversation");if(pushConversation&&route==="inbox"&&S.conversations.some(c=>c.id===pushConversation)){selectedConversation=pushConversation;const u=new URL(location.href);u.searchParams.delete("conversation");history.replaceState(null,"",u);}

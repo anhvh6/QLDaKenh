@@ -26,7 +26,7 @@ export function purgeScope(user,input){
  const token=createHash('sha256').update(JSON.stringify(scope)).digest('hex');return {...scope,token};
 }
 export function purgePreview(user,input){const s=purgeScope(user,input);return {token:s.token,profiles:s.profiles,conversationCount:s.conversationIds.length,recordCount:s.rows.length,requiresStageConfirm:s.profiles.some(p=>p.stage!=='NEW')};}
-async function remotePurge(s){if(process.env.PLAN_REMOTE_CATALOG==='0')return;const r=await fetch(SUPABASE_URL+'/rest/v1/rpc/purge_customer_data',{method:'POST',headers:getSupabaseHeaders(),body:JSON.stringify({p_customer_ids:s.customerIds,p_learner_keys:s.learnerKeys,p_conversation_ids:s.conversationIds,p_confirm:true}),signal:AbortSignal.timeout(60000)});const result=await r.json().catch(()=>null);if(!r.ok||result?.ok!==true)throw Error('Chưa xóa được dữ liệu Supabase; hội thoại được khóa và hệ thống sẽ thử lại.');}
+async function remotePurge(s){if(process.env.PLAN_REMOTE_CATALOG==='0')return;const r=await fetch(SUPABASE_URL+'/rest/v1/rpc/purge_customer_data',{method:'POST',headers:await getSupabaseHeaders(),body:JSON.stringify({p_customer_ids:s.customerIds,p_learner_keys:s.learnerKeys,p_conversation_ids:s.conversationIds,p_confirm:true}),signal:AbortSignal.timeout(60000)});const result=await r.json().catch(()=>null);if(!r.ok||result?.ok!==true)throw Error('Chưa xóa được dữ liệu Supabase; hội thoại được khóa và hệ thống sẽ thử lại.');}
 function finish(job){
  const assetIds=new Set(job.scope.rows.filter(r=>r.kind==='assets').map(r=>r.id)),ids=new Set(job.scope.rows.map(r=>r.id));
  for(const asset of all('assets').filter(a=>job.scope.conversationIds.includes(a.conversationId)&&!assetIds.has(a.id)))put('assets',{...asset,conversationId:null});

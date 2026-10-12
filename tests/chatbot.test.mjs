@@ -31,3 +31,23 @@ test('real worker greeting/photo intake mentioning course is sent without creati
  await botTick(async(_connection,prompt)=>{assert.ok(prompt.includes('collect_missing_information'));assert.ok(prompt.includes('hi bạn'));return JSON.stringify({templateIds:[answer.id],needsStaff:false});});
  assert.equal(all('messages').filter(m=>m.conversationId===c.id&&m.senderType==='ai').length,1);assert.equal(all('staff_handoffs').filter(h=>h.conversationId===c.id).length,0);assert.equal(botStatus(get('conversations',c.id)).enabled,true);
 });
+
+test('new input is queued while AI is still generating; obsolete response never sends',async()=>{
+ const b=all('chatbots').find(b=>b.name==='Intake QA'),aiId=b.aiConnectionId;let release,started;const ready=new Promise(r=>started=r);
+ put('messages',{id:'concurrent-in-1',conversationId:'intake-c',direction:'incoming',text:'Còn nữa',status:'received'});
+ const before=all('messages').filter(m=>m.conversationId==='intake-c'&&m.senderType==='ai').length;
+ const running=botTick(async()=>{started();await new Promise(r=>release=r);return JSON.stringify({templateIds:[b.templateIds[0]],needsStaff:false});});await ready;
+ put('messages',{id:'concurrent-in-2',conversationId:'intake-c',direction:'incoming',text:'Thông tin bổ sung',status:'received'});
+ await botTick(async()=>{throw Error('must not dispatch while generating');});assert.ok(get('chatbot_receipts','concurrent-in-2'));assert.ok(all('chatbot_jobs').some(j=>j.status==='waiting'&&j.messageIds.includes('concurrent-in-2')));
+ release();await running;assert.equal(all('messages').filter(m=>m.conversationId==='intake-c'&&m.senderType==='ai').length,before);
+});
+
+test('worker delivers only the two missing questions instead of repeating the full intake template',async()=>{
+ for(const j of all('chatbot_jobs').filter(j=>j.status==='waiting'))put('chatbot_jobs',{...j,status:'cancelled'});
+ const channel=put('connections',{id:'partial-ch',mode:'demo',status:'connected',provider:'zalo_personal'}),person=put('customers',{id:'partial-p',name:'QA'}),c=put('conversations',{id:'partial-c',connectionId:channel.id,customerId:person.id,kind:'message',threadType:0});
+ const t=put('templates',{text:'Chị giúp em trả lời 5 câu hỏi nhé:\n\n1. Chị nhai bên nào?\n\n2. Chị ngủ nghiêng bên nào?\n\n3. Chị có vắt chéo chân không?\n\n4. Công việc và tư thế thường ngày?\n\n5. Chị muốn cải thiện điểm nào?',enabled:true});
+ const ai=await botRoute('/api/chatbot/connections','POST',{name:'Partial AI',provider:'openai',model:'qa',apiKey:'test-key'},owner);await botRoute('/api/chatbot/bots','POST',{...input,name:'Partial bot',channels:[channel.id],stages:['NEW'],templateIds:[t.id],aiConnectionId:ai.id},owner);
+ const q=put('messages',{conversationId:c.id,direction:'outgoing',text:t.text,status:'demo',createdAt:'2026-01-01T00:00:00Z'}),answer=put('messages',{conversationId:c.id,direction:'incoming',text:'1. Nhai bên phải. 2. Ngủ nghiêng trái. 3. Không vắt chéo chân.',status:'received'});
+ await botTick(async()=>JSON.stringify({templateIds:[t.id],needsStaff:false,followUp:{templateId:t.id,questionMessageId:q.id,answered:[1,2,3].map(number=>({number,complete:true,evidenceIds:[answer.id]}))}}));
+ const reply=all('messages').find(m=>m.conversationId===c.id&&m.senderType==='ai');assert.ok(reply.text.includes('4. Công việc'));assert.ok(reply.text.includes('5. Chị muốn'));assert.ok(!reply.text.includes('1. Chị nhai'));assert.equal(botStatus(get('conversations',c.id)).enabled,true);
+});

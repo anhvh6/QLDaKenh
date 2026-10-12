@@ -167,6 +167,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of
  const side=$('.chat-side');side.insertAdjacentHTML('beforeend',`<div class="side-section"><h4>Ghi chú nội bộ</h4>${S.messages.filter(m=>m.conversationId===c.id&&m.direction==='note').slice(-5).map(m=>`<p class="small">${e(m.text)}<br><span class="muted">${e(date(m.createdAt))}</span></p>`).join('')||'<p class="muted">Chưa có ghi chú</p>'}${b('Viết ghi chú','note')}</div>`);
  enhanceChatNames(H);enhanceTopicMenus(H,c);enhanceRichCards(H);enhanceChatContent(H,c);enhanceMessageInteractions();enhanceConsultationReview();
 }
+export function enhanceLiveMessages(){const c=active();if(!c)return;enhanceRichCards(H);enhanceChatContent(H,c);enhanceMessageInteractions();}
 async function bulk(patch){const items=[...selected].map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));await H.api('/chat/bulk',{method:'POST',body:{items,patch}});selected.clear();H.closeModal();await H.refresh();}
 function insertText(text){const c=active(),d=draft(c.id);rememberInboxDraft();d.text+=(d.text?'\n':'')+text;H.closeModal();paint();$('#reply-form textarea').focus();}
 async function copyMessage(id){

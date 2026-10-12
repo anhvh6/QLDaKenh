@@ -6,15 +6,16 @@ let typingPeers=[];
 let H,typingId='',lastInput=0,lastPost=0,polled=false,selectionConversation='',selected=new Set(),selecting=false;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const form=()=>document.querySelector('#reply-form');
+const typingUnavailable=new Set();
 const emojis={heart:'❤️',like:'👍',haha:'😆',wow:'😮',cry:'😢',angry:'😡'};
 function stamp(value){const date=new Date(value);if(!Number.isFinite(date.getTime()))return '';const p=Object.fromEntries(new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',hourCycle:'h23'}).formatToParts(date).map(p=>[p.type,p.value]));return `${p.hour}:${p.minute} ${p.day}/${p.month}`;}
 async function stopTyping(){if(!typingId)return;const id=typingId;typingId='';lastInput=0;paintTyping(typingPeers);try{await H.api('/chat/conversations/'+id+'/typing',{method:'POST',body:{active:false},keepalive:true});}catch{}}
 function paintTyping(users){const f=form();if(!f)return;let status=f.querySelector('.chat-typing-status');if(!status){status=document.createElement('div');status.className='chat-typing-status';status.setAttribute('aria-live','polite');f.elements.text.after(status);}typingPeers=users;const local=typingId===f.dataset.id&&Date.now()-lastInput<2500&&f.elements.text.value.trim()?[H.state.user]:[];users=[...local,...users.filter(u=>u.id!==H.state.user.id)];status.innerHTML=users.map(u=>{const parts=u.name.trim().split(/\s+/),short=u.name;return `<span title="${esc(u.name)}"><i>${esc(parts.map(n=>n[0]).slice(-2).join(''))}</i>${esc(short)} · Đang trả lời</span>`;}).join('');status.hidden=!users.length;}
 async function tick(){if(polled||!H.state?.user)return;polled=true;try{
  const f=form(),id=f?.dataset.id;if(typingId&&(typingId!==id||f?.elements.note.checked||Date.now()-lastInput>2500||document.visibilityState!=='visible'))await stopTyping();
- if(!id||H.route()!=='inbox')return;
+ if(!id||typingUnavailable.has(id)||H.route()!=='inbox'||document.hidden||!H.state.conversations.some(c=>c.id===id&&!c.deletedAt))return;
  if(typingId===id&&Date.now()-lastPost>1500&&Date.now()-lastInput<2500){lastPost=Date.now();const data=await H.api('/chat/conversations/'+id+'/typing',{method:'POST',body:{active:true}});if(form()?.dataset.id===id)paintTyping(data.users);}else{const data=await H.api('/chat/conversations/'+id+'/typing');if(form()?.dataset.id===id)paintTyping(data.users);}
- }catch{}finally{polled=false;}}
+ }catch(error){if(error.status===404){const id=form()?.dataset.id;if(id)typingUnavailable.add(id);}}finally{polled=false;}}
 function selectionBar(){const f=form();if(!f)return;let bar=f.querySelector('.message-selection-bar');if(!selecting){bar?.remove();return;}if(!bar){bar=document.createElement('div');bar.className='message-selection-bar';f.prepend(bar);}bar.innerHTML=`<button type="button" data-message-action="select-all">Chọn tất cả</button><strong>${selected.size} đã chọn</strong><button type="button" data-message-action="forward-many" ${selected.size?'':'disabled'}>Chuyển tiếp</button><button type="button" data-message-action="delete-many" ${selected.size?'':'disabled'}>Xóa</button><button type="button" data-message-action="cancel-select" aria-label="Bỏ chọn tin nhắn">✕</button>`;
  for(const row of document.querySelectorAll('[data-message]')){row.classList.toggle('message-selected',selected.has(row.dataset.message));row.classList.toggle('message-selecting',selecting);row.querySelector('.message-select-box').checked=selected.has(row.dataset.message);}}
 export function enhanceMessageInteractions(){

@@ -40,31 +40,10 @@ CREATE TRIGGER IF NOT EXISTS state_revision_update AFTER UPDATE ON records WHEN 
 export const stateRevision=()=>db.prepare('SELECT value FROM state_revision WHERE id=1').get().value;
 export const uid = (prefix='id') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();
-import syncFetch from 'sync-fetch';
+import {supabaseAuth} from './supabase-auth.mjs';
 export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://aqtnzvqyljweppklblni.supabase.co';
 export const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uHPer_Bt1RR9DutO4vcG3w_MUVligrK';
-let cachedToken = null;
-let tokenExpiresAt = 0;
-
-export function getSupabaseHeaders() {
-  if (Date.now() > tokenExpiresAt) {
-    const authRes = syncFetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
-      method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: process.env.SUPABASE_SYSTEM_EMAIL || 'anhvh@gmail.com', password: process.env.SUPABASE_SYSTEM_PASSWORD || 'Ttdt123a@' })
-    });
-    if (authRes.status !== 200) throw new Error('Supabase Auth Failed');
-    const auth = authRes.json();
-    cachedToken = auth.access_token;
-    tokenExpiresAt = Date.now() + ((auth.expires_in - 60) * 1000);
-  }
-  return {
-    'apikey': SUPABASE_KEY,
-    'Authorization': 'Bearer ' + cachedToken,
-    'Content-Type': 'application/json',
-    'Prefer': 'resolution=merge-duplicates'
-  };
-}
+export const getSupabaseHeaders=supabaseAuth({url:SUPABASE_URL,key:SUPABASE_KEY,email:process.env.SUPABASE_SYSTEM_EMAIL || 'anhvh@gmail.com',password:process.env.SUPABASE_SYSTEM_PASSWORD || 'Ttdt123a@'});
 
 db.exec(readFileSync(new URL('../docs/chat-crm-storage.sqlite.sql',import.meta.url),'utf8'));
 

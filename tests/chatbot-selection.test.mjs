@@ -27,3 +27,15 @@ test('context focuses on unanswered messages in current chat while preserving ol
 test('genuine unresolved questions still hand off; no arbitrary greeting fallback',async()=>{
  let calls=0;const r=await selectApprovedReply(bot,templates,{},async()=>{calls++;return {text:JSON.stringify({templateIds:[],needsStaff:true,reason:'Khách yêu cầu ngoại lệ chính sách'})};});assert.equal(calls,1);assert.equal(r.selection.needsStaff,true);
 });
+
+test('entire chat history remains available beyond 200 messages, including original intake questions',async()=>{
+ put('customers',{id:'full-p',name:'Full QA'});put('conversations',{id:'full-c',customerId:'full-p',threadType:0});
+ for(let i=0;i<240;i++)put('messages',{id:'full-'+i,conversationId:'full-c',direction:i===0?'outgoing':'incoming',text:i===0?'Câu hỏi ban đầu?':'Tin '+i,createdAt:new Date(1700000000000+i*1000).toISOString(),status:'received'});
+ const ctx=await storedBotContext('full-p',{conversationId:'full-c'});assert.equal(ctx.history.chronological.length,240);assert.equal(ctx.history.chronological[0].text,'Câu hỏi ban đầu?');assert.ok(selectionPrompt(bot,templates,ctx).includes('Câu hỏi ban đầu?'));
+});
+
+test('repeated full questionnaire is reselected into a verified partial follow-up',async()=>{
+ const t={id:'questions',text:'Chị giúp em trả lời câu hỏi nhé:\n1. Chị nhai bên nào?\n2. Chị ngủ nghiêng bên nào?\n3. Công việc thường ngày?'},q={id:'q',conversationId:'c',direction:'outgoing',text:t.text,createdAt:'2026-01-01'},a={id:'a',conversationId:'c',direction:'incoming',text:'Nhai phải và ngủ trái',createdAt:'2026-01-02'},ctx={intakeEvidence:[q,a],currentTurn:{conversationId:'c',messages:[a],lastReply:q}};let calls=0;
+ const r=await selectApprovedReply(bot,[t],ctx,async()=>({text:JSON.stringify(++calls===1?{templateIds:[t.id],needsStaff:false}:{templateIds:[t.id],needsStaff:false,followUp:{templateId:t.id,questionMessageId:q.id,answered:[1,2].map(number=>({number,complete:true,evidenceIds:[a.id]}))}})}));
+ assert.equal(calls,2);assert.ok(r.replyText.includes('3. Công việc'));assert.ok(!r.replyText.includes('1. Chị nhai'));
+});
