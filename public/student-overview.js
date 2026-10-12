@@ -9,5 +9,6 @@ export function studentOverview(state,customer,time=Date.now()){
  const names=(state.enrollments||[]).filter(e=>e.customerId===customer.id).map(e=>e.name);
  for(const item of Array.isArray(customer.san_pham)?customer.san_pham:[])if(item.productType==='course'||/khóa học|khoá học|khoa hoc/i.test(item.ten_sp||item.name||''))names.push(item.ten_sp||item.name);
  const hasPlan=[...(state.savedPlanSummaries||[]),...(state.chatPlanSummaries||[])].some(p=>p.customerId===customer.id)||customer.origin==='taophacdo'&&!!(customer.hasEffectivePlan||customer.video_date||customer.is_customized||customer.link);
- return {...progress,stageName:learnerStages[progress.stage].name,startDate:progress.startDate||journey?.startDate||customer.start_date,endDate:progress.endDate||journey?.endDate||customer.end_date,courseNames:[...new Set(names.filter(Boolean))],hasPlan,hasHistory};
+ const consultationPending=['NEW','APPOINTMENT','CONSULTED'].includes(progress.stage)&&!hasHistory;
+ return {...progress,consultationPending,stage:consultationPending?null:progress.stage,stageName:consultationPending?'Chưa vào luồng tư vấn':learnerStages[progress.stage].name,startDate:progress.startDate||journey?.startDate||customer.start_date,endDate:progress.endDate||journey?.endDate||customer.end_date,courseNames:[...new Set(names.filter(Boolean))],hasPlan,hasHistory};
 }
