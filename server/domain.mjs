@@ -1,4 +1,5 @@
 import {validateGroupMentions} from './group-mentions.mjs';
+import {publishMedia} from './social-copy.mjs';
 import {assertCareConversation} from './student-care.mjs';
 import {finishMentionTasks} from './staff-tasks.mjs';
 import {join,basename} from 'node:path';
@@ -25,6 +26,8 @@ export function editRecord(user,kind,id,input){
  }
  if(kind==='customers'){data.createdBy=prev?.createdBy||user.id;data.customer_id=prev?.customer_id||'LOCAL-'+uid('customer');if(prev?.origin==='taophacdo')for(const k of ['customer_id','is_customized','video_date','ma_vd','start_date','end_date','san_pham','gia_tien','status'])data[k]=prev[k];required(data.name,'Tên khách',200);data.tags=Array.isArray(data.tags)?data.tags.slice(0,20):[];data.consent=data.consent===true;}
  if(kind==='contents'){
+  if(id&&all('copy_jobs').some(j=>j.contentId===id&&['queued','downloading','uploading'].includes(j.status)))fail('Bài đang được chuẩn bị đăng. Chờ tải hoàn tất trước khi sửa.',409);
+  for(const key of ['sourceCopyId','sourceURL','copyReady','copyJobId','driveFolderId']){if(prev?.[key]!==undefined)data[key]=prev[key];else delete data[key];}
   required(data.title,'Tên nội dung',250);data.caption=String(data.caption||'').slice(0,30000);if(!['text','image','video'].includes(data.type))fail('Loại nội dung không hợp lệ.');
   data.channels=(data.channels||[]).filter(x=>get('connections',x));data.assets=(data.assets||[]).map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['post']).includes('post'))fail('Media không còn dùng cho đăng bài.');if(a.connectionId)assertChannel(user,a.connectionId);return id;});data.status='draft';data.approval='pending';
   // Editing an already scheduled content does not silently mutate the frozen publication.
@@ -55,7 +58,7 @@ export function schedule(user,id,input){permission(user,'content');const c=get('
  const channels=c.channels||[];if(!channels.length)fail('Chọn ít nhất một kênh.');if(!c.caption.trim())fail('Nhập nội dung bài đăng.');
  const scheduleAt=input.immediate?now():input.scheduleAt;if(!Number.isFinite(Date.parse(scheduleAt)))fail('Chọn lịch đăng hợp lệ.');if(!input.immediate&&Date.parse(scheduleAt)<Date.now()+10*60000)fail('Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
  if(all('publications').some(p=>p.contentId===id&&['scheduled','dispatching','processing','awaiting_manual','unknown'].includes(p.status)))fail('Nội dung đã có lịch đang chạy. Hủy các đích chưa gửi trước khi tạo lịch mới.');
- const frozen=channels.map(cid=>{const ch=get('connections',cid);if(!ch||ch.status==='disconnected')fail('Kênh đã ngắt kết nối.');const v=c.variants?.[cid]||{};const type=v.type||c.type;const mediaUrl=v.mediaUrl||c.mediaUrl||'';let mode=ch.mode;
+ const frozen=channels.map(cid=>{const ch=get('connections',cid);if(!ch||ch.status==='disconnected')fail('Kênh đã ngắt kết nối.');const v=c.variants?.[cid]||{};const type=v.type||c.type;const mediaItems=c.copyReady?(c.assets||[]).map(id=>{const a=get('assets',id);if(!a?.copyJobId)fail('Media nguồn không còn tồn tại.');return {type:a.type,url:publishMedia(a,scheduleAt)};}):[];const mediaUrl=v.mediaUrl||mediaItems[0]?.url||c.mediaUrl||'';let mode=ch.mode;
   if(mode==='api'){
    if(!providers[ch.provider].publish)fail(`${ch.name}: chỉ hỗ trợ nhắn tin, hãy chọn chế độ hỗ trợ đăng.`);
    if(ch.status!=='connected')fail(`${ch.name}: cần kiểm tra kết nối trước.`);
@@ -63,7 +66,9 @@ export function schedule(user,id,input){permission(user,'content');const c=get('
    if(type!=='text')validMediaURL(mediaUrl);
    if(ch.provider==='x'&&(v.caption||c.caption).length>280)fail('Bản X đang giới hạn văn bản ở 280 ký tự.');
   }
-  return {contentId:id,connectionId:cid,title:v.title||c.title,caption:v.caption||c.caption,type,assets:c.assets||[],mediaUrl,status:'scheduled',mode,scheduleAt,revision:c.version,attempts:0};
+  if(mode==='api'&&mediaItems.length>1&&!['facebook','instagram','threads'].includes(ch.provider))fail('Kênh này chưa hỗ trợ tự động đăng nhiều media. Chọn chế độ hỗ trợ đăng.');
+  if(mode==='api'&&ch.provider==='facebook'&&mediaItems.length>1&&mediaItems.some(m=>m.type!=='image'))fail('Facebook API hiện hỗ trợ album ảnh; bài nhiều video cần đăng hỗ trợ.');
+  return {contentId:id,connectionId:cid,title:v.title||c.title,caption:v.caption||c.caption,type,assets:c.assets||[],mediaUrl,mediaItems,status:'scheduled',mode,scheduleAt,revision:c.version,attempts:0};
  });return transaction(()=>{const jobs=frozen.map(p=>put('publications',p));put('contents',{...c,status:'scheduled',scheduleAt,approval:'approved'});audit(user.id,'schedule',id,{targets:jobs.length});return jobs;});
 }
 export function publicationAction(user,id,input){permission(user,'content');const p=get('publications',id);if(!p)fail('Không tìm thấy lịch.',404);
@@ -165,10 +170,10 @@ export async function tick(){if(ticking)return;ticking=true;try{
   try{const r=await publish(ch,p);put('publications',{...get('publications',p.id),...r,status:r.processing?'processing':'published',publishedAt:r.processing?null:now(),error:''});}
   catch(e){put('publications',{...get('publications',p.id),status:e.unknown?'unknown':'failed',error:e.message});notification('Cần xử lý bài đăng',`${ch.name}: ${e.message}`,'calendar');}
  }
- for(const p of all('publications').filter(x=>x.status==='processing'&&x.containerId).slice(0,5)){
+ for(const p of all('publications').filter(x=>x.status==='processing'&&(x.containerId||x.carouselPending)).slice(0,5)){
   if(Date.now()-Date.parse(p.updatedAt)>30*60000){put('publications',{...p,status:'unknown',error:'Xử lý quá lâu. Đối soát trên nền tảng gốc.'});continue;}
   const ch=get('connections',p.connectionId);if(!ch||ch.status!=='connected')continue;
-  try{const r=await continuePublish(ch,p);if(r)put('publications',{...p,...r,status:'published',publishedAt:now()});}catch(e){put('publications',{...p,status:e.unknown?'unknown':'failed',error:e.message});}
+  try{const r=await continuePublish(ch,p);if(r)put('publications',{...p,...r,status:r.processing?'processing':'published',publishedAt:r.processing?null:now()});}catch(e){put('publications',{...p,status:e.unknown?'unknown':'failed',error:e.message});}
  }
 }finally{ticking=false;}}
 export function recoverJobs(){for(const p of all('publications').filter(x=>x.status==='dispatching'))put('publications',{...p,status:'unknown',error:'Máy chủ khởi động lại khi đang gửi. Cần kiểm tra kết quả trước khi gửi lại.'});for(const c of all('conversations').filter(x=>x.sending))put('conversations',{...c,sending:false});for(const m of all('messages').filter(x=>x.status==='sending'))put('messages',{...m,status:'unknown'});for(const s of all('shipments').filter(x=>x.status==='creating'))put('shipments',{...s,status:'unknown'});}

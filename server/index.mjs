@@ -1,4 +1,5 @@
 import {resumePurges} from './customer-purge.mjs';
+import {copyRoute,copyArchive,copyPreviewMedia,publicCopyMedia,scheduleCopied,recoverCopyJobs,copyTick} from './social-copy.mjs';
 import {parseZaloContent} from './zalo-message-content.mjs';
 import {isTypeCode} from '../public/chat-media-content.js';
 import {quickReplyRoute} from './quick-replies.mjs';
@@ -25,6 +26,7 @@ import { join,resolve,extname,basename,sep } from 'node:path';
 import { randomBytes,scryptSync,timingSafeEqual,createHash,createHmac } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
+import {Readable} from 'node:stream';
 import { backup } from 'node:sqlite';
 import { db,dataDir,all,get,put,transaction,now,uid,audit,secret,saveSecret,notification,stateRevision } from './store.mjs';
 import { seed } from './seed.mjs';
@@ -54,6 +56,7 @@ const throttles=new Map();const busy=new Set();
 function checkOrigin(req){if(req.headers['sec-fetch-site']==='cross-site')domain.fail('Yêu cầu khác nguồn bị chặn.',403);if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host&&origin.host!==req.headers['x-forwarded-host'])domain.fail('Nguồn yêu cầu không hợp lệ.',403);}}
 const generic=/^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req,res,url,user,input){const path=url.pathname;const method=req.method;
+ const copy=await copyRoute(path,method,input,user,url);if(copy!==undefined)return copy;
  const careConversation=path.match(/^\/api\/(?:chat\/|care\/|chatbot\/)?conversations\/([^/]+)/);
  const careMessage=path.match(/^\/api\/chat\/messages\/([^/]+)/);
  const guardedConversation=careConversation?get('conversations',careConversation[1]):careMessage?(get('messages',careMessage[1])?.conversationId?get('conversations',get('messages',careMessage[1]).conversationId):null):input.conversationId?get('conversations',input.conversationId):null;
@@ -117,7 +120,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  if(path.match(/^\/api\/users\/[^/]+$/)&&method==='PATCH'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const id=path.split('/').pop();if(id===user.id)domain.fail('Không thể khóa tài khoản đang sử dụng.');db.prepare('UPDATE users SET active=? WHERE id=? AND role!=?').run(input.active?1:0,id,'owner');db.prepare('DELETE FROM sessions WHERE user_id=?').run(id);return {ok:true};}
  if(path==='/api/password'&&method==='POST'){const u=db.prepare('SELECT * FROM users WHERE id=?').get(user.id);if(!verify(input.current||'',u.password))domain.fail('Mật khẩu hiện tại không đúng.');if((input.password||'').length<10)domain.fail('Mật khẩu mới cần ít nhất 10 ký tự.');db.prepare('UPDATE users SET password=? WHERE id=?').run(hashPassword(input.password),user.id);db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);return {ok:true};}
  const match=path.match(generic);if(match){const [,kind,id]=match;if(method==='POST'&&!id)return domain.editRecord(user,kind,null,input);if(method==='PATCH'&&id)return domain.editRecord(user,kind,id,input);if(method==='DELETE'&&id)return domain.deleteRecord(user,kind,id);}
- if(path.match(/^\/api\/contents\/[^/]+\/schedule$/)&&method==='POST')return domain.schedule(user,path.split('/')[3],input);
+ if(path.match(/^\/api\/contents\/[^/]+\/schedule$/)&&method==='POST')return scheduleCopied(user,path.split('/')[3],input);
  if(path.match(/^\/api\/publications\/[^/]+\/action$/)&&method==='POST')return domain.publicationAction(user,path.split('/')[3],input);
  if(path==='/api/orders'&&method==='POST')return domain.createOrder(user,input);
  if(path.match(/^\/api\/orders\/[^/]+\/action$/)&&method==='POST')return domain.orderAction(user,path.split('/')[3],input);
@@ -160,6 +163,7 @@ const server=http.createServer(async(req,res)=>{try{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
  const url=new URL(req.url,'http://localhost');const path=url.pathname;if(path.startsWith('/plan-ui/')||path.startsWith('/plan-editor/')||path.startsWith('/plan-preview/')){res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");}const user=userFor(req);
  if(path==='/api/health')return json(res,{ok:true,service:'Moc Hub'});
+ const publicMedia=path.match(/^\/api\/copy\/public-media\/([\w-]+)$/);if(publicMedia&&['GET','HEAD'].includes(req.method))return serveFile(req,res,publicCopyMedia(publicMedia[1],url.searchParams.get('expires'),url.searchParams.get('token')),false);
  const carrierHook=path.match(/^\/api\/shipping\/webhooks\/viettelpost\/([^/]+)$/);if(carrierHook){if(req.method!=='POST')domain.fail('Chỉ chấp nhận POST.',405);const payload=await body(req,256000);const result=receiveVtpWebhook(carrierHook[1],req.headers,payload.value);json(res,result);if(!all('carrier_orders').some(o=>o.accountId===carrierHook[1]&&o.tracking===String(payload.value.DATA.ORDER_NUMBER))&&!all('shipments').some(s=>s.accountId===carrierHook[1]&&s.tracking===String(payload.value.DATA.ORDER_NUMBER)))void importVtpOrder(carrierHook[1],String(payload.value.DATA.ORDER_NUMBER)).catch(()=>{});return;}
  if(path.startsWith('/api/webhooks/'))return await webhook(req,res,url);
  if(path==='/api/events'&&req.method==='GET'){if(!user)domain.fail('Vui lòng đăng nhập.',401);res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});let revision=stateRevision(),lastHeartbeat=Date.now();res.write('event: ready\ndata: {}\n\n');const timer=setInterval(()=>{if(Date.now()-lastHeartbeat>=15000){if(!userFor(req)){clearInterval(timer);res.end();return;}lastHeartbeat=Date.now();res.write(': keepalive\n\n');}const next=stateRevision();if(next!==revision){if(!userFor(req)){clearInterval(timer);res.end();return;}revision=next;res.write('event: changed\ndata: {}\n\n');}},250);req.on('close',()=>clearInterval(timer));return;}
@@ -175,6 +179,8 @@ const server=http.createServer(async(req,res)=>{try{
  }
  if(path.startsWith('/api/')||path.startsWith('/uploads/')){
   if(!user)domain.fail('Vui lòng đăng nhập.',401);
+  const previewMedia=path.match(/^\/api\/copy\/media\/([\w-]+)\/(\d+)$/);if(previewMedia&&req.method==='GET'){const response=await copyPreviewMedia(user,previewMedia[1],previewMedia[2],url.searchParams.has('poster'),req.headers.range);for(const header of ['Content-Type','Content-Length','Content-Range','Accept-Ranges'])if(response.headers.has(header))res.setHeader(header,response.headers.get(header));res.setHeader('Cache-Control','private, no-store');res.writeHead(response.status);try{await pipeline(Readable.fromWeb(response.body),res);}catch(error){if(!res.destroyed)throw error;}return;}
+  const archive=path.match(/^\/api\/copy\/archive\/([\w-]+)$/);if(archive&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="bai-viet-'+archive[1]+'.zip"');return serveFile(req,res,copyArchive(user,archive[1]),true);}
   if(req.method!=='GET'&&req.method!=='HEAD'){checkOrigin(req);if(!path.startsWith('/api/proxy/supabase/')&&req.headers['x-csrf-token']!==user.csrf)domain.fail('Phiên làm việc không hợp lệ. Tải lại trang.',403);}
   if(path==='/api/upload'&&req.method==='POST'){
    const conversationId=url.searchParams.get('conversationId');let chatConnection=null;if(conversationId){domain.permission(user,'inbox');const conv=get('conversations',conversationId);if(!conv||conv.kind==='comment')domain.fail('Hội thoại không hợp lệ.',404);care.assertChannel(user,conv.connectionId);chatConnection=conv.connectionId;}else domain.permission(user,'assets');const name=decodeURIComponent(req.headers['x-filename']||'media');const mime=String(req.headers['content-type']||'');const types={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','video/mp4':'.mp4','video/webm':'.webm','video/quicktime':'.mov','application/pdf':'.pdf','application/msword':'.doc','application/vnd.openxmlformats-officedocument.wordprocessingml.document':'.docx','application/vnd.ms-excel':'.xls','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'.xlsx','text/plain':'.txt','application/zip':'.zip'};if(!types[mime])domain.fail('Hỗ trợ ảnh, video, PDF, Word, Excel, TXT và ZIP.');
@@ -204,3 +210,4 @@ setInterval(()=>{try{reminderTick();consultationTick();}catch(error){console.err
 setInterval(()=>pushTick().catch(error=>console.error('Push tick:',error.message)),5000).unref();
 
 setInterval(()=>resumePurges().catch(e=>console.error('Customer purge:',e.message)),30000).unref();
+recoverCopyJobs();setInterval(copyTick,2000).unref();

@@ -41,6 +41,7 @@ export async function publish(c,p) {
  if(c.provider==='x'){r=await remote('https://api.x.com/2/tweets',json({text:p.caption},s.token));return {externalId:r.data.id,url:`https://x.com/i/web/status/${r.data.id}`};}
  if(c.provider==='facebook'){
   const base=`https://graph.facebook.com/${graphVersion(c)}/${id}`;
+  if(p.mediaItems?.length>1){const attached=[];for(const item of p.mediaItems){const photo=await remote(base+'/photos',json({url:validMediaURL(item.url),published:false},s.token));attached.push({media_fbid:photo.id});}r=await remote(base+'/feed',json({message:p.caption,attached_media:attached},s.token));return {externalId:r.id,url:'https://facebook.com/'+r.id};}
   const body=p.type==='image'?{url:validMediaURL(p.mediaUrl),caption:p.caption}:p.type==='video'?{file_url:validMediaURL(p.mediaUrl),description:p.caption,title:p.title}:{message:p.caption};
   r=await remote(`${base}/${p.type==='image'?'photos':p.type==='video'?'videos':'feed'}`,json(body,s.token));
   return {externalId:r.post_id||r.id,url:`https://facebook.com/${r.post_id||r.id}`,processing:p.type==='video'};
@@ -48,6 +49,7 @@ export async function publish(c,p) {
  if(c.provider==='threads'||c.provider==='instagram'){
   const threads=c.provider==='threads';const base=threads?'https://graph.threads.net/v1.0':`https://graph.instagram.com/${graphVersion(c)}`;
   let body=threads?{media_type:p.type==='text'?'TEXT':p.type==='image'?'IMAGE':'VIDEO',text:p.caption}:{caption:p.caption};
+  if(p.mediaItems?.length>1){if(p.mediaItems.length>10)throw new Error('Carousel tối đa 10 media trong connector này.');const children=[];for(const item of p.mediaItems){const child=await remote(`${base}/${id}/${threads?'threads':'media'}`,json({...(threads||item.type==='video'?{media_type:item.type==='video'?'VIDEO':'IMAGE'}:{}),is_carousel_item:true,...(item.type==='video'?{video_url:validMediaURL(item.url)}:{image_url:validMediaURL(item.url)})},s.token));children.push(child.id);}return {childContainerIds:children,processing:true,carouselPending:true};}
   if(p.type==='image')body.image_url=validMediaURL(p.mediaUrl);
   if(p.type==='video'){body.video_url=validMediaURL(p.mediaUrl);if(!threads)body.media_type='REELS';}
   r=await remote(`${base}/${id}/${threads?'threads':'media'}`,json(body,s.token));
@@ -58,6 +60,7 @@ export async function publish(c,p) {
 }
 export async function continuePublish(c,p) {
  const token=secret(c.id).token;const threads=c.provider==='threads';const base=threads?'https://graph.threads.net/v1.0':`https://graph.instagram.com/${graphVersion(c)}`;
+ if(p.carouselPending){for(const child of p.childContainerIds||[]){const state=await remote(`${base}/${encodeURIComponent(child)}?fields=${threads?'status,error_message':'status_code,status'}`,{headers:{Authorization:'Bearer '+token}});const code=state.status_code||state.status;if(['ERROR','EXPIRED'].includes(code))throw new Error('Media trong carousel bị lỗi: '+(state.error_message||state.status||code));if(code!=='FINISHED')return null;}const container=await remote(`${base}/${encodeURIComponent(c.accountId)}/${threads?'threads':'media'}`,json({media_type:'CAROUSEL',children:p.childContainerIds.join(','),...(threads?{text:p.caption}:{caption:p.caption})},token));return {containerId:container.id,carouselPending:false,processing:true,container:true};}
  const state=await remote(`${base}/${encodeURIComponent(p.containerId)}?fields=${threads?'status,error_message':'status_code,status'}`,{headers:{Authorization:`Bearer ${token}`}});
  const code=state.status_code||state.status;
  if(code==='ERROR'||code==='EXPIRED')throw new Error('Nền tảng không xử lý được media: '+(state.error_message||code));

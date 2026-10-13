@@ -7,3 +7,5 @@ node_modules/
 test-results/
 
 integrations/taophacdoT4/
+.copy-runtime/
+__pycache__/
