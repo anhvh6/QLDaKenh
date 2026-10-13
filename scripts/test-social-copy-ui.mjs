@@ -3,7 +3,7 @@ import {spawn,execFileSync} from 'node:child_process';
 import {mkdirSync,mkdtempSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import assert from 'node:assert/strict';
-const require=createRequire(import.meta.url),{chromium}=require('C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const require=createRequire(import.meta.url),playwrightPath=process.env.PLAYWRIGHT_PATH||join(process.env.USERPROFILE||'', '.cache','codex-runtimes','codex-primary-runtime','dependencies','node','node_modules','playwright'),{chromium}=require(playwrightPath);
 mkdirSync('test-data',{recursive:true});mkdirSync('test-results',{recursive:true});
 const env={...process.env,PORT:'4431',DATA_DIR:mkdtempSync(join(resolve('test-data'),'copy-ui-')),PLAN_REMOTE_CATALOG:'0'},base='http://127.0.0.1:4431';
 const server=spawn(process.execPath,['server/index.mjs'],{env,stdio:'pipe',windowsHide:true});let browser;
