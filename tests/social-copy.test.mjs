@@ -14,6 +14,10 @@ test('recognizes social platforms and rejects hostile URLs',()=>{
  for(const ip of ['127.0.0.1','169.254.169.254','172.16.1.1','192.168.0.1','::1','::ffff:127.0.0.1'])assert.equal(privateIP(ip),true);
  assert.equal(privateIP('8.8.8.8'),false);
 });
+test('automatic Python discovery waits for subprocess result rather than resolving to interpreter path',async()=>{
+ const {runExtractor}=await import('../server/social-copy.mjs'),previous=process.env.SOCIAL_COPY_PYTHON;delete process.env.SOCIAL_COPY_PYTHON;const folder=join(dataDir,'zip-check');mkdirSync(folder,{recursive:true});writeFileSync(join(folder,'caption.txt'),'QA');
+ try{const result=await runExtractor({action:'zip',folder});assert.equal(typeof result,'object');assert.equal(result.ok,true);}catch(error){assert.match(error.message,/Chưa cài bộ tải|not found|not recognized/);}finally{if(previous)process.env.SOCIAL_COPY_PYTHON=previous;}
+});
 let post;
 test('preview and Reup preserve exact caption and order; Reup does not download until publishing',async()=>{
  const caption='💚 Xin chào\nNội dung nguyên bản  #hashtag';post=await route('/api/copy/preview','POST',{url:'https://www.facebook.com/reel/123'},owner,{extract:async()=>({title:'Bài gốc',caption,author:'Tác giả',engine:'gallery',media:[{url:'https://cdn.example/a.jpg',type:'image',ext:'jpg'},{url:'https://cdn.example/b.jpg',type:'image',ext:'jpg'}]})});
