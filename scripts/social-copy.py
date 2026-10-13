@@ -1,5 +1,5 @@
 """Isolated extractor and ZIP worker. Input/output is JSON, never shell interpolation."""
-import json, sys, os, zipfile, re, html
+import json, sys, zipfile, re, html, time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -53,22 +53,26 @@ def facebook_payload(payloads, post_id):
 
 def facebook_post(url):
     from curl_cffi import requests
-    response = requests.get(url, impersonate='chrome', timeout=30)
-    if response.status_code != 200:
-        raise ValueError('Facebook không cho truy cập bài viết này.')
-    match = re.search(r'(?:posts|permalink)/(\d+)', response.url)
-    if not match:
-        canonical = re.search(r'<link[^>]+rel="canonical"[^>]+href="([^"]+)"', response.text)
-        match = re.search(r'(?:posts|permalink)/(\d+)', html.unescape(canonical[1]) if canonical else '')
-    if not match:
-        return None
-    payloads = []
-    for script in re.findall(r'<script[^>]*type="application/json"[^>]*>(.*?)</script>', response.text, re.S):
-        try:
-            payloads.append(json.loads(script))
-        except ValueError:
-            pass
-    return facebook_payload(payloads, match[1])
+    for attempt in range(3):
+        response = requests.get(url, impersonate='chrome', timeout=15)
+        if response.status_code != 200:
+            raise ValueError('Facebook không cho truy cập bài viết này.')
+        match = re.search(r'(?:posts|permalink)/(\d+)', response.url)
+        if not match:
+            canonical = re.search(r'<link[^>]+rel="canonical"[^>]+href="([^"]+)"', response.text)
+            match = re.search(r'(?:posts|permalink)/(\d+)', html.unescape(canonical[1]) if canonical else '')
+        payloads = []
+        for script in re.findall(r'<script[^>]*type="application/json"[^>]*>(.*?)</script>', response.text, re.S):
+            try:
+                payloads.append(json.loads(script))
+            except ValueError:
+                pass
+        result = facebook_payload(payloads, match[1]) if match else None
+        if result:
+            return result
+        if attempt < 2:
+            time.sleep(1)
+    raise ValueError('Facebook chưa cung cấp đầy đủ bài viết. Bài có thể yêu cầu đăng nhập hoặc bị giới hạn truy cập.')
 
 def resolve_source(url):
     if 'facebook.com/share/' not in url:
@@ -78,7 +82,8 @@ def resolve_source(url):
     final = response.url
     if urlparse(final).hostname not in ('www.facebook.com','facebook.com','m.facebook.com'):
         raise ValueError('Link chia sẻ chuyển ra ngoài Facebook.')
-    return final
+    parsed = urlparse(final)
+    return parsed._replace(query='', fragment='').geturl() if '/reel/' in parsed.path or '/permalink/' in parsed.path or '/posts/' in parsed.path else final
 
 def caption(meta):
     for key in ('description', 'caption', 'content', 'text', 'tweet_content'):
