@@ -2,6 +2,7 @@ import { validateGroupMentions } from './group-mentions.mjs';
 import { publishMedia } from './social-copy.mjs';
 import { assertCareConversation } from './student-care.mjs';
 import { finishMentionTasks } from './staff-tasks.mjs';
+import { saveSendReceipt } from './chat-send-receipt.mjs';
 import { join, basename } from 'node:path';
 import { dataDir } from './store.mjs';
 import { all, get, put, remove, transaction, audit, notification, now, uid, secret, saveSecret, db } from './store.mjs';
@@ -64,10 +65,10 @@ export async function deleteRecord(user, kind, id, input = {}) {
     } remove(kind, id);
   } else fail('Mục này không hỗ trợ xóa trực tiếp.'); audit(user.id, 'delete', id, { kind, remoteDeleted, remoteDeletedByProvider }); return { ok: true, remoteDeleted, remoteDeletedByProvider };
 }
-export function schedule(user, id, input) {
+export function schedule(user, id, input, { prepared = false } = {}) {
   permission(user, 'content'); const c = get('contents', id); if (!c) fail('Không tìm thấy nội dung.', 404); if (input.version !== c.version) fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.', 409);
   const channels = c.channels || []; if (!channels.length) fail('Chọn ít nhất một kênh.'); if (!c.caption.trim()) fail('Nhập nội dung bài đăng.');
-  const scheduleAt = input.immediate ? now() : input.scheduleAt; if (!Number.isFinite(Date.parse(scheduleAt))) fail('Chọn lịch đăng hợp lệ.'); if (!input.immediate && Date.parse(scheduleAt) < Date.now() + 10 * 60000) fail('Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
+  const scheduleAt = input.immediate ? now() : input.scheduleAt; if (!Number.isFinite(Date.parse(scheduleAt))) fail('Chọn lịch đăng hợp lệ.'); if (!input.immediate && Date.parse(scheduleAt) < Date.now() + (prepared ? 0 : 10 * 60000)) fail(prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
   const active = all('publications').filter(p => p.contentId === id && ['scheduled', 'dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status));
   if (active.some(p => p.status !== 'scheduled')) fail('Một đích đang được xử lý hoặc chờ đối soát; chưa thể thay đổi lịch.');
   // schedule() only reuses publications still in `active`; a channel that already finished publishing would
@@ -76,7 +77,7 @@ export function schedule(user, id, input) {
   const alreadyLive = all('publications').filter(p => p.contentId === id && ['published', 'demo_published', 'manually_confirmed'].includes(p.status));
   if (alreadyLive.some(p => channels.includes(p.connectionId))) fail('Một hoặc nhiều kênh đã đăng bài này rồi. Bỏ kênh đó khỏi danh sách trước khi lên lịch lại, để tránh đăng trùng.');
   const frozen = channels.map(cid => {
-    const ch = get('connections', cid); if (!ch || ch.status === 'disconnected') fail('Kênh đã ngắt kết nối.'); const v = c.variants?.[cid] || {}; const type = v.type || c.type; const asset = (c.assets || []).map(id => get('assets', id)).find(a => a?.active !== false && a?.type === type); const localUpload = ['youtube', 'tiktok'].includes(ch.provider); const mediaUrl = v.mediaUrl || c.mediaUrl || (asset && !localUpload ? publicMediaUrl(asset) : ''); let mode = ['youtube', 'tiktok'].includes(ch.provider) && ch.status === 'connected' ? 'api' : ch.mode;
+    const ch = get('connections', cid); if (!ch || ch.status === 'disconnected') fail('Kênh đã ngắt kết nối.'); const v = c.variants?.[cid] || {}; const type = v.type || c.type; const assets = (c.assets || []).map(id => get('assets', id)).filter(a => a?.active !== false); const asset = assets.find(a => a.type === type); const localUpload = ['youtube', 'tiktok'].includes(ch.provider); const mediaItems = c.copyReady ? assets.map(a => { if (!a.copyJobId) fail('Media nguồn không còn tồn tại.'); return { type: a.type, url: publishMedia(a, scheduleAt) }; }) : []; const mediaUrl = v.mediaUrl || mediaItems[0]?.url || c.mediaUrl || (asset && !localUpload ? publicMediaUrl(asset) : ''); let mode = ['youtube', 'tiktok'].includes(ch.provider) && ch.status === 'connected' ? 'api' : ch.mode;
     if (type !== 'text' && !asset && !mediaUrl) { const label = type === 'video' ? 'video' : type === 'audio' ? 'âm thanh' : 'ảnh'; const hasOtherMedia = (c.assets || []).some(aid => get('assets', aid)?.active !== false); fail(hasOtherMedia ? `Định dạng "${label}" không khớp với media đã đính kèm. Đổi Định dạng cho khớp loại file.` : `Định dạng "${label}" cần một file ${label} đính kèm. Hãy tải file lên hoặc đổi Định dạng thành Văn bản / bài viết.`); }
     if (mode === 'api') {
       if (!providers[ch.provider].publish) fail(`${ch.name}: chỉ hỗ trợ nhắn tin, hãy chọn chế độ hỗ trợ đăng.`);
@@ -85,7 +86,9 @@ export function schedule(user, id, input) {
       if (type !== 'text' && !localUpload) validMediaURL(mediaUrl);
       if (ch.provider === 'x' && (v.caption || c.caption).length > 280) fail('Bản X đang giới hạn văn bản ở 280 ký tự.');
     }
-    return { contentId: id, connectionId: cid, title: v.title || c.title, caption: v.caption || c.caption, type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
+    if (mode === 'api' && mediaItems.length > 1 && !['facebook', 'instagram', 'threads'].includes(ch.provider)) fail('Kênh này chưa hỗ trợ tự động đăng nhiều media. Chọn chế độ hỗ trợ đăng.');
+    if (mode === 'api' && ch.provider === 'facebook' && mediaItems.length > 1 && mediaItems.some(item => item.type !== 'image')) fail('Facebook API hiện hỗ trợ album ảnh; bài nhiều video cần đăng hỗ trợ.');
+    return { contentId: id, connectionId: cid, title: v.title || c.title, caption: v.caption || c.caption, type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, mediaItems, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
   }); return transaction(() => { const jobs = frozen.map(next => { const prev = active.find(p => p.connectionId === next.connectionId); return put('publications', { ...prev, ...next, ...(prev ? { id: prev.id } : {}) }); }); for (const p of active.filter(p => !channels.includes(p.connectionId))) put('publications', { ...p, status: 'cancelled' }); put('contents', { ...c, status: 'scheduled', scheduleAt, approval: 'approved' }); audit(user.id, active.length ? 'reschedule' : 'schedule', id, { targets: jobs.length }); return jobs; });
 }
 export async function publicationAction(user, id, input) {

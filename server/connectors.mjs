@@ -105,14 +105,14 @@ export async function publish(c, p) {
   if (c.provider === 'x') { r = await remote('https://api.x.com/2/tweets', json({ text: p.caption }, await refreshedToken(c))); return { externalId: r.data.id, url: `https://x.com/i/web/status/${r.data.id}` }; }
   if (c.provider === 'facebook') {
     const base = `https://graph.facebook.com/${graphVersion(c)}/${id}`;
-    if (p.type !== 'text') await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
+      if (p.type !== 'text' && !p.mediaItems?.length) await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
     if (p.mediaItems?.length > 1) { const attached = []; for (const item of p.mediaItems) { const photo = await remote(base + '/photos', json({ url: validMediaURL(item.url), published: false }, s.token)); attached.push({ media_fbid: photo.id }); } r = await remote(base + '/feed', json({ message: p.caption, attached_media: attached }, s.token)); return { externalId: r.id, url: 'https://facebook.com/' + r.id }; }
     const body = p.type === 'image' ? { url: validMediaURL(p.mediaUrl), caption: p.caption } : p.type === 'video' ? { file_url: validMediaURL(p.mediaUrl), description: p.caption, title: p.title } : { message: p.caption };
     r = await remote(`${base}/${p.type === 'image' ? 'photos' : p.type === 'video' ? 'videos' : 'feed'}`, json(body, s.token));
     return { externalId: r.post_id || r.id, url: `https://facebook.com/${r.post_id || r.id}` };
   }
   if (c.provider === 'threads' || c.provider === 'instagram') {
-    if (p.type !== 'text') await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
+      if (p.type !== 'text' && !p.mediaItems?.length) await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
     const threads = c.provider === 'threads'; const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.instagram.com/${graphVersion(c)}`;
     let body = threads ? { media_type: p.type === 'text' ? 'TEXT' : p.type === 'image' ? 'IMAGE' : 'VIDEO', text: p.caption } : { caption: p.caption };
     if (p.mediaItems?.length > 1) { if (p.mediaItems.length > 10) throw new Error('Carousel tối đa 10 media trong connector này.'); const children = []; for (const item of p.mediaItems) { const child = await remote(`${base}/${id}/${threads ? 'threads' : 'media'}`, json({ ...(threads || item.type === 'video' ? { media_type: item.type === 'video' ? 'VIDEO' : 'IMAGE' } : {}), is_carousel_item: true, ...(item.type === 'video' ? { video_url: validMediaURL(item.url) } : { image_url: validMediaURL(item.url) }) }, s.token)); children.push(child.id); } return { childContainerIds: children, processing: true, carouselPending: true }; }
