@@ -1,4 +1,5 @@
 import {resumePurges} from './customer-purge.mjs';
+import {completeDriveOAuth} from './drive-oauth.mjs';
 import {copyRoute,copyArchive,copyPreviewMedia,publicCopyMedia,scheduleCopied,recoverCopyJobs,copyTick} from './social-copy.mjs';
 import {parseZaloContent} from './zalo-message-content.mjs';
 import {isTypeCode} from '../public/chat-media-content.js';
@@ -163,6 +164,7 @@ const server=http.createServer(async(req,res)=>{try{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
  const url=new URL(req.url,'http://localhost');const path=url.pathname;if(path.startsWith('/plan-ui/')||path.startsWith('/plan-editor/')||path.startsWith('/plan-preview/')){res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");}const user=userFor(req);
  if(path==='/api/health')return json(res,{ok:true,service:'Moc Hub'});
+ if(path==='/api/drive/callback'&&req.method==='GET'){await completeDriveOAuth(url);res.writeHead(303,{'Location':'/?drive=connected#settings','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});return res.end();}
  const publicMedia=path.match(/^\/api\/copy\/public-media\/([\w-]+)$/);if(publicMedia&&['GET','HEAD'].includes(req.method))return serveFile(req,res,publicCopyMedia(publicMedia[1],url.searchParams.get('expires'),url.searchParams.get('token')),false);
  const carrierHook=path.match(/^\/api\/shipping\/webhooks\/viettelpost\/([^/]+)$/);if(carrierHook){if(req.method!=='POST')domain.fail('Chỉ chấp nhận POST.',405);const payload=await body(req,256000);const result=receiveVtpWebhook(carrierHook[1],req.headers,payload.value);json(res,result);if(!all('carrier_orders').some(o=>o.accountId===carrierHook[1]&&o.tracking===String(payload.value.DATA.ORDER_NUMBER))&&!all('shipments').some(s=>s.accountId===carrierHook[1]&&s.tracking===String(payload.value.DATA.ORDER_NUMBER)))void importVtpOrder(carrierHook[1],String(payload.value.DATA.ORDER_NUMBER)).catch(()=>{});return;}
  if(path.startsWith('/api/webhooks/'))return await webhook(req,res,url);
