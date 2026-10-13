@@ -38,7 +38,7 @@ test('worker sends new events once, persists retry cursor and removes expired su
  await pushTick(async()=>{throw Object.assign(Error('retry'),{statusCode:503});});let saved=all('push_subscriptions')[0];assert.ok(saved.retryAt>Date.now());assert.match((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).error,/503/);put('push_subscriptions',{...saved,retryAt:null});
  await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,2);
  await new Promise(r=>setTimeout(r,5));put('messages',{id:'push-event3',conversationId:'push-chat',direction:'incoming'});
- await pushTick(async()=>{throw Object.assign(Error('gone'),{statusCode:410});});assert.equal(all('push_subscriptions').length,0);
+ await pushTick(async()=>{throw Object.assign(Error('gone'),{statusCode:410});});assert.equal(all('push_subscriptions')[0].invalid,true);assert.equal((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).needsRenewal,true);let retries=0;await pushTick(async()=>retries++);assert.equal(retries,0);
 });
 test('another account cannot unsubscribe this device and outgoing messages do not notify',async()=>{
  await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);

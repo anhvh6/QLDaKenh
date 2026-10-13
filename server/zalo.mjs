@@ -1,4 +1,5 @@
 import {contactCardDetails,contactPhone} from './zalo-contact-card.mjs';
+import {normalizeZaloPins} from './zalo-pins.mjs';
 import {createVerifiedZaloGroup} from './zalo-group-create.mjs';
 import {parseZaloContent,hydrateZaloStickers,repairZaloCards} from './zalo-message-content.mjs';
 import { Zalo, ThreadType } from 'zca-js';
@@ -10,6 +11,15 @@ import { runWorkflows } from './domain.mjs';
 import { captureLead } from './taophacdo.mjs';
 
 const instances=new Map(), logins=new Map(), jobs=new Map();
+const pinPolls=new Map();
+export async function refreshZaloPins(c,force=false){
+ const r=instances.get(c.connectionId),ch=get('connections',c.connectionId);if(!r?.ready||ch?.provider!=='zalo_personal'||ch.mode!=='api')return;
+ const poll=pinPolls.get(c.id);if(poll?.busy||!force&&Date.now()-(poll?.at||0)<30000)return;
+ pinPolls.set(c.id,{at:Date.now(),busy:true});try{
+  const response=c.threadType===1?await r.api.getListBoard({page:1,count:100},c.externalUserId):await r.api.getFriendBoardList(c.externalUserId),pins=normalizeZaloPins(response),current=get('conversations',c.id);
+  if(current&&!current.deletedAt&&JSON.stringify(current.platformPins||[])!==JSON.stringify(pins))put('conversations',{...current,platformPins:pins});
+ }catch(error){console.error('Zalo pins:',error.message);}finally{pinPolls.set(c.id,{at:Date.now(),busy:false});}
+}
 export async function imageMetadataGetter(path){const [dimensions,file]=await Promise.all([imageSizeFromFile(path),stat(path)]);return {width:dimensions.width,height:dimensions.height,size:file.size};}
 const client=()=>new Zalo({selfListen:true,checkUpdate:false,logging:false,imageMetadataGetter});
 function channel(id){const c=get('connections',id);if(!c||c.provider!=='zalo_personal')throw new Error('Không tìm thấy kênh Zalo cá nhân.');return c;}
@@ -92,6 +102,9 @@ function startSync(id,r,options={}){if(jobs.has(id))return jobs.get(id);const jo
 export function setupListener(id,api,{autoSync=true}={}){
  const old=instances.get(id);if(old){instances.delete(id);old.api.listener.stop();}
  const r={api,ready:false};instances.set(id,r);const live=()=>instances.get(id)===r;
+ const pinEvent=event=>{if(!live())return;const data=event.data||{},thread=String(data.conversationId||data.groupId||event.threadId||'');if(!thread)return;const row=db.prepare("SELECT data FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=?").get(id,thread);if(row)void refreshZaloPins(JSON.parse(row.data),true);};
+ api.listener.on('friend_event',event=>{if([10,11].includes(event.type))pinEvent(event);});
+ api.listener.on('group_event',event=>{if(/pin|board/i.test(event.type||''))pinEvent(event);});
  api.listener.on('message',m=>{if(!live())return;try{ingestMessage(id,m);if(!m.isSelf)queueProfile(id,api,String(m.data?.uidFrom||m.threadId||''));if(/sticker/i.test(m.data?.msgType||''))queueStickerHydration(id,api);}catch{state(id,{listenerError:'Không lưu được tin Zalo; hãy đồng bộ lại.'});}});
  api.listener.on('old_messages',batch=>{if(!live())return;try{for(const m of batch)ingestMessage(id,m,{history:true});if(batch.some(m=>/sticker/i.test(m.data?.msgType||'')))queueStickerHydration(id,api);}catch{r.historyError='Không lưu được một phần lịch sử Zalo.';syncState(id,{status:'failed',error:r.historyError});}});
  api.listener.on('connected',()=>{if(live())state(id,{status:'connected',mode:'api',listenerState:'waiting_key',verifiedAt:now(),listenerError:''});});

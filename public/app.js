@@ -55,7 +55,9 @@ async function refreshLiveInbox(){
   const data=await api('/chat/conversations/'+id+'/live');if(route!=='inbox'||$('#reply-form')?.dataset.id!==id||!S)return;
   const c=S.conversations.find(c=>c.id===id);if(!c||!conversationConnected(S,c))return;
   const previous=S.messages.filter(m=>m.conversationId===id);
+  const pinsChanged=JSON.stringify(c.platformPins||[])!==JSON.stringify(data.conversation.platformPins||[]);
   Object.assign(c,data.conversation);
+  if(pinsChanged)syncChatPins();
   if(JSON.stringify(previous)===JSON.stringify(data.messages)&&!liveInboxDeferred)return;
   if(inboxInteractionActive()){syncIncomingWhileInteracting({...S,messages:[...S.messages.filter(m=>m.conversationId!==id),...data.messages]});liveInboxDeferred=true;syncChatPins();return;}
   liveInboxDeferred=false;

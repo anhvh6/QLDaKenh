@@ -1,4 +1,5 @@
 import {staffControls,readStaffControls} from './care-staff-ui.js';
+import {pinnedRows} from './chat-pins.js';
 import {carePolicy,stageInfo} from './student-care.js';
 import {channelConnected,conversationConnected} from './chat-connection-state.js';
 import {chatTagStyle,groupAvatarHTML} from './chat-list-style.js';
@@ -82,14 +83,14 @@ export function chatMessages(messages,conv,S){
   ${m.senderType==='ai'?`<small class="message-sender">AI · ${e(S.chatbots?.find(b=>b.id===m.botId)?.name||'Chatbot')}</small>`:''}${m.senderType!=='ai'&&(conv.threadType===1)?`<strong class="message-sender">${e(m.senderName||(m.direction==='incoming'?(conv.threadType===1?'Thành viên':S.customers.find(p=>p.id===conv.customerId)?.name):S.users.find(u=>u.id===m.actor)?.name)||(m.direction==='incoming'?'Khách':'Bạn'))}</strong>`:''}
   <div class="bubble" title="Nhấn giữ để sao chép">${quote?`<button type="button" class="quote-block" data-chat="jump" data-id="${e(quote.id)}">↪ ${e(quote.text?.slice(0,200))}</button>`:''}${(richMessage(m,S,conv)??('<span>'+renderChatText(m,S,conv)+'</span>'+attachments))+linkPreviewSlots(m)}</div>
   <small>${e(date(m.createdAt))} · ${e(state)}${m.error?' · '+e(m.error):''}${m.pinned?' · 📌 Ghim nội bộ':''}</small>
-  <div class="message-tools">${m.status==='failed'&&m.direction==='outgoing'&&!m.retryMessageId?b('↻ Gửi lại','retry-message',m.id,'aria-label="Gửi lại tin nhắn lỗi"'):m.retryMessageId?'<small>Đã tạo lượt gửi lại</small>':''}${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b('Sao chép','copy',m.id)}${b(m.pinned?'Bỏ ghim':'Ghim','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
+  <div class="message-tools">${m.status==='failed'&&m.direction==='outgoing'&&!m.retryMessageId?b('↻ Gửi lại','retry-message',m.id,'aria-label="Gửi lại tin nhắn lỗi"'):m.retryMessageId?'<small>Đã tạo lượt gửi lại</small>':''}${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b('Sao chép','copy',m.id)}${b(m.pinned?'Bỏ ghim nội bộ':'Ghim nội bộ','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
  }).join('');
 }
 export function syncChatPins(){
  const chat=$('.chat-messages'),id=$('#reply-form')?.dataset.id;if(!chat||!id||!H?.state)return;
  const old=$('.chat-pins'),opened=old?.open;old?.remove();
- const pins=H.state.messages.filter(m=>m.conversationId===id&&m.pinned&&!m.deletedAt);
- if(pins.length)chat.insertAdjacentHTML('beforebegin',`<details class="chat-pins" ${opened?'open':''}><summary>📌 ${pins.length} tin nhắn đã ghim</summary>${pins.map(m=>'<div>'+b(e(m.text?.slice(0,100)||'Media'),'jump',m.id)+b('Bỏ ghim','pin-message',m.id)+'</div>').join('')}</details>`);
+ const c=H.state.conversations.find(c=>c.id===id);if(!c)return;const pins=pinnedRows(H.state,c);
+ if(pins.length)chat.insertAdjacentHTML('beforebegin',`<details class="chat-pins" ${opened?'open':''}><summary>📌 Danh sách ghim (${pins.length})<span>${e(pins[0].text||'Ảnh / video / tệp')}</span></summary><div class="chat-pin-list">${pins.map(m=>`<div class="chat-pin-row"><div class="chat-pin-content">${m.available?b(e(m.text||'Ảnh / video / tệp'),'jump',m.id):'<span>'+e(m.text||'Ảnh / video / tệp')+'</span>'}<small>${e(m.senderName||'Tin nhắn')} · ${m.remote?'Zalo':'Ghim nội bộ'}${m.attachments?.length?' · '+m.attachments.length+' tệp':''}</small></div>${m.remote?'':b('Bỏ ghim','pin-message',m.id)}</div>`).join('')}</div></details>`);
 }
 function filterDialog(){const S=H.state;H.modal('Lọc hội thoại',`<form id="chat-filter-form"><div class="chat-filter-grid">
  ${sel('Loại hội thoại','type',[['all','Tất cả'],['personal','Cá nhân'],['group','Nhóm'],['stranger','Người lạ (đã xác định)']],F.type)}

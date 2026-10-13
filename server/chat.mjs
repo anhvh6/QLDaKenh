@@ -1,7 +1,7 @@
 import {studentOverview} from '../public/student-overview.js';
 import {linkPreview} from './chat-link-preview.mjs';
 import {consultationRoute} from './consultation-review.mjs';
-import {readContactCard} from './zalo.mjs';
+import {readContactCard,refreshZaloPins} from './zalo.mjs';
 import {createChatReminder} from './chat-reminders.mjs';
 import {sendContactCard} from './zalo.mjs';
 import {purgeChats,purgePreview} from './customer-purge.mjs';
@@ -43,6 +43,7 @@ export async function chatRoute(path,method,input,user){
  const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
  if(live&&method==='GET'){
   const conversation=chatConversation(user,live[1]);
+  void refreshZaloPins(conversation);
   const messages=db.prepare("SELECT data FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY updated_at").all(conversation.id).map(r=>JSON.parse(r.data));
   return {conversation,messages};
  }
