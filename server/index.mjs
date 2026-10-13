@@ -50,6 +50,7 @@ const verify=(p,hash)=>{const [salt,h]=hash.split(':');return timingSafeEqual(Bu
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const json=sendJSON;
 const stateCache=new StateCache();
+const notificationCache=new StateCache();
 async function body(req,limit=2e6){let n=0;const chunks=[];for await(const b of req){n+=b.length;if(n>limit)domain.fail('Dữ liệu quá lớn.',413);chunks.push(b);}const raw=Buffer.concat(chunks);try{return {raw,value:raw.length?JSON.parse(raw):{}};}catch{domain.fail('JSON không hợp lệ.');}}
 function userFor(req){const token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hub_session='))?.slice(12);if(!token)return null;const s=db.prepare('SELECT u.id,u.email,u.name,u.role,s.csrf FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1').get(sha(token),Date.now());return s||null;}
 function login(res,user){const token=randomBytes(32).toString('hex');const csrf=randomBytes(24).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(sha(token),user.id,csrf,Date.now()+7*86400000);res.setHeader('Set-Cookie',`hub_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800`);return {...user,csrf,password:undefined};}
@@ -86,10 +87,11 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
 
  if(path==='/api/state'&&method==='GET'){
   const users=db.prepare('SELECT id,name,email,role,active FROM users').all();
-  const revision=stateRevision()+':'+JSON.stringify(users),cacheKey=user.id+':'+user.role;
+  const revision=createHash('sha256').update(stateRevision()+':'+JSON.stringify(users)+':'+user.id+':'+user.role).digest('hex'),cacheKey=user.id+':'+user.role;
+  if(url.searchParams.get('since')===revision)return {unchanged:true,snapshotRevision:revision};
   const cached=stateCache.get(cacheKey,revision);if(cached)return {...cached,user};
   void refreshLearnerStatuses();
-  const state={user,providers};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
+  const state={user,providers,snapshotRevision:revision};for(const k of [...domain.kinds,...care.extraKinds]){if(['settings'].includes(k))continue;state[k]=all(k);}
   const learnerFacts=new Map(all('learner_source_facts').map(f=>[f.id,f]));state.customers=state.customers.map(c=>{const f=learnerFacts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
   state.messages=state.messages.map(m=>{if(!m.quoteSource||!isTypeCode(m.text)&&!/video|voice|audio/i.test(m.messageType||''))return m;const content=parseZaloContent(m.quoteSource);return {...m,...content,attachments:content.attachments?.length?content.attachments:m.attachments||[]};});state.conversations=state.conversations.map(c=>isTypeCode(c.lastMessage)?{...c,lastMessage:/video/i.test(c.lastMessage)?'Video':/voice|audio/i.test(c.lastMessage)?'Tin nhắn thoại':/photo|image/i.test(c.lastMessage)?'Ảnh':'Tệp đính kèm'}:c);
   filterDeletedChats(state);
@@ -143,8 +145,14 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  }
  if(path==='/api/customers/merge'&&method==='POST'){domain.permission(user,'customers');if(input.source===input.target)domain.fail('Chọn hai khách khác nhau.');return transaction(()=>{const s=get('customers',input.source),t=get('customers',input.target);if(!s||!t)domain.fail('Không tìm thấy khách.');if(s.origin==='taophacdo'||t.origin==='taophacdo')domain.fail('Hồ sơ taophacdo phải gộp tại hệ thống gốc để giữ liên kết phác đồ và thiết bị.');if(s.mergedInto||t.mergedInto)domain.fail('Khách đã được gộp.');for(const k of ['conversations','orders','leads','identities','enrollments','journey_events'])for(const r of all(k).filter(x=>x.customerId===s.id))put(k,{...r,customerId:t.id});put('customers',{...s,mergedInto:t.id});audit(user.id,'customer_merged',t.id,{source:s,target:t});return put('customers',{...t,tags:[...new Set([...(t.tags||[]),...(s.tags||[])])]});});}
  if(path==='/api/workflows/test'&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const w=get('workflows',input.id);if(!w)domain.fail('Không tìm thấy quy tắc.');return {matched:!w.keyword||String(input.text||'').toLowerCase().includes(w.keyword.toLowerCase()),action:w.action,value:w.value,executed:false};}
- if(path==='/api/notifications'&&method==='GET')return filterCareNotifications(all('notifications'),user);
- if(path==='/api/notifications/read'&&method==='POST'){for(const n of all('notifications').filter(n=>!n.recipientId||n.recipientId===user.id))put('notifications',{...n,read:true});return {ok:true};}
+ if(path==='/api/notifications'&&method==='GET'){
+  const key=user.id+':'+user.role,sourceRevision=stateRevision();
+  let snapshot=notificationCache.get(key,sourceRevision);
+  if(!snapshot){const rows=filterCareNotifications(all('notifications'),user);snapshot=notificationCache.set(key,sourceRevision,{rows,revision:createHash('sha256').update(key+JSON.stringify(rows)).digest('hex')});}
+  if(url.searchParams.get('since')===snapshot.revision)return {unchanged:true,revision:snapshot.revision};
+  return url.searchParams.has('since')?snapshot:snapshot.rows;
+ }
+ if(path==='/api/notifications/read'&&method==='POST'){transaction(()=>{for(const n of filterCareNotifications(all('notifications'),user).filter(n=>!n.read))put('notifications',{...n,read:true});});return {ok:true};}
  if(path==='/api/audit'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Cần quyền quản lý.',403);return db.prepare('SELECT * FROM audit ORDER BY created_at DESC LIMIT 300').all();}
  if(path==='/api/backup'&&method==='POST'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const name=`hub-${now().replace(/[:.]/g,'-')}.sqlite`;await backup(db,join(dataDir,'backups',name));audit(user.id,'backup',name);return {name,note:'Bản sao database trong data/backups. Để khôi phục đầy đủ, giữ cả uploads và encryption.key.'};}
  if(path==='/api/export'&&method==='GET'){if(user.role!=='owner')domain.fail('Cần quyền chủ hệ thống.',403);const data={exportedAt:now(),version:1};for(const k of [...domain.kinds,...care.extraKinds])data[k]=all(k);res.setHeader('Content-Disposition','attachment; filename="moc-export.json"');audit(user.id,'export');return data;}

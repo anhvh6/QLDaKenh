@@ -49,7 +49,8 @@ function toast(text,error=false){const t=document.createElement('div');t.classNa
 let stateLoads=0,stateRetryAfter=0,stateFailures=0;
 const removedConversations=new Set();
 function adoptState(next){if(removedConversations.size){next.conversations=next.conversations.filter(c=>!removedConversations.has(c.id));next.messages=next.messages.filter(m=>!removedConversations.has(m.conversationId));}return next;}
-async function refresh(renderNow=true){stateLoads++;try{S=adoptState(await api('/state'));updateChatNotifications(S.notifications||[]);$('#care-updates')?.remove();if(renderNow)render();stateFailures=0;stateRetryAfter=0;}catch(err){stateFailures++;stateRetryAfter=Date.now()+Math.min(120000,15000*2**Math.min(stateFailures,3));throw err;}finally{stateLoads--;}}
+async function loadState(){const previous=S,userId=S?.user?.id;const next=await api('/state'+(previous?.snapshotRevision?'?since='+encodeURIComponent(previous.snapshotRevision):''));if(next.unchanged){if(S?.user?.id!==userId)throw Error('Phiên đăng nhập đã thay đổi.');return S;}return adoptState(next);}
+async function refresh(renderNow=true){stateLoads++;try{S=await loadState();updateChatNotifications(S.notifications||[]);$('#care-updates')?.remove();if(renderNow)render();stateFailures=0;stateRetryAfter=0;}catch(err){stateFailures++;stateRetryAfter=Date.now()+Math.min(120000,15000*2**Math.min(stateFailures,3));throw err;}finally{stateLoads--;}}
 async function refreshBackground(){if(stateLoads||Date.now()<stateRetryAfter||document.hidden)return;return refresh();}
 let updatingInbox=false,inboxRefreshPending=false,inboxRefreshTimer,inboxPaintDeferred=false;
 let liveInboxLoading=false,liveInboxDeferred=false;const liveInboxRevisions=new Map();
@@ -90,7 +91,7 @@ async function refreshInbox(paintOnly=false){
  if(!paintOnly)void checkConversationPresence();
  if(paintOnly&&inboxInteractionActive()){queueInboxRefresh();return;}
  if(updatingInbox||$('.modal-backdrop')){queueInboxRefresh();return;}inboxRefreshPending=false;updatingInbox=true;const previousRoute=route;
- try{if($('.modal-backdrop'))return;const next=adoptState(await api('/state'));if(route!==previousRoute)return;if(inboxInteractionActive()){syncIncomingWhileInteracting(next);inboxPaintDeferred=true;queueInboxRefresh();return;}if(!inboxPaintDeferred&&JSON.stringify(next)===JSON.stringify(S))return;inboxPaintDeferred=false;
+ try{if($('.modal-backdrop'))return;const next=await loadState();if(route!==previousRoute)return;if(inboxInteractionActive()){syncIncomingWhileInteracting(next);inboxPaintDeferred=true;queueInboxRefresh();return;}if(!inboxPaintDeferred&&(next===S||JSON.stringify(next)===JSON.stringify(S)))return;inboxPaintDeferred=false;
  const form=$('#reply-form'),active=document.activeElement;
  if($('.modal-backdrop')||active?.closest('[data-care-form="inline-order"]')){queueInboxRefresh();return;}
  if(!form){S=next;updateChatNotifications(S.notifications||[]);render();return;}const values=[...form.elements].map(el=>({name:el.name,value:el.value,checked:el.checked}));
@@ -424,5 +425,5 @@ boot();
 
 let notificationUser='',notificationSeen=new Set();
 function updateChatNotifications(rows){if(!S?.user)return;if(notificationUser!==S.user.id){notificationUser=S.user.id;notificationSeen=new Set(rows.map(n=>n.id));}updateDeviceBadge(rows.filter(n=>!n.read).length+S.conversations.filter(c=>c.unread&&S.notificationConversationIds?.includes(c.id)).length);const button=document.querySelector('[data-action=notifications]');if(button){let dot=button.querySelector('.notification-dot');if(rows.some(n=>!n.read)&&!dot){dot=document.createElement('i');dot.className='notification-dot';dot.style.cssText='position:absolute;top:5px;right:5px;background:red;width:8px;height:8px;border-radius:50%';button.append(dot);}if(!rows.some(n=>!n.read))dot?.remove();}for(const n of rows){if(!notificationSeen.has(n.id)&&!n.read&&(n.id.startsWith('chat-reminder:')||n.id.startsWith('care-message:')||n.id.startsWith('customer-purge:')||n.id.startsWith('copy:')||n.id.startsWith('copy-error:'))){toast(n.title+': '+n.body);notificationSound();}notificationSeen.add(n.id);}}
-let pollingNotifications=false;
-setInterval(async()=>{if(!S?.user||pollingNotifications)return;pollingNotifications=true;const userId=S.user.id;try{const rows=await api('/notifications');if(S?.user?.id!==userId)return;S.notifications=rows;updateChatNotifications(rows);}catch{}finally{pollingNotifications=false;}},2000);
+let pollingNotifications=false,notificationRevision='',notificationRevisionUser='',notificationRetryAt=0,notificationFailures=0;
+setInterval(async()=>{if(!S?.user||pollingNotifications||document.hidden||Date.now()<notificationRetryAt)return;pollingNotifications=true;const userId=S.user.id;if(notificationRevisionUser!==userId){notificationRevisionUser=userId;notificationRevision='';}try{const result=await api('/notifications?since='+encodeURIComponent(notificationRevision));if(S?.user?.id!==userId)return;notificationRevision=result.revision;notificationFailures=0;notificationRetryAt=0;if(!result.unchanged){S.notifications=result.rows;updateChatNotifications(result.rows);}}catch{notificationFailures++;notificationRetryAt=Date.now()+Math.min(60000,2000*2**Math.min(notificationFailures,5));}finally{pollingNotifications=false;}},2000);
