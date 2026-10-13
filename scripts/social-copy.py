@@ -121,7 +121,7 @@ def extract(url, target=None):
     if media:
         return {'title': (text or 'Bài viết')[:200], 'caption': text, 'author': author, 'media': media, 'engine': 'gallery'}
     import yt_dlp
-    opts = {'quiet': True, 'no_warnings': True, 'noplaylist': True, 'socket_timeout': 25,
+    opts = {'quiet': True, 'no_warnings': True, 'noprogress': True, 'noplaylist': True, 'socket_timeout': 25,
             'retries': 1, 'extractor_retries': 1, 'format': 'bv*+ba/b', 'merge_output_format': 'mp4',
             'allowed_extractors': ['default', '-generic'], 'playlistend': 100,
             'impersonate': __import__('yt_dlp.networking.impersonate', fromlist=['ImpersonateTarget']).ImpersonateTarget(client='chrome')}

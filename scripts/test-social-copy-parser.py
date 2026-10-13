@@ -1,5 +1,8 @@
 import importlib.util
 import unittest
+import io, json, types, sys
+from unittest.mock import patch
+from contextlib import redirect_stdout
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location('social_copy', Path(__file__).with_name('social-copy.py'))
@@ -24,5 +27,23 @@ class FacebookParserTest(unittest.TestCase):
     def test_partial_album_is_rejected_instead_of_silently_truncated(self):
         with self.assertRaisesRegex(ValueError,'một phần album'):
             copy.facebook_payload([self.fixture(5)], '123')
+    def test_download_stdout_remains_a_single_json_result_when_provider_has_progress(self):
+        class Provider:
+            def __init__(self, options): self.options=options
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def extract_info(self, url, download):
+                if download and not self.options.get('noprogress'):
+                    print('[download] 10% ...')
+                return {'title':'QA video','description':'💚 #hashtag','url':'https://cdn.test/video.mp4','ext':'mp4'}
+        modules={'gallery_dl':types.SimpleNamespace(extractor=None,config=types.SimpleNamespace(set=lambda *args:None)),
+                 'yt_dlp':types.SimpleNamespace(YoutubeDL=Provider),
+                 'yt_dlp.networking.impersonate':types.SimpleNamespace(ImpersonateTarget=lambda **kwargs:None)}
+        out=io.StringIO()
+        with patch.dict(sys.modules,modules), patch.object(sys,'stdin',io.StringIO(json.dumps({'action':'extract','url':'https://www.youtube.com/watch?v=qa','folder':'test-target'}))), redirect_stdout(out):
+            copy.main()
+        result=json.loads(out.getvalue())
+        self.assertEqual(result['caption'],'💚 #hashtag')
+        self.assertEqual(len(result['media']),1)
 
 if __name__=='__main__': unittest.main()
