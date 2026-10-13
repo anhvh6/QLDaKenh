@@ -29,6 +29,6 @@ export function filterThreads(S,q='',status='all',f=defaultFilters){
   const stamp=Date.parse(c[f.dateField]||c.lastAt||c.createdAt);
   if(f.from&&!(stamp>=Date.parse(f.from+'T00:00:00+07:00'))||f.to&&!(stamp<=Date.parse(f.to+'T23:59:59.999+07:00')))return false;
   return true;
- }).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned)||(f.sort==='waiting'?(Date.parse(a.waitingSince)||Infinity)-(Date.parse(b.waitingSince)||Infinity):f.sort==='oldest'?Date.parse(a.lastAt||0)-Date.parse(b.lastAt||0):Date.parse(b.lastAt||0)-Date.parse(a.lastAt||0)));
+ }).sort((a,b)=>(f.sort==='newest'?Number(!!b.unread)-Number(!!a.unread):0)||Number(!!b.pinned)-Number(!!a.pinned)||(f.sort==='waiting'?(Date.parse(a.waitingSince)||Infinity)-(Date.parse(b.waitingSince)||Infinity):f.sort==='oldest'?Date.parse(a.lastAt||0)-Date.parse(b.lastAt||0):Date.parse(b.lastAt||0)-Date.parse(a.lastAt||0)));
 }
 export function safeLink(url){if(typeof url!=='string'||!url.trim())return '';try{const u=new URL(url,typeof location==='object'?location.origin:'http://localhost');return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'';}catch{return '';}}

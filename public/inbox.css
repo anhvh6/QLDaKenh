@@ -196,3 +196,21 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 .chat-message-menu-popup{position:fixed;z-index:1000;display:flex;flex-direction:column;gap:2px;padding:7px;background:white;border:1px solid #dde3ea;border-radius:12px;box-shadow:0 6px 22px #172a3b26;overflow-y:auto}.chat-message-menu-popup button{display:flex;align-items:center;gap:13px;width:100%;min-height:42px;border:0;background:#fff;border-radius:7px;color:#253c58;padding:10px 12px;font-size:14px;text-align:left}.chat-message-menu-popup button:hover,.chat-message-menu-popup button:focus-visible{background:#f0f2f5;outline:none}.chat-message-menu-popup svg{flex:none}
 .chat-messages{overflow-x:hidden}
 .chat-messages{gap:6px}.chat-messages .bubble-wrap{margin-top:2px!important;margin-bottom:18px!important}.chat-messages .bubble-wrap.has-contact-order{margin-bottom:24px!important}.chat-tool[aria-pressed=true]{background:#fff0c9;color:#8a5b04;border-radius:6px}
+/* Keep the action rail beside the bubble, and secondary actions inside its width. */
+.message-main{position:relative;max-width:100%}
+.message-under-actions{display:flex;align-items:center;gap:4px;min-height:24px;padding-top:2px}
+.outgoing .message-under-actions{justify-content:flex-end}
+.message-under-actions>.message-reaction-selector,.message-under-actions>.message-contact-order{position:relative;top:auto;left:auto;right:auto;z-index:3;margin:0}
+.message-under-actions>.message-reaction-selector{visibility:hidden;display:block}
+.bubble-wrap:hover .message-under-actions>.message-reaction-selector,.bubble-wrap:focus-within .message-under-actions>.message-reaction-selector,.message-under-actions>.message-reaction-selector.has-reactions{visibility:visible}
+.message-under-actions>.message-reaction-selector>button{background:#fff;border-radius:14px;min-width:26px;height:24px;padding:1px 5px}
+.message-under-actions .message-reaction-palette{bottom:100%;top:auto}
+.bubble-wrap .message-main>.message-tools{top:50%;transform:translateY(-50%);left:calc(100% + 8px);right:auto;bottom:auto;height:32px;align-items:center}
+.bubble-wrap.outgoing .message-main>.message-tools{left:auto;right:calc(100% + 8px)}
+.message-tools>.message-more>summary{display:flex;align-items:center;justify-content:center;height:28px;min-width:28px;line-height:1}
+.chat-messages .bubble-wrap{max-width:calc(100% - 140px);margin-bottom:16px!important}
+.chat-messages .bubble-wrap.has-contact-order{margin-bottom:16px!important}
+.message-selecting .message-main>.message-tools,.message-selecting .message-under-actions{display:none!important}
+.message-selecting .message-select-box{z-index:50;width:20px;height:20px;left:-28px;top:8px;margin:0;cursor:pointer;accent-color:var(--primary)}
+.chat-messages .bubble-wrap.message-selecting{max-width:calc(100% - 36px);margin-left:28px!important}
+@media(max-width:760px){.chat-messages .bubble-wrap{max-width:calc(100% - 120px)}.message-under-actions>.message-reaction-selector{visibility:visible}}
