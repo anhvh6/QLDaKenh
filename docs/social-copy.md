@@ -74,6 +74,10 @@ Google của người dùng. Bốn link mẫu người dùng cung cấp đã ki�
 trực tiếp trên VPS; video Reel đầu tiên đã tải thành MP4 có cả video và audio.
 # Thư mục Google Drive có sẵn
 
+## Quản lý bài đã tải
+
+Danh sách tải có tìm kiếm nội dung/link, lọc Đang tải, Chưa Reup, ZIP, Google Drive và sắp xếp ngày tải hai chiều. Trạng thái ZIP và Drive được lưu riêng; ZIP nội bộ của một lần tải Drive không được đánh dấu là người dùng đã chọn lưu ZIP. Chuyển một gói ZIP sang Drive tái sử dụng caption và media đã tải trên máy chủ, cập nhật chính dòng cũ. Reup từ dòng đã lưu Drive tạo bản nháp sử dụng media có sẵn; chỉ đánh dấu Reup thành công khi có publication `published` hoặc `manually_confirmed`, không tính đăng mẫu. Xóa dòng là ẩn khỏi danh sách, giữ tệp và bài đã đăng; không cho xóa khi tác vụ đang chạy.
+
 Kết nối dùng scope `drive.file`. Dán ID không tự cấp quyền truy cập thư mục đã tạo ngoài ứng dụng. Trong Cài đặt > Google Drive, dùng **Chọn thư mục từ Google Drive** (Google Picker) để chọn và cấp quyền cho thư mục. Bật Google Picker API trong cùng dự án OAuth; nếu dự án yêu cầu developer key, nhập Google Picker API key ở cấu hình. Hạn chế key cho Google Picker API và website của ứng dụng cùng `https://docs.google.com/*`.
 
 Endpoint POST `/api/drive/picker` yêu cầu phiên đăng nhập, quyền Nội dung và CSRF; chỉ trả access token ngắn hạn của người gọi để mở bộ chọn. Không trả refresh token hay client secret, không lưu token trong trình duyệt. Lưu thư mục kiểm tra lại quyền ghi qua Drive API trước khi thay cấu hình. ID hoặc link `https://drive.google.com/drive/folders/...` đều được hỗ trợ; lỗi 404/403 được phân biệt với lỗi máy chủ.

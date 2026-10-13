@@ -63,3 +63,21 @@ test('Reup preserves long Unicode caption and accepted future schedule after bac
  const caption='💚 Bài viết #nguyenban\n'.repeat(2000),c=editRecord(owner,'contents',null,{title:'Bài dài',caption,type:'text',channels:['copy-demo'],assets:[]});assert.equal(c.caption,caption);
  const scheduleAt=new Date(Date.now()+5*60000).toISOString();assert.throws(()=>schedule(owner,c.id,{version:c.version,scheduleAt}),/10 phút/);const [job]=schedule(owner,c.id,{version:c.version,scheduleAt},{prepared:true});assert.equal(job.caption,caption);assert.equal(job.scheduleAt,scheduleAt);
 });
+test('ZIP to Drive reuses saved files, keeps one library row, gates ownership, and tracks actual Reup',async()=>{
+ const j=put('copy_jobs',{id:'promote-package',userId:owner.id,postId:post.id,title:post.title,target:'device',status:'done'}),folder=join(dataDir,'social-copy',j.id);
+ mkdirSync(folder,{recursive:true});writeFileSync(join(folder,'001.jpg'),'saved media');writeFileSync(join(folder,'post.json'),JSON.stringify(manifest(post,[{name:'001.jpg',type:'image',mime:'image/jpeg'}])));writeFileSync(folder+'.zip','saved zip');writeFileSync(join(folder,'caption.txt'),post.caption);
+ await assert.rejects(route('/api/copy/save-drive','POST',{jobId:j.id},peer),{status:404});
+ await assert.rejects(route('/api/copy/reup-job','POST',{jobId:j.id}),/Lưu bài/);
+ const original=global.fetch;let uploads=0;
+ global.fetch=async(url,options)=>{url=String(url);if(url.includes('oauth2.googleapis.com'))return Response.json({access_token:'qa-access'});if(url.includes('uploadType=resumable'))return new Response('',{headers:{location:'https://www.googleapis.com/upload/qa-session'}});if(url.includes('/upload/qa-session')){uploads++;return Response.json({id:'upload-'+uploads});}return Response.json({id:'promoted-folder'});};
+ try{
+  await route('/api/copy/save-drive','POST',{jobId:j.id},owner,{extract:async input=>{assert.equal(input.action,'zip');writeFileSync(input.folder+'.zip','new zip');}});
+  for(let i=0;i<60&&get('copy_jobs',j.id).status!=='done';i++)await new Promise(r=>setTimeout(r,10));
+  assert.equal(get('copy_jobs',j.id).status,'done',get('copy_jobs',j.id).error);assert.equal(uploads,3);
+  let row=(await route('/api/copy/jobs','GET')).find(x=>x.id===j.id);assert.equal(row.zipSaved,true);assert.equal(row.driveSaved,true);assert.equal(row.url,post.url);
+  const c=await route('/api/copy/reup-job','POST',{jobId:j.id});assert.equal(c.copyReady,true);assert.equal(c.assets.length,1);
+  assert.equal((await route('/api/copy/jobs','GET')).find(x=>x.id===j.id).reupPublished,false);
+  put('publications',{id:'real-reup',contentId:c.id,status:'published'});assert.equal((await route('/api/copy/jobs','GET')).find(x=>x.id===j.id).reupPublished,true);
+  await route('/api/copy/hide','POST',{jobId:j.id});assert.equal((await route('/api/copy/jobs','GET')).some(x=>x.id===j.id),false);assert.equal(get('contents',c.id).id,c.id);assert.equal(copyArchive(owner,j.id),folder+'.zip');
+ }finally{global.fetch=original;}
+});
