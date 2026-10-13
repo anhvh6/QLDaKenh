@@ -1,3 +1,4 @@
+import {initChatMenuLayout} from './chat-menu-layout.js';
 import {messagePhones,contactAddress,latestContact} from './chat-contact-data.js';
 import {showQuickChatOrder} from './quick-order.js';
 import {icon} from './icons.js';
@@ -41,10 +42,8 @@ export function enhanceMessageInteractions(){
  }
  selectionBar();tick();
 }
-export function initMessageInteractions(host){H=host;setInterval(tick,1000);
+export function initMessageInteractions(host){H=host;initChatMenuLayout();setInterval(tick,1000);
  const placePalette=event=>{const selector=event.target.closest?.('.message-reaction-selector');if(!selector)return;const palette=selector.querySelector('.message-reaction-palette'),viewport=selector.closest('.chat-messages');if(!palette||!viewport)return;palette.style.transform='';const box=palette.getBoundingClientRect(),bounds=viewport.getBoundingClientRect(),shift=box.left<bounds.left+8?bounds.left+8-box.left:box.right>bounds.right-8?bounds.right-8-box.right:0;palette.style.transform=`translateX(${shift}px)`;};
- const placeMore=menu=>{const panel=menu?.querySelector(':scope > div'),viewport=menu?.closest('.chat-messages');if(!menu?.open||!panel||!viewport)return;panel.style.transform='';const box=panel.getBoundingClientRect(),bounds=viewport.getBoundingClientRect(),x=box.left<bounds.left+8?bounds.left+8-box.left:box.right>bounds.right-8?bounds.right-8-box.right:0,y=box.top<bounds.top+8?bounds.top+8-box.top:box.bottom>bounds.bottom-8?bounds.bottom-8-box.bottom:0;panel.style.transform=`translate(${x}px,${y}px)`;};
- document.addEventListener('click',event=>{const menu=event.target.closest('.message-more');if(menu)requestAnimationFrame(()=>placeMore(menu));});
  document.addEventListener('pointerover',placePalette);document.addEventListener('focusin',placePalette);
  const placeUnder=event=>{const row=event.target.closest?.('[data-message]');if(!row)return;const meta=row.querySelector('.message-info'),bubble=row.querySelector('.bubble'),reaction=row.querySelector('.message-reaction-selector'),order=row.querySelector('.message-contact-order');if(!meta||!bubble||!reaction)return;const width=meta.getBoundingClientRect().width,out=row.classList.contains('outgoing');reaction.style.left=out?'auto':Math.max(bubble.getBoundingClientRect().width-20,width+5)+'px';reaction.style.right=out?Math.max(bubble.getBoundingClientRect().width-20,width+5)+'px':'auto';if(order){order.style.left=out?'auto':Math.max(bubble.getBoundingClientRect().width-20,width+5)+27+'px';order.style.right=out?Math.max(bubble.getBoundingClientRect().width-20,width+5)+27+'px':'auto';}};
  document.addEventListener('pointerover',placeUnder);document.addEventListener('focusin',placeUnder);

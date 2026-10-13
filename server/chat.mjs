@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {studentOverview} from '../public/student-overview.js';
 import {linkPreview} from './chat-link-preview.mjs';
 import {consultationRoute} from './consultation-review.mjs';
@@ -39,7 +40,7 @@ export function patchChat(user,id,input){
  if(input.carePermissions!==undefined){next.carePermissions=validateCareStaff({staffPermissions:input.carePermissions}).staffPermissions;}
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
-export async function chatRoute(path,method,input,user){
+export async function chatRoute(path,method,input,user,url){
  if(path==='/api/chat/conversation-presence'&&method==='POST'){
   permission(user,'inbox');if(!Array.isArray(input.ids)||input.ids.length>5000||input.ids.some(id=>typeof id!=='string'))fail('Danh sách hội thoại không hợp lệ.');
   const allowed=permittedChannels(user),rows=db.prepare("SELECT id,json_extract(data,'$.connectionId') AS channel FROM records WHERE kind='conversations' AND id IN (SELECT value FROM json_each(?)) AND json_extract(data,'$.deletedAt') IS NULL AND coalesce(json_extract(data,'$.purgePending'),0)=0").all(JSON.stringify(input.ids)),visible=new Set(rows.filter(r=>!allowed||allowed.has(r.channel)).map(r=>r.id));
@@ -51,8 +52,9 @@ export async function chatRoute(path,method,input,user){
  if(live&&method==='GET'){
   const conversation=chatConversation(user,live[1]);
   void refreshZaloPins(conversation);
-  const messages=db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY updated_at").all(conversation.id).map(r=>({...JSON.parse(r.data),id:r.id,version:r.version}));
-  return {conversation,messages};
+  const rows=db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY json_extract(data,'$.createdAt'),id").all(conversation.id);
+  const revision=createHash('sha256').update(JSON.stringify(conversation)).update(JSON.stringify(rows.map(r=>[r.id,r.version]))).digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
+  const messages=rows.map(r=>({...JSON.parse(r.data),id:r.id,version:r.version}));return {conversation,messages,revision};
  }
  const preview=path.match(/^\/api\/chat\/messages\/([^/]+)\/link-preview$/);if(preview&&method==='POST'){const m=get('messages',preview[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);return linkPreview(m,input.url);}
 

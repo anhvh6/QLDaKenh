@@ -71,7 +71,7 @@ async function dispatch(req,res,url,user,input){const path=url.pathname;const me
  const mediaResult=await mediaRoute(path,method,input,user);if(mediaResult!==undefined)return mediaResult;
  const planResult=await planRoute(path,method,input,user,url);if(planResult!==undefined)return planResult;
  const integrated=await supabaseRoute(path,method,input,user);if(integrated!==undefined)return integrated;
- const chatResult=await chatRoute(path,method,input,user);if(chatResult!==undefined)return chatResult;
+ const chatResult=await chatRoute(path,method,input,user,url);if(chatResult!==undefined)return chatResult;
  const contextResult=contextRoute(path,method,input,user);if(contextResult!==undefined)return contextResult;
  const learnerResult=await learnerRoute(path,method,input,user);if(learnerResult!==undefined)return learnerResult;
  const careResult=await care.careRoute(path,method,input,user);if(careResult!==undefined)return careResult;
