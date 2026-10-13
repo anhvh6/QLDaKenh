@@ -7,6 +7,12 @@ const {put,get,all}=await import('../server/store.mjs');
 const {intakeApproved,guardSelection,storedBotContext}=await import('../server/chatbot-context.mjs');
 const {purgePreview,purgeChats,resumePurges}=await import('../server/customer-purge.mjs');
 const owner={id:'owner',role:'owner'};
+test('async purge hides and locks immediately while remote deletion is pending, and completes once',async()=>{
+ const c=fixture('async'),items=[{id:c.id,version:c.version}],preview=purgePreview(owner,{items});let release,calls=0;const gate=new Promise(r=>release=r),remote=async()=>{calls++;await gate;};
+ const result=await purgeChats(owner,{items,confirm:true,async:true,previewToken:preview.token},remote);assert.equal(result.pending,true);assert.ok(get('conversations',c.id).deletedAt);assert.equal(get('customer_purge_jobs',result.jobId).status,'pending');
+ const {chatRoute}=await import('../server/chat.mjs');assert.deepEqual((await chatRoute('/api/chat/conversation-presence','POST',{ids:[c.id,'not-present']},owner)).removedIds,[c.id,'not-present']);await assert.rejects(chatRoute('/api/chat/conversations/'+c.id+'/live','GET',{},owner),{status:404});
+ await resumePurges(remote);assert.equal(calls,1);release();await new Promise(r=>setImmediate(r));assert.equal(get('conversations',c.id),null);assert.equal(get('customer_purge_jobs',result.jobId).status,'done');assert.ok(get('notifications','customer-purge:'+result.jobId));
+});
 const context={intakeEvidence:[{id:'q1',conversationId:'c',direction:'outgoing',text:'Tình trạng hiện nay?',createdAt:'2026-01-01'},{id:'q2',conversationId:'c',direction:'outgoing',text:'Đã học bao lâu?',createdAt:'2026-01-02'},{id:'a1',conversationId:'c',direction:'incoming',text:'Chưa học',createdAt:'2026-01-03'},{id:'photo',conversationId:'c',direction:'incoming',hasImage:true,createdAt:'2026-01-04'}]};
 const valid={photoEvidenceId:'photo',photoIsCondition:true,answers:[{questionId:'q1',answerId:'a1',complete:true},{questionId:'q2',answerId:'a1',complete:true}]};
 test('requires actual condition photo and complete later customer evidence for every question',()=>{assert.equal(intakeApproved(context,valid),true);for(const bad of [{...valid,photoEvidenceId:'a1'},{...valid,photoIsCondition:false},{...valid,answers:valid.answers.slice(0,1)},{...valid,answers:valid.answers.map(a=>({...a,complete:false}))},{...valid,answers:valid.answers.map(a=>({...a,answerId:'q2'}))}])assert.equal(intakeApproved(context,bad),false);});

@@ -9,7 +9,7 @@ import {studyPlanStatus} from './plan-access.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
 import {permission,fail,required,reply} from './domain.mjs';
-import {assertChannel} from './taophacdo.mjs';
+import {assertChannel,permittedChannels} from './taophacdo.mjs';
 import {groupDetails,changeGroup,newGroup,friendAction,openPhoneConversation} from './zalo.mjs';
 import {defaultNameSettings,nameConditions} from '../public/chat-names.js';
 const groupJobs=new Set();
@@ -40,13 +40,18 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){
+ if(path==='/api/chat/conversation-presence'&&method==='POST'){
+  permission(user,'inbox');if(!Array.isArray(input.ids)||input.ids.length>5000||input.ids.some(id=>typeof id!=='string'))fail('Danh sách hội thoại không hợp lệ.');
+  const allowed=permittedChannels(user),rows=db.prepare("SELECT id,json_extract(data,'$.connectionId') AS channel FROM records WHERE kind='conversations' AND id IN (SELECT value FROM json_each(?)) AND json_extract(data,'$.deletedAt') IS NULL AND coalesce(json_extract(data,'$.purgePending'),0)=0").all(JSON.stringify(input.ids)),visible=new Set(rows.filter(r=>!allowed||allowed.has(r.channel)).map(r=>r.id));
+  return {removedIds:input.ids.filter(id=>!visible.has(id))};
+ }
  const unpin=path.match(/^\/api\/chat\/conversations\/([^/]+)\/platform-pins\/([^/]+)$/);
  if(unpin&&method==='DELETE'){const c=chatConversation(user,unpin[1]);await changeZaloPin(c,null,false,decodeURIComponent(unpin[2]));audit(user.id,'zalo_message_unpinned',c.id,{topicId:unpin[2]});return get('conversations',c.id);}
  const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
  if(live&&method==='GET'){
   const conversation=chatConversation(user,live[1]);
   void refreshZaloPins(conversation);
-  const messages=db.prepare("SELECT data FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY updated_at").all(conversation.id).map(r=>JSON.parse(r.data));
+  const messages=db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY updated_at").all(conversation.id).map(r=>({...JSON.parse(r.data),id:r.id,version:r.version}));
   return {conversation,messages};
  }
  const preview=path.match(/^\/api\/chat\/messages\/([^/]+)\/link-preview$/);if(preview&&method==='POST'){const m=get('messages',preview[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);return linkPreview(m,input.url);}

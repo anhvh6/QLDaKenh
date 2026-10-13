@@ -18,12 +18,20 @@ put('team_members',{teamId:'team',userId:'staff'});put('channel_teams',{teamId:'
 put('customers',{id:'p1',name:'Nguyễn Mai',phone:'0900000001'});put('customers',{id:'p2',name:'Nhóm chăm sóc'});
 const create=(id,patch={})=>put('conversations',{id,customerId:'p1',connectionId:'a',kind:'message',status:'open',unread:true,lastAt:'2026-10-03T12:00:00Z',tags:[],...patch});
 create('one');create('two',{connectionId:'b'});
+test('presence distinguishes missing/deleted/pending and respects employee channel scope',async()=>{
+ create('presence-hidden',{deletedAt:new Date().toISOString()});create('presence-pending',{purgePending:true});
+ const result=await chatRoute('/api/chat/conversation-presence','POST',{ids:['one','two','missing','presence-hidden','presence-pending']},support);assert.deepEqual(result.removedIds,['two','missing','presence-hidden','presence-pending']);
+ await assert.rejects(chatRoute('/api/chat/conversation-presence','POST',{ids:['one']},viewer),{status:403});
+});
 
 test('live chat returns only the authorized conversation and reflects new messages without a state snapshot',async()=>{
  put('messages',{id:'live-one',conversationId:'one',direction:'incoming',text:'Live incoming'});
  put('messages',{id:'live-other',conversationId:'two',direction:'incoming',text:'Other channel'});
  const data=await chatRoute('/api/chat/conversations/one/live','GET',{},support);
  assert.equal(data.conversation.id,'one');assert.ok(data.messages.some(m=>m.id==='live-one'));assert.ok(data.messages.every(m=>m.conversationId==='one'));
+ assert.equal(data.messages.find(m=>m.id==='live-one').version,get('messages','live-one').version);
+ const revised=put('messages',{...get('messages','live-one'),text:'Updated live incoming'});
+ assert.equal((await chatRoute('/api/chat/conversations/one/live','GET',{},support)).messages.find(m=>m.id==='live-one').version,revised.version);
  await assert.rejects(chatRoute('/api/chat/conversations/two/live','GET',{},support),{status:403});
  await assert.rejects(chatRoute('/api/chat/conversations/one/live','GET',{},viewer),{status:403});
  put('messages',{id:'live-next',conversationId:'one',direction:'incoming',text:'Next live message'});
