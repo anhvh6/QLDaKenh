@@ -1,7 +1,7 @@
 import {studentOverview} from '../public/student-overview.js';
 import {linkPreview} from './chat-link-preview.mjs';
 import {consultationRoute} from './consultation-review.mjs';
-import {readContactCard,refreshZaloPins} from './zalo.mjs';
+import {readContactCard,refreshZaloPins,changeZaloPin} from './zalo.mjs';
 import {createChatReminder} from './chat-reminders.mjs';
 import {sendContactCard} from './zalo.mjs';
 import {purgeChats,purgePreview} from './customer-purge.mjs';
@@ -40,6 +40,8 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){
+ const unpin=path.match(/^\/api\/chat\/conversations\/([^/]+)\/platform-pins\/([^/]+)$/);
+ if(unpin&&method==='DELETE'){const c=chatConversation(user,unpin[1]);await changeZaloPin(c,null,false,decodeURIComponent(unpin[2]));audit(user.id,'zalo_message_unpinned',c.id,{topicId:unpin[2]});return get('conversations',c.id);}
  const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
  if(live&&method==='GET'){
   const conversation=chatConversation(user,live[1]);
@@ -175,6 +177,10 @@ export async function chatRoute(path,method,input,user){
   const m=get('messages',match[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);
   if(input.version!==m.version&&!(typeof input.expectedPinned==='boolean'&&Boolean(m.pinned)===input.expectedPinned))fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
   if(typeof input.pinned!=='boolean')fail('Trạng thái ghim không hợp lệ.');
+  const c=chatConversation(user,m.conversationId),ch=get('connections',c.connectionId);
+  if(ch?.provider==='zalo_personal'&&ch.mode==='api'&&m.direction!=='note'){
+   await changeZaloPin(c,m,input.pinned);const current=get('messages',m.id);audit(user.id,input.pinned?'zalo_message_pinned':'zalo_message_unpinned',m.id);return put('messages',{...current,pinned:false,pinnedBy:null},current.version);
+  }
   return put('messages',{...m,pinned:input.pinned,pinnedBy:input.pinned?user.id:null},m.version);
  }
  fail('Chức năng chat không tồn tại.',404);

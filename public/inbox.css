@@ -179,3 +179,15 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 .bubble-wrap .message-tools{max-width:none;width:max-content}
 .message-tools .message-reaction-selector{position:relative;top:auto;left:auto;right:auto;display:block;flex:none}
 .message-tools .message-reaction-selector>button{min-width:28px;min-height:28px}
+/* Side actions leave the message/time line compact. Reactions and order stay below content. */
+.chat-messages .bubble-wrap{margin-top:4px!important;margin-bottom:20px!important}
+.chat-messages .bubble-wrap.has-contact-order{margin-bottom:26px!important}
+.bubble-wrap .message-tools,.bubble-wrap.incoming .message-tools,.bubble-wrap.outgoing .message-tools{top:50%;bottom:auto;transform:translateY(-50%);left:calc(100% + 6px);right:auto;height:30px;gap:3px;background:#fff;border:1px solid #e2e7ed;border-radius:8px;padding:1px 4px;box-shadow:0 2px 8px #172a3b0d}
+.bubble-wrap.outgoing .message-tools{left:auto;right:calc(100% + 6px)}
+.bubble-wrap>.message-reaction-selector,.bubble-wrap.outgoing>.message-reaction-selector{top:calc(100% - 3px);right:0;left:auto}
+.message-contact-order{top:calc(100% - 3px);right:30px}
+.message-more>div{width:260px;min-width:220px;padding:7px;border:1px solid #dde3ea;border-radius:12px;box-shadow:0 6px 22px #172a3b26;gap:2px;bottom:calc(100% + 6px)}
+.message-more>div button{display:flex;align-items:center;gap:13px;width:100%;min-height:42px;border:0;background:#fff;border-radius:7px;color:#253c58;padding:10px 12px!important;font-size:14px!important}
+.message-more>div button:hover,.message-more>div button:focus-visible{background:#f0f2f5;outline:none}
+.message-more>div button svg{flex:none;color:#3b516e}.message-more>div button span{white-space:normal;text-align:left}
+@media(max-width:760px){.bubble-wrap .message-tools,.bubble-wrap.incoming .message-tools,.bubble-wrap.outgoing .message-tools{top:0;transform:translateY(-100%);left:0;right:auto}.bubble-wrap.outgoing .message-tools{left:auto;right:0}.message-more>div{width:230px;max-width:calc(100vw - 32px)}}

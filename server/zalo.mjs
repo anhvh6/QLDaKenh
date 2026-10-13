@@ -1,5 +1,6 @@
 import {contactCardDetails,contactPhone} from './zalo-contact-card.mjs';
 import {normalizeZaloPins} from './zalo-pins.mjs';
+import {changeNativePin} from './zalo-native-pins.mjs';
 import {createVerifiedZaloGroup} from './zalo-group-create.mjs';
 import {parseZaloContent,hydrateZaloStickers,repairZaloCards} from './zalo-message-content.mjs';
 import { Zalo, ThreadType } from 'zca-js';
@@ -12,6 +13,11 @@ import { captureLead } from './taophacdo.mjs';
 
 const instances=new Map(), logins=new Map(), jobs=new Map();
 const pinPolls=new Map();
+const pinMutations=new Set();
+export async function changeZaloPin(c,message,pinned,topicId){
+ const r=instances.get(c.connectionId);if(!r?.ready)throw Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');if(pinMutations.has(c.id))throw Error('Đang cập nhật ghim. Vui lòng chờ.');
+ pinMutations.add(c.id);try{const previous=(c.platformPins||[]).find(p=>p.id===topicId||p.externalId===message?.externalId);await changeNativePin(r.api,c,message,pinned,topicId);if(!pinned){const externalId=message?.externalId||previous?.externalId;if(externalId)for(const row of db.prepare("SELECT data FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=?").all(c.id,externalId)){const m=JSON.parse(row.data);if(m.pinned)put('messages',{...m,pinned:false,pinnedBy:null});}}pinPolls.delete(c.id);await refreshZaloPins(get('conversations',c.id),true);}finally{pinMutations.delete(c.id);}
+}
 export async function refreshZaloPins(c,force=false){
  const r=instances.get(c.connectionId),ch=get('connections',c.connectionId);if(!r?.ready||ch?.provider!=='zalo_personal'||ch.mode!=='api')return;
  const poll=pinPolls.get(c.id);if(poll?.busy||!force&&Date.now()-(poll?.at||0)<30000)return;
