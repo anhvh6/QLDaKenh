@@ -10,7 +10,7 @@ function preview(){
  return `<article style="max-width:760px;margin:24px auto"><div class="row between"><strong>${e(post.author||post.provider)}</strong><a href="${e(post.url)}" target="_blank" rel="noopener">Mở bài gốc ↗</a></div><div style="white-space:pre-wrap;margin:16px 0">${e(post.caption)}</div><div class="copy-media">${media}</div><p class="help-text">${post.media.length} ảnh/video · Giữ nguyên nội dung, emoji và hashtag nguồn. Chất lượng tải theo bản cao nhất nền tảng cung cấp.</p><div class="row">${button('Tải','download',post.id,true)}${button('Reup','reup',post.id)}${button('Thoát','exit')}</div></article>`;
 }
 function jobRows(){return jobs.length?jobs.map(j=>`<div class="row between" style="padding:14px 0;border-bottom:1px solid var(--line)"><div><strong>${e(j.title||j.id)}</strong><div>${e(labels[j.status]||j.status)}</div><div class="help-text">${j.type==='drive-import'?'Nạp bài từ Google Drive':j.target==='drive'?'Google Drive':'Thiết bị'} · ${new Date(j.createdAt).toLocaleString('vi-VN')} ${j.contentId?'· Chuẩn bị đăng bài':''}</div>${j.error?`<p style="color:#a33">${e(j.error)}</p>`:''}</div><div class="row">${j.status==='done'?`<a class="btn" href="/api/copy/archive/${e(j.id)}">Tải ZIP</a>${j.folderId?`<a class="btn" target="_blank" rel="noopener" href="https://drive.google.com/drive/folders/${e(j.folderId)}">Mở Drive</a>`:''}`:j.status==='failed'?button('Thử lại','retry',j.id):''}</div></div>`).join(''):'<p class="help-text">Chưa có bài tải. Gói bài gồm caption.txt, post.json và toàn bộ media theo thứ tự.</p>';}
-export function driveSettings(){return `<section class="panel"><div class="panel-body"><h2>Google Drive — Kho bài đăng đa nền tảng</h2><div id="drive-state">Đang kiểm tra kết nối…</div><p class="help-text">Mỗi bài lưu trong một thư mục riêng. Khi tạo bài đăng, chọn “Từ Google Drive” và chọn thư mục bài để tự nạp nội dung cùng ảnh/video.</p>${H?.state?.user?.role==='owner'?`<form id="drive-config-form"><h3>Cấu hình ứng dụng Google OAuth</h3><label>Địa chỉ ứng dụng công khai<input class="input" name="publicOrigin" type="url" value="${e(location.origin)}" required></label><label>Google OAuth Client ID<input class="input" name="clientId" placeholder="Nhập để thay đổi; để trống giữ cấu hình cũ"></label><label>Google OAuth Client Secret<input class="input" name="clientSecret" type="password" autocomplete="new-password" placeholder="Để trống giữ secret đã lưu"></label><p class="help-text">Bật Google Drive API, tạo OAuth client loại Web application. Authorized redirect URI: <code>${e(location.origin)}/api/drive/callback</code>. Mỗi người dùng kết nối Drive của mình bên dưới.</p><button class="btn primary">Lưu cấu hình</button></form>`:''}<div class="row" style="margin-top:20px">${button('Kết nối Google Drive','connect')}${button('Ngắt kết nối','disconnect')}</div><form id="drive-folder-form" style="margin-top:20px"><label>ID thư mục kho (để trống để hệ thống tự tạo)<input class="input" name="folderId" placeholder="ID trong link drive.google.com/drive/folders/…"></label><button class="btn">Lưu thư mục</button></form></div></section>`;}
+export function driveSettings(){return `<section class="panel"><div class="panel-body"><h2>Google Drive — Kho bài đăng đa nền tảng</h2><div id="drive-state">Đang kiểm tra kết nối…</div><p class="help-text">Mỗi bài lưu trong một thư mục riêng. Khi tạo bài đăng, chọn “Từ Google Drive” và chọn thư mục bài để tự nạp nội dung cùng ảnh/video.</p>${H?.state?.user?.role==='owner'?`<form id="drive-config-form"><h3>Cấu hình ứng dụng Google OAuth</h3><label>Địa chỉ ứng dụng công khai<input class="input" name="publicOrigin" type="url" value="${e(location.origin)}" required></label><label>Google OAuth Client ID<input class="input" name="clientId" placeholder="Nhập để thay đổi; để trống giữ cấu hình cũ"></label><label>Google OAuth Client Secret<input class="input" name="clientSecret" type="password" autocomplete="new-password" placeholder="Để trống giữ secret đã lưu"></label><label>Google Picker API key (nếu dự án yêu cầu)<input class="input" name="pickerKey" placeholder="Để trống giữ key đã lưu"></label><p class="help-text">Bật Google Drive API và Google Picker API, tạo OAuth client loại Web application. Authorized redirect URI: <code>${e(location.origin)}/api/drive/callback</code>. Mỗi người dùng kết nối Drive của mình bên dưới.</p><button class="btn primary">Lưu cấu hình</button></form>`:''}<div class="row" style="margin-top:20px">${button('Kết nối Google Drive','connect')}${button('Ngắt kết nối','disconnect')}</div><form id="drive-folder-form" style="margin-top:20px"><label>ID thư mục kho (để trống để hệ thống tự tạo)<input class="input" name="folderId" placeholder="ID trong link drive.google.com/drive/folders/…"></label><button class="btn">Lưu thư mục</button></form></div></section>`;}
 async function refreshJobs(){jobs=await H.api('/copy/jobs');const el=document.querySelector('#copy-jobs');if(el)el.innerHTML=jobRows();}
 async function refreshDrive(){drive=await H.api('/drive/config');const el=document.querySelector('#drive-state');if(el)el.innerHTML=`<p>${drive.connected?'✓ Đã kết nối Google Drive':drive.configured?'Chưa kết nối Drive của bạn':'Chưa cấu hình ứng dụng Google OAuth'}</p>`;const input=document.querySelector('#drive-folder-form [name=folderId]');if(input&&document.activeElement!==input)input.value=drive.folderId;}
 export function enhanceCopy(){if(copyUser!==H?.state?.user?.id){copyUser=H?.state?.user?.id;post=null;jobs=[];sourceInput='';}if(document.querySelector('#copy-jobs'))void refreshJobs().catch(()=>{});if(document.querySelector('#drive-state'))void refreshDrive().catch(e=>H.toast(e.message,true));}
@@ -23,6 +23,7 @@ export function initCopy(host){H=host;document.addEventListener('input',event=>{
   if(action==='retry'){await H.api('/copy/retry',{method:'POST',body:{jobId:el.dataset.id}});await refreshJobs();}
   if(action==='connect'){const r=await H.api('/drive/connect',{method:'POST',body:{}});window.open(r.url,'_blank','noopener');}
   if(action==='disconnect'){await H.api('/drive/disconnect',{method:'POST',body:{}});await refreshDrive();}
+  if(action==='pick-folder')await chooseDriveFolder();
   if(action==='folders')await folderPicker();
   if(action==='browse-folder')await folderPicker(el.dataset.id);
   if(action==='folder-next')await folderPicker(el.dataset.parent,el.dataset.pageToken);
@@ -34,4 +35,32 @@ async function folderPicker(parent='',pageToken=''){
  const r=await H.api('/drive/folders?'+new URLSearchParams({...(parent?{parent}:{}),...(pageToken?{pageToken}:{})}));
  const next=r.nextPageToken?`<button class="btn" data-copy-action="folder-next" data-parent="${e(parent)}" data-page-token="${e(r.nextPageToken)}">Trang tiếp theo</button>`:'';
  H.modal('Chọn thư mục bài từ Google Drive',`<p>Chọn thư mục được tạo bởi chức năng Sao chép. Nội dung và media sẽ tự nạp.</p>${parent?button('Về kho','folders'):''}${r.files.map(f=>`<div class="row between" style="padding:12px;border-bottom:1px solid var(--line)"><strong>${e(f.name)}</strong><div class="row">${button('Mở','browse-folder',f.id)}${button('Dùng bài này','import-folder',f.id,true)}</div></div>`).join('')||'<p>Chưa có thư mục trong kho. Tải một bài lên Drive trước.</p>'}${next}`);
+}
+
+let pickerLoading;
+async function loadDrivePicker(){
+ if(window.google?.picker)return;
+ if(!pickerLoading)pickerLoading=new Promise((resolve,reject)=>{
+  const timeout=setTimeout(()=>{pickerLoading=null;reject(new Error('Không tải được bộ chọn Google Drive. Kiểm tra kết nối rồi thử lại.'));},20000);
+  const loaded=()=>window.gapi.load('picker',{callback:()=>{clearTimeout(timeout);resolve();},onerror:()=>{clearTimeout(timeout);pickerLoading=null;reject(new Error('Không tải được Google Picker.'));}});
+  if(window.gapi)return loaded();
+  const script=document.createElement('script');script.src='https://apis.google.com/js/api.js';script.onload=loaded;script.onerror=()=>{clearTimeout(timeout);pickerLoading=null;script.remove();reject(new Error('Không tải được bộ chọn Google Drive.'));};document.head.append(script);
+ });
+ return pickerLoading;
+}
+async function chooseDriveFolder(){
+ await loadDrivePicker();
+ const config=await H.api('/drive/picker',{method:'POST',body:{}}),p=window.google.picker;
+ const view=new p.DocsView(p.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMode(p.DocsViewMode.LIST);
+ await new Promise((resolve,reject)=>{
+  let picker;
+  const builder=new p.PickerBuilder().addView(view).setOAuthToken(config.accessToken).setAppId(config.appId).setOrigin(location.origin).setLocale('vi').setTitle('Chọn thư mục kho bài đăng').setCallback(async data=>{
+   if(data.action===p.Action.CANCEL){picker?.dispose();return resolve();}
+   if(data.action!==p.Action.PICKED)return;
+   picker?.dispose();
+   try{const folderId=data.docs?.[0]?.id;if(!folderId)throw new Error('Google chưa trả về thư mục đã chọn.');await H.api('/drive/folder',{method:'POST',body:{folderId}});await refreshDrive();H.toast('Đã lưu thư mục kho Google Drive.');resolve();}catch(error){reject(error);}
+  });
+  if(config.developerKey)builder.setDeveloperKey(config.developerKey);
+  picker=builder.build();picker.setVisible(true);
+ });
 }

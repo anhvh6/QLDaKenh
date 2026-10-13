@@ -72,3 +72,9 @@ trên mọi mạng; caption và tệp nguồn được giữ nguyên trong gói 
 Kiểm thử Drive dùng API giả lập; cần OAuth thật để nghiệm thu tải vào tài khoản
 Google của người dùng. Bốn link mẫu người dùng cung cấp đã kiểm tra trích xuất
 trực tiếp trên VPS; video Reel đầu tiên đã tải thành MP4 có cả video và audio.
+# Thư mục Google Drive có sẵn
+
+Kết nối dùng scope `drive.file`. Dán ID không tự cấp quyền truy cập thư mục đã tạo ngoài ứng dụng. Trong Cài đặt > Google Drive, dùng **Chọn thư mục từ Google Drive** (Google Picker) để chọn và cấp quyền cho thư mục. Bật Google Picker API trong cùng dự án OAuth; nếu dự án yêu cầu developer key, nhập Google Picker API key ở cấu hình. Hạn chế key cho Google Picker API và website của ứng dụng cùng `https://docs.google.com/*`.
+
+Endpoint POST `/api/drive/picker` yêu cầu phiên đăng nhập, quyền Nội dung và CSRF; chỉ trả access token ngắn hạn của người gọi để mở bộ chọn. Không trả refresh token hay client secret, không lưu token trong trình duyệt. Lưu thư mục kiểm tra lại quyền ghi qua Drive API trước khi thay cấu hình. ID hoặc link `https://drive.google.com/drive/folders/...` đều được hỗ trợ; lỗi 404/403 được phân biệt với lỗi máy chủ.
+
