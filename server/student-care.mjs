@@ -19,7 +19,7 @@ export function notifyCareMessage(conversation,message){
  if(message.direction!=='incoming'||message.history||conversation.deletedAt)return;
  const state=studentCareState(),policy=carePolicy(state,conversation);
  if(!policy.configured)return;
- for(const id of policy.notifyStaffIds){
+ for(const id of state.users.filter(u=>receivesCare(state,conversation,u,policy)).map(u=>u.id)){
   const user=db.prepare('SELECT id,role,active FROM users WHERE id=?').get(id);if(!user?.active||!['owner','manager','support'].includes(user.role))continue;
   if(user.role==='support'){const teams=new Set(all('team_members').filter(m=>m.userId===id).map(m=>m.teamId));if(!all('channel_teams').some(m=>m.connectionId===conversation.connectionId&&teams.has(m.teamId)))continue;}
   const notificationId='care-message:'+message.id+':'+id;if(get('notifications',notificationId))continue;

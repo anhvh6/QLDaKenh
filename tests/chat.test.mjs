@@ -49,6 +49,15 @@ test('message pinning is internal and cannot cross a channel boundary',async()=>
  put('messages',{id:'secret-message',conversationId:'two',text:'private',direction:'incoming'});
  await assert.rejects(chatRoute('/api/chat/messages/secret-message','PATCH',{pinned:true,version:1},support),{status:403});
  const m=put('messages',{conversationId:'one',text:'Tin cần ghim',direction:'incoming'});const pinned=await chatRoute('/api/chat/messages/'+m.id,'PATCH',{pinned:true,version:m.version},support);assert.equal(pinned.pinned,true);
+ const hydrated=put('messages',{...pinned,linkPreview:{title:'New preview'}});
+ const unpinned=await chatRoute('/api/chat/messages/'+m.id,'PATCH',{pinned:false,expectedPinned:true,version:pinned.version},support);assert.equal(unpinned.pinned,false);assert.deepEqual(unpinned.linkPreview,hydrated.linkPreview);
+ await assert.rejects(chatRoute('/api/chat/messages/'+m.id,'PATCH',{pinned:true,expectedPinned:true,version:pinned.version},support),{status:409});
+});
+
+test('successful human reply completes assigned AI request, but notes, other staff and consultation requests remain open',async()=>{
+ const c=create('ai-task-chat');put('staff_handoffs',{id:'ai-task',conversationId:c.id,assignedStaffId:'staff',source:'ai',status:'open'});put('staff_handoffs',{id:'other-task',conversationId:c.id,assignedStaffId:'owner',source:'mention',status:'open'});put('staff_handoffs',{id:'consult-task',conversationId:c.id,assignedStaffId:'staff',taskType:'consultation-review',source:'mention',status:'open'});
+ await reply(support,c.id,{text:'Internal note',note:true,version:get('conversations',c.id).version});assert.equal(get('staff_handoffs','ai-task').status,'open');
+ await reply(support,c.id,{text:'Human answer',version:get('conversations',c.id).version});assert.equal(get('staff_handoffs','ai-task').status,'resolved');assert.ok(get('staff_handoffs','ai-task').completedAt);assert.equal(get('staff_handoffs','other-task').status,'open');assert.equal(get('staff_handoffs','consult-task').status,'open');
 });
 test('quote rejects cross-conversation and internal-note leakage; notes preserve SLA and message ordering',async()=>{
  const note=put('messages',{conversationId:'one',direction:'note',text:'Chỉ nội bộ'});

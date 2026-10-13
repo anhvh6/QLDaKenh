@@ -172,9 +172,9 @@ export async function chatRoute(path,method,input,user){
  match=path.match(/^\/api\/chat\/messages\/([^/]+)$/);
  if(match&&method==='PATCH'){
   const m=get('messages',match[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);
-  if(input.version!==m.version)fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
+  if(input.version!==m.version&&!(typeof input.expectedPinned==='boolean'&&Boolean(m.pinned)===input.expectedPinned))fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
   if(typeof input.pinned!=='boolean')fail('Trạng thái ghim không hợp lệ.');
-  return put('messages',{...m,pinned:input.pinned,pinnedBy:input.pinned?user.id:null},input.version);
+  return put('messages',{...m,pinned:input.pinned,pinnedBy:input.pinned?user.id:null},m.version);
  }
  fail('Chức năng chat không tồn tại.',404);
 }

@@ -11,7 +11,7 @@ import {initBot,chatbotPage,enhanceBot,handoffPage} from './chatbot-ui.js';
 import {initMedia,mediaLibrary} from './media-library.js';
 import {attachLibraryMedia} from './inbox.js';
 import {chatNameSettingsPage} from './chat-names.js';
-import {initInbox,inboxThreads,chatMessages,enhanceInbox,compactChatHead,rememberInboxDraft,inboxInteractionActive,enhanceLiveMessages} from './inbox.js';
+import {initInbox,inboxThreads,chatMessages,enhanceInbox,compactChatHead,rememberInboxDraft,inboxInteractionActive,enhanceLiveMessages,syncChatPins} from './inbox.js';
 import { icon } from './icons.js';
 import {initPlans,planPage,planOrderCTA} from './plans.js';
 import {initCare,carePage,enhanceCare} from './care.js';
@@ -48,7 +48,7 @@ let stateLoads=0,stateRetryAfter=0,stateFailures=0;
 async function refresh(renderNow=true){stateLoads++;try{S=await api('/state');updateChatNotifications(S.notifications||[]);$('#care-updates')?.remove();if(renderNow)render();stateFailures=0;stateRetryAfter=0;}catch(err){stateFailures++;stateRetryAfter=Date.now()+Math.min(120000,15000*2**Math.min(stateFailures,3));throw err;}finally{stateLoads--;}}
 async function refreshBackground(){if(stateLoads||Date.now()<stateRetryAfter||document.hidden)return;return refresh();}
 let updatingInbox=false,inboxRefreshPending=false,inboxRefreshTimer,inboxPaintDeferred=false;
-let liveInboxLoading=false;
+let liveInboxLoading=false,liveInboxDeferred=false;
 async function refreshLiveInbox(){
  const id=$('#reply-form')?.dataset.id;if(!id||route!=='inbox'||document.hidden||liveInboxLoading)return;
  liveInboxLoading=true;try{
@@ -56,10 +56,12 @@ async function refreshLiveInbox(){
   const c=S.conversations.find(c=>c.id===id);if(!c||!conversationConnected(S,c))return;
   const previous=S.messages.filter(m=>m.conversationId===id);
   Object.assign(c,data.conversation);
-  if(JSON.stringify(previous)===JSON.stringify(data.messages))return;
+  if(JSON.stringify(previous)===JSON.stringify(data.messages)&&!liveInboxDeferred)return;
+  if(inboxInteractionActive()){syncIncomingWhileInteracting({...S,messages:[...S.messages.filter(m=>m.conversationId!==id),...data.messages]});liveInboxDeferred=true;syncChatPins();return;}
+  liveInboxDeferred=false;
   S.messages=[...S.messages.filter(m=>m.conversationId!==id),...data.messages];
   const chat=$('.chat-messages');if(!chat)return;const top=chat.scrollTop,bottom=chat.scrollHeight-chat.clientHeight-top<60;
-  chat.innerHTML=chatMessages(data.messages.filter(m=>!m.deletedAt),c,S);enhanceLiveMessages();chat.scrollTop=bottom?chat.scrollHeight:top;
+  chat.innerHTML=chatMessages(data.messages.filter(m=>!m.deletedAt),c,S);enhanceLiveMessages();syncChatPins();chat.scrollTop=bottom?chat.scrollHeight:top;
  }catch{}finally{liveInboxLoading=false;}
 }
 setInterval(()=>void refreshLiveInbox(),2000);
@@ -400,4 +402,4 @@ boot();
 let notificationUser='',notificationSeen=new Set();
 function updateChatNotifications(rows){if(!S?.user)return;if(notificationUser!==S.user.id){notificationUser=S.user.id;notificationSeen=new Set(rows.map(n=>n.id));}updateDeviceBadge(rows.filter(n=>!n.read).length+S.conversations.filter(c=>c.unread&&S.notificationConversationIds?.includes(c.id)).length);const button=document.querySelector('[data-action=notifications]');if(button){let dot=button.querySelector('.notification-dot');if(rows.some(n=>!n.read)&&!dot){dot=document.createElement('i');dot.className='notification-dot';dot.style.cssText='position:absolute;top:5px;right:5px;background:red;width:8px;height:8px;border-radius:50%';button.append(dot);}if(!rows.some(n=>!n.read))dot?.remove();}for(const n of rows){if(!notificationSeen.has(n.id)&&!n.read&&(n.id.startsWith('chat-reminder:')||n.id.startsWith('care-message:'))){toast(n.title+': '+n.body);notificationSound();}notificationSeen.add(n.id);}}
 let pollingNotifications=false;
-setInterval(async()=>{if(!S?.user||pollingNotifications)return;pollingNotifications=true;const userId=S.user.id;try{const rows=await api('/notifications');if(S?.user?.id!==userId)return;S.notifications=rows;updateChatNotifications(rows);}catch{}finally{pollingNotifications=false;}},10000);
+setInterval(async()=>{if(!S?.user||pollingNotifications)return;pollingNotifications=true;const userId=S.user.id;try{const rows=await api('/notifications');if(S?.user?.id!==userId)return;S.notifications=rows;updateChatNotifications(rows);}catch{}finally{pollingNotifications=false;}},2000);

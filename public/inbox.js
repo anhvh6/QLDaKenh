@@ -23,7 +23,7 @@ import {defaultFilters,filterThreads,assignedIds,normalize,safeLink} from './inb
 let H,F=structuredClone(defaultFilters),selected=new Set(),selectionMode=false,searchIn='',lastConv='',mediaTab='all',threadLimit=150,totalThreads=0,listQuery='';
 const mentionStaff=new Map();let jumpTarget='',jumpUntil=0;const drafts=new Map();const uploading=new Set(),sendingConversations=new Set();let skipCapture=false;let openMenus=[];
 let pendingDelete=[],pendingDeleteToken='',threadHolding=false;
-export const inboxInteractionActive=()=>threadHolding||Boolean(document.querySelector('.message-tools:hover,.message-tools:focus-within,.message-more[open],.chat-topic-bar:hover,.chat-topic-bar:focus-within,.chat-header-tags:hover,.chat-header-tags:focus-within'));
+export const inboxInteractionActive=()=>threadHolding||Boolean(document.querySelector('.bubble-wrap:hover,.bubble-wrap:focus-within,.message-tools:hover,.message-tools:focus-within,.message-more[open],.chat-topic-bar:hover,.chat-topic-bar:focus-within,.chat-header-tags:hover,.chat-header-tags:focus-within'));
 function initSendHold(){
  let hold=null,suppressUntil=0;
  const cancel=()=>{if(hold)clearTimeout(hold.timer);hold=null;threadHolding=false;};
@@ -84,6 +84,12 @@ export function chatMessages(messages,conv,S){
   <small>${e(date(m.createdAt))} · ${e(state)}${m.error?' · '+e(m.error):''}${m.pinned?' · 📌 Ghim nội bộ':''}</small>
   <div class="message-tools">${m.status==='failed'&&m.direction==='outgoing'&&!m.retryMessageId?b('↻ Gửi lại','retry-message',m.id,'aria-label="Gửi lại tin nhắn lỗi"'):m.retryMessageId?'<small>Đã tạo lượt gửi lại</small>':''}${m.direction!=='note'?b('↩ Trả lời','quote',m.id)+b('Chuyển tiếp','forward',m.id):''}${b('Sao chép','copy',m.id)}${b(m.pinned?'Bỏ ghim':'Ghim','pin-message',m.id)}${b('Nhắc việc','remind-message',m.id)}</div></div>`;
  }).join('');
+}
+export function syncChatPins(){
+ const chat=$('.chat-messages'),id=$('#reply-form')?.dataset.id;if(!chat||!id||!H?.state)return;
+ const old=$('.chat-pins'),opened=old?.open;old?.remove();
+ const pins=H.state.messages.filter(m=>m.conversationId===id&&m.pinned&&!m.deletedAt);
+ if(pins.length)chat.insertAdjacentHTML('beforebegin',`<details class="chat-pins" ${opened?'open':''}><summary>📌 ${pins.length} tin nhắn đã ghim</summary>${pins.map(m=>'<div>'+b(e(m.text?.slice(0,100)||'Media'),'jump',m.id)+b('Bỏ ghim','pin-message',m.id)+'</div>').join('')}</details>`);
 }
 function filterDialog(){const S=H.state;H.modal('Lọc hội thoại',`<form id="chat-filter-form"><div class="chat-filter-grid">
  ${sel('Loại hội thoại','type',[['all','Tất cả'],['personal','Cá nhân'],['group','Nhóm'],['stranger','Người lạ (đã xác định)']],F.type)}
@@ -160,7 +166,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of
 
  const head=$('.chat-head');if(c.careTaskPrompt)head.insertAdjacentHTML('afterend',`<div class="notice care-task-prompt">Bạn đã xử lý xong nhắc việc. Bạn có muốn ẩn và tắt thông báo hội thoại này?<button class="btn small" data-chat="dismiss-care-task" data-id="${e(c.id)}">Ẩn & tắt thông báo</button><span>Chưa chọn: tiếp tục hiển thị và nhận thông báo.</span></div>`);head.classList.add('chat-head-compact');head.insertAdjacentHTML('beforeend',`<div class="chat-actions">${menu('Hội thoại ▾','<h4>Chăm sóc</h4>'+b('Phân công','assign',c.id)+b('Nhắc hẹn','reminders',c.id)+'<h4>Nội dung</h4>'+b('Ảnh / tệp / link','files',c.id)+(c.threadType===1?b('Thành viên nhóm','group',c.id):b('Lịch sử khách','customer-history',c.customerId))+'<label class="chat-message-search">Tìm trong chat<input id="chat-message-search" class="input" value="'+e(searchIn)+'" placeholder="Nội dung tin nhắn…"></label><h4>Trạng thái</h4>'+b(c.pinned?'Bỏ ghim':'Ghim hội thoại','pin',c.id)+b(c.unread?'Đánh dấu đã đọc':'Đánh dấu chưa đọc','read',c.id)+b(c.archived?'Bỏ lưu trữ':'Lưu trữ','archive',c.id)+b('Xóa hội thoại','delete-conversation',c.id))}</div>`);
 
- const pins=S.messages.filter(m=>m.conversationId===c.id&&m.pinned&&!m.deletedAt);if(pins.length)$('.chat-messages').insertAdjacentHTML('beforebegin',`<details class="chat-pins"><summary>📌 ${pins.length} tin nhắn đã ghim</summary>${pins.map(m=>b(e(m.text?.slice(0,100)||'Media'),'jump',m.id)).join('')}</details>`);
+ syncChatPins();
  const assignees=((S.conversationCare||[]).find(p=>p.id===c.id)?.notifyStaffIds||carePolicy(S,c).notifyStaffIds).map(id=>S.users.find(u=>u.id===id)?.name).filter(Boolean);if(assignees.length)head.querySelector('.row>div:last-child').insertAdjacentHTML('beforeend',`<small class="chat-assigned">Phụ trách: ${e(assignees.join(', '))}</small>`);
  if(c.threadType===1){head.querySelector('.row small').textContent=(S.connections.find(x=>x.id===c.connectionId)?.name||'')+' · Hội thoại nhóm';}if(c.threadType===1)head.querySelector('h3').textContent=(c.localGroupName&&c.title?c.title:c.group?.name||c.title)||S.customers.find(p=>p.id===c.customerId)?.name||'Nhóm';
  for(const m of document.querySelectorAll('.chat-menu'))if(openMenus.includes(m.querySelector('summary').textContent))m.open=true;
@@ -243,7 +249,7 @@ export function initInbox(host){H=host;initConsultationReview(host);initForward(
    if(action==='clear-quote'){draft(c.id).quoteId='';return paint();}
    if(action==='clear-draft'){drafts.set(c.id,freshDraft());$('#reply-form textarea').value='';$('#reply-form [name=note]').checked=false;saveDrafts();return paint();}
    if(action==='copy'){el.closest('details')?.removeAttribute('open');await copyMessage(id);return;}
-   if(action==='pin-message'){const m=H.state.messages.find(m=>m.id===id);el.disabled=true;el.closest('details')?.removeAttribute('open');try{const r=await H.api('/chat/messages/'+id,{method:'PATCH',body:{pinned:!m.pinned,version:m.version}});Object.assign(H.state.messages.find(m=>m.id===id)||m,r);redraw();}finally{el.disabled=false;}return;}
+   if(action==='pin-message'){const m=H.state.messages.find(m=>m.id===id);el.disabled=true;el.closest('details')?.removeAttribute('open');try{const r=await H.api('/chat/messages/'+id,{method:'PATCH',body:{pinned:!m.pinned,expectedPinned:Boolean(m.pinned),version:m.version}});Object.assign(H.state.messages.find(m=>m.id===id)||m,r);redraw();}finally{el.disabled=false;}return;}
    if(action==='jump'){H.closeModal();searchIn='';paint();const row=[...document.querySelectorAll('[data-message]')].find(r=>r.dataset.message===id);row?.scrollIntoView({block:'center'});row?.classList.add('chat-highlight');return;}
    if(action==='forward'){const m=H.state.messages.find(m=>m.id===id);return openForward([m]);}
    if(action==='emoji')return emojiPopup(H);
@@ -278,7 +284,7 @@ export function initInbox(host){H=host;initConsultationReview(host);initForward(
      try{const sent=await H.api('/conversations/'+id+'/messages',{method:'POST',body:{text:d.text,mentions:d.note?[]:(d.groupMentions||[]).map(({uid,pos,len})=>({uid,pos,len})),note:d.note,quoteId:d.note?'':d.quoteId,assetIds:d.assetIds,version:c.version}});H.state.messages=H.state.messages.filter(m=>m.id!==sent.id);H.state.messages.push(sent);
      }finally{for(const row of document.querySelectorAll('[data-message]'))if(row.dataset.message===pending.id)row.remove();}
     }
-    drafts.set(id,freshDraft());form.elements.text.value='';form.elements.note.checked=false;saveDrafts();H.render();void H.refreshLiveInbox();
+    drafts.set(id,freshDraft());form.elements.text.value='';form.elements.note.checked=false;saveDrafts();H.render();void H.refreshLiveInbox();void H.refresh().catch(()=>{});
    }
   }catch(err){H.toast(err.message,true);}finally{if(submit)submit.disabled=false;if(form.id==='reply-form'){sendingConversations.delete(form.dataset.id);const current=$('#reply-form');if(current?.dataset.id===form.dataset.id)current.querySelector('[type=submit]').disabled=false;}}
  },true);

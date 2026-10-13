@@ -20,6 +20,13 @@ const box=page.locator('#reply-form textarea');await box.fill('Bản nháp đang
 await page.route('**/api/state',r=>r.fulfill({status:503,contentType:'application/json',body:'{"error":"Full state unavailable in QA"}'}));
 execFileSync(process.execPath,['--input-type=module','-e',`const {put}=await import('./server/store.mjs');put('messages',{id:'live-incoming-ui',conversationId:'chat',direction:'incoming',status:'received',text:'Tin đến trực tiếp QA'});`],{env,stdio:'pipe'});
 await page.locator('[data-message="live-incoming-ui"]').waitFor({timeout:6000});assert.equal(await box.inputValue(),'Bản nháp đang gõ');assert.equal(await box.evaluate(el=>el===document.activeElement),true);
+execFileSync(process.execPath,['--input-type=module','-e',`const {put,get}=await import('./server/store.mjs');put('messages',{...get('messages','live-incoming-ui'),pinned:true});`],{env,stdio:'pipe'});
+await page.locator('.chat-pins summary').waitFor({timeout:6000});await page.locator('.chat-pins summary').click();
+execFileSync(process.execPath,['--input-type=module','-e',`const {put,db}=await import('./server/store.mjs');const u=db.prepare("SELECT id FROM users WHERE role='owner'").get();put('notifications',{id:'care-message:qa-alert:'+u.id,recipientId:u.id,conversationId:'chat',title:'Tin nhắn mới QA',body:'Thông báo trực tiếp QA',read:false});`],{env,stdio:'pipe'});
+await page.locator('.toast').filter({hasText:'Thông báo trực tiếp QA'}).waitFor({timeout:6000});
+assert.match(await page.locator('.chat-pins').innerText(),/Tin đến trực tiếp QA/);
+await page.locator('.chat-pins [data-chat="pin-message"]').click();await page.waitForFunction(()=>!document.querySelector('.chat-pins'),{timeout:6000});
+await page.locator('[data-message="live-incoming-ui"] .bubble').focus();await page.locator('[data-message="live-incoming-ui"] .message-more summary').click();await page.locator('[data-message="live-incoming-ui"] [data-chat="pin-message"]').click();await page.locator('.chat-pins').waitFor({timeout:6000});
 let release;const gate=new Promise(r=>release=r);await page.route('**/api/conversations/chat/messages',async r=>{await gate;await r.continue();});
 await box.fill('Tin gửi chậm kiểm thử QA');await page.locator('#reply-form [type=submit]').click();
 await page.locator('[data-message^="pending:"]').waitFor({timeout:1000});assert.match(await page.locator('[data-message^="pending:"]').innerText(),/Tin gửi chậm kiểm thử QA/);
