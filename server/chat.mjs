@@ -40,6 +40,12 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user){
+ const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
+ if(live&&method==='GET'){
+  const conversation=chatConversation(user,live[1]);
+  const messages=db.prepare("SELECT data FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY updated_at").all(conversation.id).map(r=>JSON.parse(r.data));
+  return {conversation,messages};
+ }
  const preview=path.match(/^\/api\/chat\/messages\/([^/]+)\/link-preview$/);if(preview&&method==='POST'){const m=get('messages',preview[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);return linkPreview(m,input.url);}
 
  const review=consultationRoute(path,method,input,user);if(review!==undefined)return review;

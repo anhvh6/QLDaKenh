@@ -11,7 +11,9 @@ export function studentCareState(){
  return {staff_handoffs:all('staff_handoffs'),chat_reminders:all('chat_reminders'),users:db.prepare('SELECT id,name,role,active FROM users').all(),customers,conversations:all('conversations'),connections:all('connections'),orders:all('orders'),journeys:all('journeys'),plan_handoffs:all('plan_handoffs'),chatNameSettings:get('settings','chat-names'),studentCareSettings:get('settings','student-care')||{version:0,stages:{}},chatPlanSummaries:all('study_plans').map(p=>({customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,get('orders',p.lastOrderId))}))};
 }
 export function assertCareConversation(user,c){
- if(!canReadCare(studentCareState(),c,user))fail('Bạn chưa được cấp quyền đọc thông tin cho trạng thái học viên này.',403);
+ // Reading/replying remains allowed through search; channel scope is checked by callers.
+ // Receive/mute controls card visibility and notifications, not content access.
+ if(!canReadCare(null,c,user))fail('Bạn chưa được cấp quyền đọc thông tin cho trạng thái học viên này.',403);
 }
 export function notifyCareMessage(conversation,message){
  if(message.direction!=='incoming'||message.history||conversation.deletedAt)return;

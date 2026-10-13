@@ -48,8 +48,24 @@ let stateLoads=0,stateRetryAfter=0,stateFailures=0;
 async function refresh(renderNow=true){stateLoads++;try{S=await api('/state');updateChatNotifications(S.notifications||[]);$('#care-updates')?.remove();if(renderNow)render();stateFailures=0;stateRetryAfter=0;}catch(err){stateFailures++;stateRetryAfter=Date.now()+Math.min(120000,15000*2**Math.min(stateFailures,3));throw err;}finally{stateLoads--;}}
 async function refreshBackground(){if(stateLoads||Date.now()<stateRetryAfter||document.hidden)return;return refresh();}
 let updatingInbox=false,inboxRefreshPending=false,inboxRefreshTimer,inboxPaintDeferred=false;
+let liveInboxLoading=false;
+async function refreshLiveInbox(){
+ const id=$('#reply-form')?.dataset.id;if(!id||route!=='inbox'||document.hidden||liveInboxLoading)return;
+ liveInboxLoading=true;try{
+  const data=await api('/chat/conversations/'+id+'/live');if(route!=='inbox'||$('#reply-form')?.dataset.id!==id||!S)return;
+  const c=S.conversations.find(c=>c.id===id);if(!c||!conversationConnected(S,c))return;
+  const previous=S.messages.filter(m=>m.conversationId===id);
+  Object.assign(c,data.conversation);
+  if(JSON.stringify(previous)===JSON.stringify(data.messages))return;
+  S.messages=[...S.messages.filter(m=>m.conversationId!==id),...data.messages];
+  const chat=$('.chat-messages');if(!chat)return;const top=chat.scrollTop,bottom=chat.scrollHeight-chat.clientHeight-top<60;
+  chat.innerHTML=chatMessages(data.messages.filter(m=>!m.deletedAt),c,S);enhanceLiveMessages();chat.scrollTop=bottom?chat.scrollHeight:top;
+ }catch{}finally{liveInboxLoading=false;}
+}
+setInterval(()=>void refreshLiveInbox(),2000);
 function queueInboxRefresh(){inboxRefreshPending=true;clearTimeout(inboxRefreshTimer);inboxRefreshTimer=setTimeout(()=>{if(route==='inbox')refreshInbox(true).catch(()=>{});},250);}
 async function refreshInbox(paintOnly=false){
+ if(!paintOnly)void refreshLiveInbox();
  if(paintOnly&&inboxInteractionActive()){queueInboxRefresh();return;}
  if(updatingInbox||$('.modal-backdrop')){queueInboxRefresh();return;}inboxRefreshPending=false;updatingInbox=true;const previousRoute=route;
  try{if($('.modal-backdrop'))return;const next=await api('/state');if(route!==previousRoute)return;if(inboxInteractionActive()){syncIncomingWhileInteracting(next);inboxPaintDeferred=true;queueInboxRefresh();return;}if(!inboxPaintDeferred&&JSON.stringify(next)===JSON.stringify(S))return;inboxPaintDeferred=false;
@@ -375,7 +391,7 @@ initCare({get state(){return S;},api,refresh,refreshInbox,refreshBackground,rend
 initStudentCareSettings({get state(){return S;},api,refresh,toast,modal,closeModal});
 initProductsManagement({get state(){return S;},render});
 initShipping({get state(){return S;},route:()=>route,api,refresh,render,modal,closeModal,toast});
-const loadInbox=initInbox({get state(){return S;},route:()=>route,api,refresh,render,modal,closeModal,toast,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});
+const loadInbox=initInbox({get state(){return S;},route:()=>route,api,refresh,refreshLiveInbox,render,modal,closeModal,toast,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});
 
 initMedia({get state(){return S;},api,refresh,render,modal,closeModal,toast,newPost:id=>{contentModal();draftAssets=[id];$('#upload-list').innerHTML=assetPreviews();$('#preview-media').innerHTML=thumb({assets:draftAssets},'card-cover');},attachChat:(c,id)=>{selectedConversation=c;route='inbox';location.hash='inbox';attachLibraryMedia(c,id);render();}});
 initBot({get state(){return S;},route:()=>route,api,refresh,render,modal,closeModal,toast,openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();}});

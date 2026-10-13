@@ -18,6 +18,17 @@ put('team_members',{teamId:'team',userId:'staff'});put('channel_teams',{teamId:'
 put('customers',{id:'p1',name:'Nguyễn Mai',phone:'0900000001'});put('customers',{id:'p2',name:'Nhóm chăm sóc'});
 const create=(id,patch={})=>put('conversations',{id,customerId:'p1',connectionId:'a',kind:'message',status:'open',unread:true,lastAt:'2026-10-03T12:00:00Z',tags:[],...patch});
 create('one');create('two',{connectionId:'b'});
+
+test('live chat returns only the authorized conversation and reflects new messages without a state snapshot',async()=>{
+ put('messages',{id:'live-one',conversationId:'one',direction:'incoming',text:'Live incoming'});
+ put('messages',{id:'live-other',conversationId:'two',direction:'incoming',text:'Other channel'});
+ const data=await chatRoute('/api/chat/conversations/one/live','GET',{},support);
+ assert.equal(data.conversation.id,'one');assert.ok(data.messages.some(m=>m.id==='live-one'));assert.ok(data.messages.every(m=>m.conversationId==='one'));
+ await assert.rejects(chatRoute('/api/chat/conversations/two/live','GET',{},support),{status:403});
+ await assert.rejects(chatRoute('/api/chat/conversations/one/live','GET',{},viewer),{status:403});
+ put('messages',{id:'live-next',conversationId:'one',direction:'incoming',text:'Next live message'});
+ assert.ok((await chatRoute('/api/chat/conversations/one/live','GET',{},support)).messages.some(m=>m.id==='live-next'));
+});
 test('chat mutations enforce permissions, channel scope and revision',async()=>{
  assert.throws(()=>patchChat(viewer,'one',{pinned:true,version:get('conversations','one').version}),{status:403});
  assert.throws(()=>patchChat(support,'two',{pinned:true,version:get('conversations','two').version}),{status:403});
