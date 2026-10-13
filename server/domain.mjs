@@ -28,7 +28,7 @@ export function editRecord(user,kind,id,input){
  if(kind==='contents'){
   if(id&&all('copy_jobs').some(j=>j.contentId===id&&['queued','downloading','uploading'].includes(j.status)))fail('Bài đang được chuẩn bị đăng. Chờ tải hoàn tất trước khi sửa.',409);
   for(const key of ['sourceCopyId','sourceURL','copyReady','copyJobId','driveFolderId']){if(prev?.[key]!==undefined)data[key]=prev[key];else delete data[key];}
-  required(data.title,'Tên nội dung',250);data.caption=String(data.caption||'').slice(0,30000);if(!['text','image','video'].includes(data.type))fail('Loại nội dung không hợp lệ.');
+  required(data.title,'Tên nội dung',250);data.caption=String(data.caption||'');if(data.caption.length>100000)fail('Nội dung bài vượt 100.000 ký tự.');if(!['text','image','video'].includes(data.type))fail('Loại nội dung không hợp lệ.');
   data.channels=(data.channels||[]).filter(x=>get('connections',x));data.assets=(data.assets||[]).map(id=>{const a=get('assets',id);if(!a||a.active===false||!(a.scopes||['post']).includes('post'))fail('Media không còn dùng cho đăng bài.');if(a.connectionId)assertChannel(user,a.connectionId);return id;});data.status='draft';data.approval='pending';
   // Editing an already scheduled content does not silently mutate the frozen publication.
  }
@@ -54,9 +54,9 @@ export function deleteRecord(user,kind,id){permission(user,area[kind]||'admin');
  else if(['contents','campaigns','templates','knowledge','workflows','tasks'].includes(kind)){
   if(kind==='contents'&&all('publications').some(x=>x.contentId===id&&!['cancelled','draft'].includes(x.status)))fail('Nội dung có lịch sử xuất bản. Hãy giữ lại để truy vết.');remove(kind,id);
  }else fail('Mục này không hỗ trợ xóa trực tiếp.');audit(user.id,'delete',id,kind);return {ok:true};}
-export function schedule(user,id,input){permission(user,'content');const c=get('contents',id);if(!c)fail('Không tìm thấy nội dung.',404);if(input.version!==c.version)fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.',409);
+export function schedule(user,id,input,{prepared=false}={}){permission(user,'content');const c=get('contents',id);if(!c)fail('Không tìm thấy nội dung.',404);if(input.version!==c.version)fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.',409);
  const channels=c.channels||[];if(!channels.length)fail('Chọn ít nhất một kênh.');if(!c.caption.trim())fail('Nhập nội dung bài đăng.');
- const scheduleAt=input.immediate?now():input.scheduleAt;if(!Number.isFinite(Date.parse(scheduleAt)))fail('Chọn lịch đăng hợp lệ.');if(!input.immediate&&Date.parse(scheduleAt)<Date.now()+10*60000)fail('Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
+ const scheduleAt=input.immediate?now():input.scheduleAt;if(!Number.isFinite(Date.parse(scheduleAt)))fail('Chọn lịch đăng hợp lệ.');if(!input.immediate&&Date.parse(scheduleAt)<Date.now()+(prepared?0:10*60000))fail(prepared?'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.':'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
  if(all('publications').some(p=>p.contentId===id&&['scheduled','dispatching','processing','awaiting_manual','unknown'].includes(p.status)))fail('Nội dung đã có lịch đang chạy. Hủy các đích chưa gửi trước khi tạo lịch mới.');
  const frozen=channels.map(cid=>{const ch=get('connections',cid);if(!ch||ch.status==='disconnected')fail('Kênh đã ngắt kết nối.');const v=c.variants?.[cid]||{};const type=v.type||c.type;const mediaItems=c.copyReady?(c.assets||[]).map(id=>{const a=get('assets',id);if(!a?.copyJobId)fail('Media nguồn không còn tồn tại.');return {type:a.type,url:publishMedia(a,scheduleAt)};}):[];const mediaUrl=v.mediaUrl||mediaItems[0]?.url||c.mediaUrl||'';let mode=ch.mode;
   if(mode==='api'){
