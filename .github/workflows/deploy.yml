@@ -21,6 +21,10 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ~/QLDaKenh
-            git pull origin main
-            npm install
+            git pull --ff-only origin main
+            npm ci
+            npm run check
+            command -v ffmpeg
+            python3 -m venv .copy-runtime
+            .copy-runtime/bin/pip install --disable-pip-version-check -r scripts/social-copy-requirements.txt
             pm2 restart qlda-kenh

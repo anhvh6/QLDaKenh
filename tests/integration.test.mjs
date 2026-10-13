@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {connectDemoFixtures} from './helpers/connected-demo.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync,readFileSync,existsSync } from 'node:fs';
@@ -12,7 +13,7 @@ async function start(){child=spawn(process.execPath,['server/index.mjs'],{cwd:pr
 async function stop(){if(child&&!child.killed){child.kill();await new Promise(r=>child.once('exit',r));}}
 async function req(path,method='GET',body,expect=200,key){const res=await fetch(base+'/api'+path,{method,headers:{'Content-Type':'application/json',Cookie:cookie,'X-CSRF-Token':csrf,...(key?{'Idempotency-Key':key}:{})},body:body===undefined?undefined:JSON.stringify(body)});const data=await res.json();assert.equal(res.status,expect,JSON.stringify(data));const sc=res.headers.get('set-cookie');if(sc)cookie=sc.split(';')[0];if(data.csrf)csrf=data.csrf;return data;}
 test('Local application: persistence, scheduling, inventory, COD, access control and webhook dedupe',async t=>{await start();t.after(stop);
- await t.test('bootstrap and secure owner setup',async()=>{assert.equal((await req('/bootstrap')).setup,true);await req('/setup','POST',{name:'QA Owner',workspace:'QA workspace',email:'qa@example.test',password:'OnlyForLocalTests2026!',demo:true});assert.equal((await req('/state')).products.length,4);await req('/setup','POST',{},409);});
+ await t.test('bootstrap and secure owner setup',async()=>{assert.equal((await req('/bootstrap')).setup,true);await req('/setup','POST',{name:'QA Owner',workspace:'QA workspace',email:'qa@example.test',password:'OnlyForLocalTests2026!',demo:true});connectDemoFixtures(dataDir);assert.equal((await req('/state')).products.length,4);await req('/setup','POST',{},409);});
  let content,customer,product,order,shipment;
  await t.test('draft persistence and revision conflicts',async()=>{content=await req('/records/contents','POST',{title:'Kiểm thử lịch',caption:'Nội dung mẫu',type:'text',channels:['ch1'],assets:[]});const saved=await req('/records/contents/'+content.id,'PATCH',{title:'Lịch đã sửa',version:content.version});await req('/records/contents/'+content.id,'PATCH',{title:'Ghi đè lỗi',version:content.version},409);content=saved;});
  await t.test('idempotent scheduler and demo does not claim a real publication',async()=>{const b={version:content.version,immediate:true};const first=await req(`/contents/${content.id}/schedule`,'POST',b,200,'same-schedule');const second=await req(`/contents/${content.id}/schedule`,'POST',b,200,'same-schedule');assert.equal(first[0].id,second[0].id);await pause(5400);const state=await req('/state');assert.equal(state.publications.find(p=>p.id===first[0].id).status,'demo_published');});

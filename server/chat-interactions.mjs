@@ -1,11 +1,11 @@
 import {db,get,put,all,transaction,audit,now} from './store.mjs';
 import {permission,fail,reply} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
-import {sendMessageReaction} from './zalo.mjs';
+import {sendMessageReaction,recallMessage} from './zalo.mjs';
 const typing=new Map(),busy=new Set();
 export const reactionEmoji={heart:'❤️',like:'👍',haha:'😆',wow:'😮',cry:'😢',angry:'😡'};
 function conversation(user,id){permission(user,'inbox');const c=get('conversations',id);if(!c||c.deletedAt)fail('Không tìm thấy hội thoại.',404);assertChannel(user,c.connectionId);return c;}
-export async function interactionRoute(path,method,input,user,send=sendMessageReaction,forwardSend=reply){
+export async function interactionRoute(path,method,input,user,send=sendMessageReaction,forwardSend=reply,recall=recallMessage){
  if(path==='/api/chat/messages/forward'&&method==='POST'){
   permission(user,'inbox');
   const {operationId,messageIds,targetIds}=input;
@@ -21,12 +21,20 @@ export async function interactionRoute(path,method,input,user,send=sendMessageRe
   put('chat_forward_jobs',{...get('chat_forward_jobs',key),complete:true});audit(user.id,'messages_forwarded',operationId,{messageIds,targetIds,sent:results.filter(r=>r.ok).length});return {results};
  }
  const presence=path.match(/^\/api\/chat\/conversations\/([^/]+)\/typing$/);
- if(presence){const c=conversation(user,presence[1]),key=c.id+':'+user.id;if(method==='POST'){if(typeof input.active!=='boolean')fail('Trạng thái không hợp lệ.');if(input.active)typing.set(key,{conversationId:c.id,userId:user.id,until:Date.now()+6000});else typing.delete(key);}if(['GET','POST'].includes(method)){const people=[];for(const [id,p] of typing){if(p.until<Date.now()){typing.delete(id);continue;}if(p.conversationId!==c.id||p.userId===user.id)continue;const u=db.prepare('SELECT id,name,role FROM users WHERE id=? AND active=1').get(p.userId);if(!u)continue;try{assertChannel(u,c.connectionId);}catch{continue;}people.push({id:u.id,name:u.name});}return {users:people};}}
+ if(presence){const c=conversation(user,presence[1]),device=String(input.deviceId||'').slice(0,100),key=c.id+':'+user.id+':'+device;if(method==='POST'){if(typeof input.active!=='boolean')fail('Trạng thái không hợp lệ.');if(input.active)typing.set(key,{conversationId:c.id,userId:user.id,until:Date.now()+8000});else typing.delete(key);}if(['GET','POST'].includes(method)){const people=[],seen=new Set();for(const [id,p] of typing){if(p.until<Date.now()){typing.delete(id);continue;}if(p.conversationId!==c.id||seen.has(p.userId))continue;const u=db.prepare('SELECT id,name,role FROM users WHERE id=? AND active=1').get(p.userId);if(!u)continue;try{assertChannel(u,c.connectionId);}catch{continue;}seen.add(p.userId);people.push({id:u.id,name:u.name});}return {users:people};}}
+ const undo=path.match(/^\/api\/chat\/messages\/([^/]+)\/recall$/);
+ if(undo&&method==='POST'){
+  const m=get('messages',undo[1]);if(!m||m.deletedAt||m.direction!=='outgoing')fail('Chỉ thu hồi tin đã gửi từ tài khoản kênh.',400);const c=conversation(user,m.conversationId),ch=get('connections',c.connectionId);
+  if(m.recalledAt)return m;if(!['sent','accepted','demo'].includes(m.status))fail('Tin chưa được gửi thành công.',400);if(input.version!==m.version||m.status==='sending')fail('Tin nhắn vừa thay đổi. Tải lại trước khi thu hồi.',409);if(busy.has(m.id))fail('Tin nhắn đang được xử lý.',409);
+  busy.add(m.id);try{if(ch?.mode!=='demo'){if(ch?.provider!=='zalo_personal')fail('Kênh này chưa hỗ trợ thu hồi.',400);const targets=m.externalMessages?.length?m.externalMessages:[{id:m.externalId,clientId:m.externalClientId||m.quoteSource?.cliMsgId}];if(targets.some(t=>!t.id||!t.clientId))fail('Tin chưa có đủ mã nền tảng để thu hồi. Hãy đồng bộ lịch sử.',409);for(const target of targets){const current=get('messages',m.id);if(current.recalledExternalIds?.includes(target.id))continue;await recall(c.connectionId,c.externalUserId,c.threadType,target.id,target.clientId);const latest=get('messages',m.id);put('messages',{...latest,recalledExternalIds:[...(latest.recalledExternalIds||[]),target.id]});}}
+   const result=put('messages',{...get('messages',m.id),text:'Tin nhắn đã được thu hồi',messageType:'text',quoteId:null,attachments:[],mentions:[],contactCard:null,sticker:null,quoteSource:null,reactions:[],recalledAt:now(),recalledBy:user.id,pinned:false});audit(user.id,'message_recalled',m.id);return result;
+  }finally{busy.delete(m.id);}
+ }
  const reaction=path.match(/^\/api\/chat\/messages\/([^/]+)\/reaction$/);
  if(reaction&&method==='POST'){
-  const m=get('messages',reaction[1]);if(!m||m.deletedAt||m.direction==='note')fail('Không thể thả cảm xúc vào tin này.',404);const c=conversation(user,m.conversationId),ch=get('connections',c.connectionId);if(!reactionEmoji[input.reaction])fail('Cảm xúc không hợp lệ.');if(busy.has(m.id))fail('Đang gửi cảm xúc. Chờ một chút.',409);
+  const m=get('messages',reaction[1]);if(!m||m.deletedAt||(m.direction==='note'||m.recalledAt))fail('Không thể thả cảm xúc vào tin này.',404);const c=conversation(user,m.conversationId),ch=get('connections',c.connectionId);if(!reactionEmoji[input.reaction])fail('Cảm xúc không hợp lệ.');if(busy.has(m.id))fail('Đang gửi cảm xúc. Chờ một chút.',409);
   busy.add(m.id);try{
-   if(ch?.mode!=='demo'){if(ch?.provider!=='zalo_personal')fail('Kênh này chưa hỗ trợ gửi cảm xúc.',400);if(!m.externalId||!m.externalClientId)fail('Chưa đủ mã tin nhắn từ nền tảng. Hãy đồng bộ lại.',409);await send(c.connectionId,c.externalUserId,c.threadType,m.externalId,m.externalClientId,input.reaction);}
+   if(ch?.mode!=='demo'){if(ch?.provider!=='zalo_personal')fail('Kênh này chưa hỗ trợ gửi cảm xúc.',400);if(!m.externalId||!(m.externalClientId||m.quoteSource?.cliMsgId))fail('Chưa đủ mã tin nhắn từ nền tảng. Hãy đồng bộ lại.',409);await send(c.connectionId,c.externalUserId,c.threadType,m.externalId,m.externalClientId||m.quoteSource?.cliMsgId,input.reaction);}
    const current=get('messages',m.id),reactor=ch?.mode==='demo'?user.id:'platform:'+c.connectionId,result=put('messages',{...current,reactions:[...(current.reactions||[]).filter(r=>r.reactor!==reactor),{reactor,actor:user.id,reaction:input.reaction,emoji:reactionEmoji[input.reaction]}]});audit(user.id,'message_reacted',m.id,{reaction:input.reaction});return result;
   }finally{busy.delete(m.id);}
  }

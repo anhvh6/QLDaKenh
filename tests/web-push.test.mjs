@@ -8,7 +8,7 @@ const {put,get,all,db,now}=await import('../server/store.mjs');
 const {validSubscription,pushRoute,pushTick,eventFor,pushKeys}=await import('../server/web-push.mjs');
 const user={id:'push-owner',role:'owner'},staff={id:'push-staff',role:'support'},outsider={id:'push-outsider',role:'support'};
 for(const u of [user,staff,outsider]){db.prepare('INSERT INTO users VALUES(?,?,?,?,?,1)').run(u.id,u.id+'@test.invalid',u.id,u.role,'unused');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(u.id,u.id,'unused',Date.now()+3600000);}
-put('connections',{id:'push-channel'});put('team_members',{userId:staff.id,teamId:'push-team'});put('channel_teams',{teamId:'push-team',connectionId:'push-channel'});put('conversations',{id:'push-chat',connectionId:'push-channel',title:'Private customer'});
+put('connections',{id:'push-channel',status:'connected'});put('team_members',{userId:staff.id,teamId:'push-team'});put('channel_teams',{teamId:'push-team',connectionId:'push-channel'});put('conversations',{id:'push-chat',connectionId:'push-channel',title:'Private customer'});
 const sub={endpoint:'https://fcm.googleapis.com/fcm/send/test-only',keys:{p256dh:'A'.repeat(87),auth:'B'.repeat(22)}},prefs={messages:true,reminders:true,handoffs:true,sound:true};
 test('subscription validation rejects private networks, credentials, lookalike domains and invalid keys',()=>{
  assert.equal(validSubscription(sub),true);
@@ -33,12 +33,12 @@ test('worker sends new events once, persists retry cursor and removes expired su
  await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);
  await new Promise(r=>setTimeout(r,5));
  put('messages',{id:'push-event1',conversationId:'push-chat',direction:'incoming',text:'Secret',createdAt:'2020-01-01T00:00:00.000Z'});
- const delivered=[];await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);assert.ok(all('push_subscriptions')[0].lastDeliveredAt);
+ const delivered=[];await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);const idleVersion=all('push_subscriptions')[0].version;await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);assert.equal(all('push_subscriptions')[0].version,idleVersion,'Empty push polling must not emit state-change revisions');assert.ok(all('push_subscriptions')[0].lastDeliveredAt);
  await new Promise(r=>setTimeout(r,5));put('messages',{id:'push-event2',conversationId:'push-chat',direction:'incoming'});
  await pushTick(async()=>{throw Object.assign(Error('retry'),{statusCode:503});});let saved=all('push_subscriptions')[0];assert.ok(saved.retryAt>Date.now());assert.match((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).error,/503/);put('push_subscriptions',{...saved,retryAt:null});
  await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,2);
  await new Promise(r=>setTimeout(r,5));put('messages',{id:'push-event3',conversationId:'push-chat',direction:'incoming'});
- await pushTick(async()=>{throw Object.assign(Error('gone'),{statusCode:410});});assert.equal(all('push_subscriptions').length,0);
+ await pushTick(async()=>{throw Object.assign(Error('gone'),{statusCode:410});});assert.equal(all('push_subscriptions')[0].invalid,true);assert.equal((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).needsRenewal,true);let retries=0;await pushTick(async()=>retries++);assert.equal(retries,0);
 });
 test('another account cannot unsubscribe this device and outgoing messages do not notify',async()=>{
  await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);

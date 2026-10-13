@@ -19,7 +19,7 @@ try{
  const row=page.locator('[data-message=m-c1]');await row.hover();const reaction=row.locator(':scope > .message-reaction-selector');await reaction.waitFor({state:'visible'});const rb=await row.locator('.bubble').boundingBox(),eb=await reaction.boundingBox();assert.ok(eb.y>=rb.y+rb.height-6,'Reaction below the message');
  await reaction.getByRole('button',{name:'Gửi tim',exact:true}).click();await page.locator('.message-reaction-selector.has-reactions').waitFor();
  await page.locator('.chat-head [data-care=profile]').click();await page.getByRole('heading',{name:'Nhóm chung (1)',exact:true}).waitFor();await page.locator('[data-learner=open-related]').click();await page.locator('#reply-form[data-id=c2]').waitFor();
- await page.locator('.chat-head [data-care=profile]').click();await page.getByRole('heading',{name:'Hồ sơ nhóm',exact:true}).waitFor();assert.equal(await page.locator('[data-learner=open-member]').count(),2);
+ await page.locator('.chat-head [data-care=profile]').click();await page.getByRole('heading',{name:'Thành viên nhóm (2)',exact:true}).waitFor();assert.equal(await page.locator('[data-learner=open-member]').count(),2);
  assert.equal(await page.locator('[data-learner=open-member][data-id=c1] strong').evaluate(el=>getComputedStyle(el).color),'rgb(8, 126, 139)');await page.screenshot({path:'test-results/chat-group-profile.png',fullPage:true});
  await page.locator('[data-learner=open-member][data-id=c1]').click();await page.locator('#reply-form[data-id=c1]').waitFor();
  await page.locator('.chat-head [data-care=profile]').click();await page.locator('.learner-profile-grid').waitFor();await page.locator('#modal-root [data-plan=customer]').click();

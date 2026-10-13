@@ -1,4 +1,6 @@
 import {contactCardDetails,contactPhone} from './zalo-contact-card.mjs';
+import {normalizeZaloPins} from './zalo-pins.mjs';
+import {changeNativePin} from './zalo-native-pins.mjs';
 import {createVerifiedZaloGroup} from './zalo-group-create.mjs';
 import {parseZaloContent,hydrateZaloStickers,repairZaloCards} from './zalo-message-content.mjs';
 import { Zalo, ThreadType } from 'zca-js';
@@ -10,6 +12,20 @@ import { runWorkflows } from './domain.mjs';
 import { captureLead } from './taophacdo.mjs';
 
 const instances=new Map(), logins=new Map(), jobs=new Map();
+const pinPolls=new Map();
+const pinMutations=new Set();
+export async function changeZaloPin(c,message,pinned,topicId){
+ const r=instances.get(c.connectionId);if(!r?.ready)throw Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');if(pinMutations.has(c.id))throw Error('Đang cập nhật ghim. Vui lòng chờ.');
+ pinMutations.add(c.id);try{const previous=(c.platformPins||[]).find(p=>p.id===topicId||p.externalId===message?.externalId);await changeNativePin(r.api,c,message,pinned,topicId);if(!pinned){const externalId=message?.externalId||previous?.externalId;if(externalId)for(const row of db.prepare("SELECT data FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=?").all(c.id,externalId)){const m=JSON.parse(row.data);if(m.pinned)put('messages',{...m,pinned:false,pinnedBy:null});}}pinPolls.delete(c.id);await refreshZaloPins(get('conversations',c.id),true);}finally{pinMutations.delete(c.id);}
+}
+export async function refreshZaloPins(c,force=false){
+ const r=instances.get(c.connectionId),ch=get('connections',c.connectionId);if(!r?.ready||ch?.provider!=='zalo_personal'||ch.mode!=='api')return;
+ const poll=pinPolls.get(c.id);if(poll?.busy||!force&&Date.now()-(poll?.at||0)<30000)return;
+ pinPolls.set(c.id,{at:Date.now(),busy:true});try{
+  const response=c.threadType===1?await r.api.getListBoard({page:1,count:100},c.externalUserId):await r.api.getFriendBoardList(c.externalUserId),pins=normalizeZaloPins(response),current=get('conversations',c.id);
+  if(current&&!current.deletedAt&&JSON.stringify(current.platformPins||[])!==JSON.stringify(pins))put('conversations',{...current,platformPins:pins});
+ }catch(error){console.error('Zalo pins:',error.message);}finally{pinPolls.set(c.id,{at:Date.now(),busy:false});}
+}
 export async function imageMetadataGetter(path){const [dimensions,file]=await Promise.all([imageSizeFromFile(path),stat(path)]);return {width:dimensions.width,height:dimensions.height,size:file.size};}
 const client=()=>new Zalo({selfListen:true,checkUpdate:false,logging:false,imageMetadataGetter});
 function channel(id){const c=get('connections',id);if(!c||c.provider!=='zalo_personal')throw new Error('Không tìm thấy kênh Zalo cá nhân.');return c;}
@@ -26,19 +42,24 @@ export function ingestMessage(id,message,{history=false}={}){
  channel(id);const data=message?.data,thread=String(message?.threadId||''),externalId=String(data?.msgId||'');
  if(!data||!thread||!externalId)throw new Error('Tin nhắn Zalo thiếu định danh.');
  const type=message.type===ThreadType.Group?ThreadType.Group:ThreadType.User,content=parseZaloContent(data),text=content.text,at=timestamp(data.ts);
+ const existingRow=db.prepare("SELECT data FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=? AND coalesce(json_extract(data,'$.threadType'),0)=?").get(id,thread,type),existing=existingRow?JSON.parse(existingRow.data):null;
+ const tombstone=get('chat_purge_tombstones',id+':'+type+':'+thread);if(tombstone&&(at<=tombstone.cutoff||history&&(!existing||existing.deletedAt)))return false;
+ if(existing?.purgePending)return false;
  return transaction(()=>{
   const conv=conversation(id,thread,type,type===ThreadType.Group?`Nhóm Zalo ${thread}`:message.isSelf?undefined:data.dName);if(type===ThreadType.User&&!message.isSelf&&data.dName){const customer=get('customers',conv.customerId);if(customer&&!customer.nameEditedLocally&&customer.name!==data.dName)put('customers',{...customer,name:String(data.dName)});}
-  const rows=db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=?").all(conv.id,externalId);
-  if(rows.length){const previous=get('messages',rows[0].id);if(content.contactCard&&!previous.contactCard||content.sticker&&!previous.sticker)put('messages',{...previous,...content});return false;}
+  const rows=db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND (json_extract(data,'$.externalId')=? OR EXISTS (SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) WHERE json_extract(value,'$.id')=?))").all(conv.id,externalId,externalId);
+  if(rows.length){const previous=get('messages',rows[0].id);if(previous.recalledAt)return false;const patch={...(!previous.externalClientId&&previous.externalId===externalId&&data.cliMsgId?{externalClientId:String(data.cliMsgId)}:{}),...(previous.externalMessages?.some(m=>m.id===externalId&&!m.clientId)&&data.cliMsgId?{externalMessages:previous.externalMessages.map(m=>m.id===externalId?{...m,clientId:String(data.cliMsgId)}:m)}:{}),...(content.contactCard&&!previous.contactCard||content.sticker&&!previous.sticker?content:{})};if(Object.keys(patch).length)put('messages',{...previous,...patch});return false;}
   // The self echo may arrive before sendMessage resolves; match only the pending send in this conversation.
   const pending=message.isSelf&&!history?db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.direction')='outgoing' AND json_extract(data,'$.status')='sending' AND json_extract(data,'$.text')=?").all(conv.id,text):[];
-  const previous=pending.length===1?get('messages',pending[0].id):null;
-  const quoteSource=Object.fromEntries(['content','msgType','propertyExt','uidFrom','msgId','cliMsgId','ts','ttl'].map(k=>[k,data[k]]));
-  const msg=put('messages',{...previous,conversationId:conv.id,direction:message.isSelf?'outgoing':'incoming',text,externalId,externalClientId:String(data.cliMsgId||''),senderId:String(data.uidFrom||''),senderName:String(data.dName||get('zalo_profiles',id+':'+String(data.uidFrom||''))?.name||''),messageType:data.msgType||'text',...content,quoteSource,status:message.isSelf?'sent':'received',createdAt:at,sentAt:at,history});
+  const album=content.albumId?db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.albumId')=? AND json_extract(data,'$.senderId')=? AND json_extract(data,'$.direction')=?").get(conv.id,content.albumId,String(data.uidFrom||''),message.isSelf?'outgoing':'incoming'):null;
+  const previous=album?get('messages',album.id):pending.length===1?get('messages',pending[0].id):null;if(previous?.recalledAt)return false;
+  const albumPatch=album?{text:previous.text||text,externalId:previous.externalId,externalClientId:previous.externalClientId,attachments:[...new Map([...(previous.attachments||[]),...(content.attachments||[])].map(a=>[a.url,a])).values()],externalMessages:[...(previous.externalMessages||[{id:previous.externalId,clientId:previous.externalClientId}]),{id:externalId,clientId:String(data.cliMsgId||'')}],createdAt:previous.createdAt,quoteSource:previous.quoteSource}:{};
+  const quoteSource=Object.fromEntries(['mentions','content','msgType','propertyExt','uidFrom','msgId','cliMsgId','ts','ttl'].map(k=>[k,data[k]]));
+  const msg=put('messages',{...previous,conversationId:conv.id,direction:message.isSelf?'outgoing':'incoming',text,externalId,externalClientId:String(data.cliMsgId||''),senderId:String(data.uidFrom||''),senderName:String(data.dName||get('zalo_profiles',id+':'+String(data.uidFrom||''))?.name||''),messageType:data.msgType||'text',mentions:Array.isArray(data.mentions)?data.mentions.map(({uid,pos,len})=>({uid:String(uid),pos:Number(pos),len:Number(len)})):[],...content,quoteSource,status:message.isSelf?'sent':'received',createdAt:at,sentAt:at,history,...(!history&&!message.isSelf&&!previous?{pushReceivedAt:now()}:{}),...albumPatch});
   const latest=Date.parse(at)>=Date.parse(conv.lastAt||0);
   put('conversations',{...conv,...(latest?{lastMessage:text,lastAt:at}:{}),...(!history&&!message.isSelf?{deletedAt:null,archived:conv.deletedAt?false:conv.archived,unread:true,status:'open',lastInboundAt:at,waitingSince:conv.waitingSince||at}:{}),...(message.isSelf&&!history&&latest?{waitingSince:null,slaAlerted:false}:{})});
   db.prepare('INSERT OR IGNORE INTO events(id,source,received_at,payload) VALUES(?,?,?,?)').run(`zalo:${id}:${type}:${thread}:${externalId}`,id,now(),JSON.stringify({messageId:msg.id,history}));
-  if(!history&&!message.isSelf){runWorkflows('message_received',msg);captureLead(get('conversations',conv.id),msg);}
+  if(!history&&!message.isSelf&&!album){runWorkflows('message_received',msg);captureLead(get('conversations',conv.id),msg);}
   return true;
  });
 }
@@ -87,6 +108,9 @@ function startSync(id,r,options={}){if(jobs.has(id))return jobs.get(id);const jo
 export function setupListener(id,api,{autoSync=true}={}){
  const old=instances.get(id);if(old){instances.delete(id);old.api.listener.stop();}
  const r={api,ready:false};instances.set(id,r);const live=()=>instances.get(id)===r;
+ const pinEvent=event=>{if(!live())return;const data=event.data||{},thread=String(data.conversationId||data.groupId||event.threadId||'');if(!thread)return;const row=db.prepare("SELECT data FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=?").get(id,thread);if(row)void refreshZaloPins(JSON.parse(row.data),true);};
+ api.listener.on('friend_event',event=>{if([10,11].includes(event.type))pinEvent(event);});
+ api.listener.on('group_event',event=>{if(/pin|board/i.test(event.type||''))pinEvent(event);});
  api.listener.on('message',m=>{if(!live())return;try{ingestMessage(id,m);if(!m.isSelf)queueProfile(id,api,String(m.data?.uidFrom||m.threadId||''));if(/sticker/i.test(m.data?.msgType||''))queueStickerHydration(id,api);}catch{state(id,{listenerError:'Không lưu được tin Zalo; hãy đồng bộ lại.'});}});
  api.listener.on('old_messages',batch=>{if(!live())return;try{for(const m of batch)ingestMessage(id,m,{history:true});if(batch.some(m=>/sticker/i.test(m.data?.msgType||'')))queueStickerHydration(id,api);}catch{r.historyError='Không lưu được một phần lịch sử Zalo.';syncState(id,{status:'failed',error:r.historyError});}});
  api.listener.on('connected',()=>{if(live())state(id,{status:'connected',mode:'api',listenerState:'waiting_key',verifiedAt:now(),listenerError:''});});
@@ -112,7 +136,7 @@ export async function createQR(id){
 async function resume(id){const sess=secret(`zalo_session_${id}`);if(!sess.cookie)throw new Error('Chưa có phiên Zalo. Hãy quét QR.');const api=await client().login(sess);return setupListener(id,api);}
 export async function recoverSessions(){for(const c of all('connections').filter(c=>c.provider==='zalo_personal'&&c.mode==='api'&&c.status!=='disconnected')){try{await resume(c.id);}catch{state(c.id,{status:'error',listenerError:'Không khôi phục được phiên. Hãy quét QR lại.'});}}}
 export async function forceSync(id,options={}){channel(id);const r=instances.get(id)||await resume(id);startGroupNames(id,r.api);repairProfileNames(id,r.api);startSync(id,r,options);return {success:true,message:'Đã bắt đầu đồng bộ danh bạ và lịch sử. Xem tiến độ trên thẻ kênh.',sync:channel(id).zaloSync};}
-export async function sendMessage(id,thread,text,type=ThreadType.User,options={}){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');const result=await r.api.sendMessage({msg:text,...options},thread,type);return {id:String(result.message?.msgId||result.attachment?.[0]?.msgId||''),clientId:String(result.message?.cliMsgId||'')};}
+export async function sendMessage(id,thread,text,type=ThreadType.User,options={}){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');const result=await r.api.sendMessage({msg:text,...options},thread,type);const externalMessages=[result?.message,...(result?.attachment||[])].filter(m=>m?.msgId).map(m=>({id:String(m.msgId),clientId:String(m.cliMsgId||'')}));if(!externalMessages.length)throw Object.assign(Error('Zalo chưa trả mã xác nhận gửi. Kiểm tra trên kênh trước khi gửi lại.'),{unknown:true});return {id:externalMessages[0].id,clientId:externalMessages[0].clientId,externalMessages};}
 export async function groupDetails(id,thread){
  const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng. Hãy kết nối lại.');
  const response=await r.api.getGroupInfo(thread),g=response.gridInfoMap?.[thread];if(!g)throw new Error('Zalo không trả thông tin nhóm.');
@@ -180,3 +204,5 @@ export async function syncCommonGroups(id,thread){
  if(ids.length){const info=await r.api.getGroupInfo(ids);for(const uid of ids){const g=info.gridInfoMap?.[uid];if(!g)continue;const c=conversation(id,String(uid),1,g.name);put('conversations',{...c,title:c.localGroupName?c.title:g.name,group:{...c.group,name:g.name,memberCount:g.totalMember,memberIds:[...new Set([...(g.memberIds||[]),...(g.memVerList||[]).map(v=>v.split('_')[0])])]},groupNeedsSync:!c.group?.members?.length});}}
  const contact=all('conversations').find(c=>c.connectionId===id&&c.threadType!==1&&String(c.externalUserId)===String(thread));if(contact)put('conversations',{...contact,commonGroupIds:ids.map(String),commonGroupsSyncedAt:now()});return ids;
 }
+
+export async function recallMessage(id,thread,type,msgId,cliMsgId){const r=instances.get(id);if(!r?.ready)throw new Error('Zalo chưa sẵn sàng.');const result=await r.api.undo({msgId:String(msgId),cliMsgId:String(cliMsgId)},String(thread),type===1?ThreadType.Group:ThreadType.User);if(result==null)throw new Error('Zalo chưa xác nhận thu hồi. Kiểm tra tin nhắn trên kênh.');return result;}

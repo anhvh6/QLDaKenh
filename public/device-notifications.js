@@ -1,6 +1,12 @@
 let H,audio,syncing=false,lastSync=0,lastUser='',connectionStatus=null;
 const key=()=> 'hub-device-notifications-'+H.getS()?.user?.id;
 const preferences=()=>{try{return JSON.parse(localStorage.getItem(key())||'{}');}catch{return {};}};
+async function ensureSubscription(registration,force=false){
+ const config=await H.api('/push/config'),raw=atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')),publicKey=Uint8Array.from(raw,c=>c.charCodeAt(0));
+ let sub=await registration.pushManager.getSubscription();const previous=sub?.options?.applicationServerKey;
+ if(sub&&(force||previous&&Array.from(new Uint8Array(previous)).join(',')!==Array.from(publicKey).join(','))){await sub.unsubscribe();sub=null;}
+ return sub||registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:publicKey});
+}
 export function initDeviceNotifications(h){H=h;document.addEventListener('click',async event=>{
  const button=event.target.closest('[data-device-notifications]');if(!button)return;
  button.disabled=true;
@@ -10,10 +16,10 @@ export function initDeviceNotifications(h){H=h;document.addEventListener('click'
   if(action==='enable'){
    if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))throw Error('Hãy cài ứng dụng / thêm vào Màn hình chính rồi mở lại để bật thông báo.');
    const allowed=await Notification.requestPermission();if(allowed!=='granted')throw Error('Chưa được cấp quyền. Hãy cho phép thông báo trong cài đặt trình duyệt/thiết bị.');
-   const registration=await navigator.serviceWorker.ready,config=await H.api('/push/config');
-   let sub=await registration.pushManager.getSubscription();
-   if(!sub){const raw=atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/'));sub=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:Uint8Array.from(raw,c=>c.charCodeAt(0))});}
-   await H.api('/push/subscribe',{method:'POST',body:{subscription:sub.toJSON(),preferences:preferences()}});localStorage.setItem(key()+'-enabled','true');localStorage.removeItem(key()+'-disabled');H.toast('Đã bật thông báo trên thiết bị này.');
+   const registration=await navigator.serviceWorker.ready;let sub=await ensureSubscription(registration);
+   const status=await H.api('/push/status',{method:'POST',body:{endpoint:sub.endpoint}});if(status.needsRenewal)sub=await ensureSubscription(registration,true);
+   await H.api('/push/subscribe',{method:'POST',body:{subscription:sub.toJSON(),preferences:preferences()}});localStorage.setItem(key()+'-enabled','true');localStorage.removeItem(key()+'-disabled');
+   await H.api('/push/test',{method:'POST',body:{endpoint:sub.endpoint}});H.toast('Đã đăng ký và gửi thông báo thử tới thiết bị này.');
   }else if(action==='disable'){
    await disableDeviceNotifications();H.toast('Đã tắt thông báo trên thiết bị này.');
   }else if(action==='save'){
@@ -39,11 +45,12 @@ export async function syncDeviceNotifications(force=false){
  try{
   if(localStorage.getItem(key()+'-disabled')==='true'||!('PushManager' in window)||globalThis.Notification?.permission!=='granted'){connectionStatus={registered:false};return;}
   const registration=await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(Error('Service worker chưa sẵn sàng.')),12000))]);
-  const sub=await registration.pushManager.getSubscription();if(!sub){localStorage.removeItem(key()+'-enabled');connectionStatus={registered:false};return;}
+  let sub=await registration.pushManager.getSubscription();if(!sub){localStorage.removeItem(key()+'-enabled');connectionStatus={registered:false};return;}
+  sub=await ensureSubscription(registration);
   let status=await H.api('/push/status',{method:'POST',body:{endpoint:sub.endpoint}});if(H.getS()?.user?.id!==user)return;
-  if(!status.registered){await H.api('/push/subscribe',{method:'POST',body:{subscription:sub.toJSON(),preferences:preferences()}});status={registered:true};}
+  if(!status.registered){if(status.needsRenewal)sub=await ensureSubscription(registration,true);await H.api('/push/subscribe',{method:'POST',body:{subscription:sub.toJSON(),preferences:preferences()}});status={registered:true};}
   connectionStatus=status;localStorage.setItem(key()+'-enabled','true');
  }catch(error){connectionStatus={registered:false,error:error.message};}finally{syncing=false;const node=document.querySelector('#device-push-status');if(node)node.textContent=pushStatusText();}
 }
 function pushStatusText(){if(connectionStatus?.error)return connectionStatus.error;return connectionStatus?.registered?'Thiết bị đã đăng ký với máy chủ'+(connectionStatus.lastDeliveredAt?' · Lần gửi thành công: '+new Date(connectionStatus.lastDeliveredAt).toLocaleString('vi-VN'):''):'Thiết bị chưa đăng ký với máy chủ. Nhấn Bật thông báo và cấp quyền để nhận tin.';}
-export function notificationSound(){if(preferences().sound===false||localStorage.getItem(key()+'-enabled')==='true'||document.visibilityState!=='visible'||!audio)return;const oscillator=audio.createOscillator(),gain=audio.createGain();oscillator.connect(gain);gain.connect(audio.destination);oscillator.frequency.value=660;gain.gain.setValueAtTime(.08,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.18);oscillator.start();oscillator.stop(audio.currentTime+.18);}
+export function notificationSound(){if(preferences().sound===false||document.visibilityState!=='visible'||!audio)return;audio.resume().catch(()=>{});const oscillator=audio.createOscillator(),gain=audio.createGain();oscillator.connect(gain);gain.connect(audio.destination);oscillator.frequency.value=660;gain.gain.setValueAtTime(.08,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.18);oscillator.start();oscillator.stop(audio.currentTime+.18);}

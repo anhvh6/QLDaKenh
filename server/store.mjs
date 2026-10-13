@@ -13,6 +13,10 @@ export const db = new DatabaseSync(join(dataDir, 'hub.sqlite'));
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
 CREATE TABLE IF NOT EXISTS records(kind TEXT NOT NULL,id TEXT NOT NULL,data TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,updated_at TEXT NOT NULL,PRIMARY KEY(kind,id));
 CREATE INDEX IF NOT EXISTS idx_records_kind_updated ON records(kind,updated_at);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON records(json_extract(data,'$.conversationId')) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_messages_live_revision ON records(json_extract(data,'$.conversationId'),id,version) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_messages_live_order ON records(json_extract(data,'$.conversationId'),json_extract(data,'$.createdAt'),id) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_zalo_conversation ON records(json_extract(data,'$.connectionId'),json_extract(data,'$.externalUserId'),coalesce(json_extract(data,'$.threadType'),0)) WHERE kind='conversations';
 CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,password TEXT NOT NULL,active INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),csrf TEXT NOT NULL,expires INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS secrets(id TEXT PRIMARY KEY,value TEXT NOT NULL);
@@ -21,33 +25,27 @@ CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,source TEXT NOT NULL,recei
 CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,entity TEXT,detail TEXT,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL);
 INSERT OR IGNORE INTO migrations VALUES(1,datetime('now'));`);
+db.exec(`CREATE TABLE IF NOT EXISTS record_revision(id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER NOT NULL);
+INSERT OR IGNORE INTO record_revision VALUES(1,0);
+CREATE TRIGGER IF NOT EXISTS records_revision_insert AFTER INSERT ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS records_revision_update AFTER UPDATE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS records_revision_delete AFTER DELETE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;`);
+export const recordRevision=()=>db.prepare('SELECT value FROM record_revision WHERE id=1').get().value;
+// Channel sync timestamps/progress must not broadcast a full CRM refresh.
+db.exec(`CREATE TABLE IF NOT EXISTS state_revision(id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER NOT NULL);
+INSERT OR IGNORE INTO state_revision VALUES(1,0);
+CREATE TRIGGER IF NOT EXISTS state_revision_insert AFTER INSERT ON records WHEN NEW.kind!='push_subscriptions' BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS state_revision_delete AFTER DELETE ON records WHEN OLD.kind!='push_subscriptions' BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS state_revision_update AFTER UPDATE ON records WHEN NEW.kind!='push_subscriptions' AND (NEW.kind!='connections' OR
+ json_extract(NEW.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error') IS NOT json_extract(OLD.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error'))
+ BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;`);
+export const stateRevision=()=>db.prepare('SELECT value FROM state_revision WHERE id=1').get().value;
 export const uid = (prefix='id') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();
-import syncFetch from 'sync-fetch';
+import {supabaseAuth} from './supabase-auth.mjs';
 export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://aqtnzvqyljweppklblni.supabase.co';
 export const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uHPer_Bt1RR9DutO4vcG3w_MUVligrK';
-let cachedToken = null;
-let tokenExpiresAt = 0;
-
-export function getSupabaseHeaders() {
-  if (Date.now() > tokenExpiresAt) {
-    const authRes = syncFetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
-      method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: process.env.SUPABASE_SYSTEM_EMAIL || 'anhvh@gmail.com', password: process.env.SUPABASE_SYSTEM_PASSWORD || 'Ttdt123a@' })
-    });
-    if (authRes.status !== 200) throw new Error('Supabase Auth Failed');
-    const auth = authRes.json();
-    cachedToken = auth.access_token;
-    tokenExpiresAt = Date.now() + ((auth.expires_in - 60) * 1000);
-  }
-  return {
-    'apikey': SUPABASE_KEY,
-    'Authorization': 'Bearer ' + cachedToken,
-    'Content-Type': 'application/json',
-    'Prefer': 'resolution=merge-duplicates'
-  };
-}
+export const getSupabaseHeaders=supabaseAuth({url:SUPABASE_URL,key:SUPABASE_KEY,email:process.env.SUPABASE_SYSTEM_EMAIL || 'anhvh@gmail.com',password:process.env.SUPABASE_SYSTEM_PASSWORD || 'Ttdt123a@'});
 
 db.exec(readFileSync(new URL('../docs/chat-crm-storage.sqlite.sql',import.meta.url),'utf8'));
 
@@ -69,7 +67,7 @@ export function put(kind, data, expected) {
   if(kind==='messages'&&!prev&&data.direction==='incoming'&&data.history!==true)record.pushReceivedAt=now();
   delete record.version;
   const newVersion = prev ? prev.version + 1 : 1;
-  db.prepare('INSERT OR REPLACE INTO records(kind, id, data, version, updated_at) VALUES(?,?,?,?,?)').run(kind, id, JSON.stringify(record), newVersion, record.updatedAt);
+  db.prepare('INSERT INTO records(kind, id, data, version, updated_at) VALUES(?,?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data,version=excluded.version,updated_at=excluded.updated_at').run(kind, id, JSON.stringify(record), newVersion, record.updatedAt);
   return get(kind, id);
 }
 

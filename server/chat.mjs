@@ -1,25 +1,31 @@
-import {readContactCard} from './zalo.mjs';
+import {createHash} from 'node:crypto';
+import {studentOverview} from '../public/student-overview.js';
+import {linkPreview} from './chat-link-preview.mjs';
+import {consultationRoute} from './consultation-review.mjs';
+import {readContactCard,refreshZaloPins,changeZaloPin} from './zalo.mjs';
 import {createChatReminder} from './chat-reminders.mjs';
 import {sendContactCard} from './zalo.mjs';
-import {deleteChats} from './chat-delete.mjs';
+import {purgeChats,purgePreview} from './customer-purge.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 import {all,get,put,db,transaction,audit,now} from './store.mjs';
 import {permission,fail,required,reply} from './domain.mjs';
-import {assertChannel} from './taophacdo.mjs';
+import {assertChannel,permittedChannels} from './taophacdo.mjs';
 import {groupDetails,changeGroup,newGroup,friendAction,openPhoneConversation} from './zalo.mjs';
 import {defaultNameSettings,nameConditions} from '../public/chat-names.js';
 const groupJobs=new Set();
 const friendJobs=new Set();
 
+import {assertCareConversation,validateCareStaff} from './student-care.mjs';
 export function chatConversation(user,id){
  permission(user,'inbox');const c=get('conversations',id);
  if(!c||c.deletedAt||c.kind==='comment')fail('Không tìm thấy hội thoại chat.',404);
- assertChannel(user,c.connectionId);return c;
+ assertChannel(user,c.connectionId);assertCareConversation(user,c);return c;
 }
 export function patchChat(user,id,input){
  const c=chatConversation(user,id);if(input.version!==c.version)fail('Hội thoại đã thay đổi. Hãy tải lại.',409);
  const next={...c};
+ if(input.dismissCareTask===true){const tasks=[...all('staff_handoffs').filter(t=>t.conversationId===c.id&&t.assignedStaffId===user.id),...all('chat_reminders').filter(t=>t.conversationId===c.id&&t.assignee===user.id)];if(tasks.some(t=>!['done','resolved','completed','cancelled'].includes(t.status)&&!t.completedAt))fail('Hãy hoàn thành nhắc việc trước khi ẩn hội thoại.');next.careTaskDismissed={...c.careTaskDismissed,[user.id]:now()};}
  for(const key of ['pinned','archived','unread'])if(input[key]!==undefined){if(typeof input[key]!=='boolean')fail('Giá trị không hợp lệ.');next[key]=input[key];}
  if(input.status!==undefined){if(!['open','pending','resolved'].includes(input.status))fail('Trạng thái không hợp lệ.');next.status=input.status;}
  if(input.tags!==undefined){if(!Array.isArray(input.tags)||input.tags.length>30||input.tags.some(t=>typeof t!=='string'||t.length>40))fail('Nhãn không hợp lệ.');next.tags=[...new Set(input.tags)];}
@@ -28,15 +34,38 @@ export function patchChat(user,id,input){
   if(!Array.isArray(ids)||ids.length>20)fail('Danh sách nhân viên không hợp lệ.');
   for(const uid of ids){const u=db.prepare('SELECT id,role FROM users WHERE id=? AND active=1').get(uid);if(!u)fail('Nhân viên không tồn tại.');permission(u,'inbox');assertChannel(u,c.connectionId);}
   next.assigneeIds=[...new Set(ids)];next.assignee=next.assigneeIds[0]||'';
+  next.notificationAssignment='manual';
  }
+ if(input.notificationAssignment!==undefined){if(!['stage','manual'].includes(input.notificationAssignment))fail('Chế độ phân công không hợp lệ.');next.notificationAssignment=input.notificationAssignment;if(input.notificationAssignment==='stage'){next.assigneeIds=[];next.assignee='';}}
+ if(input.carePermissions!==undefined){next.carePermissions=validateCareStaff({staffPermissions:input.carePermissions}).staffPermissions;}
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
-export async function chatRoute(path,method,input,user){
- if(path==='/api/chat/delete'&&method==='POST')return deleteChats(user,input);
+export async function chatRoute(path,method,input,user,url){
+ if(path==='/api/chat/conversation-presence'&&method==='POST'){
+  permission(user,'inbox');if(!Array.isArray(input.ids)||input.ids.length>5000||input.ids.some(id=>typeof id!=='string'))fail('Danh sách hội thoại không hợp lệ.');
+  const allowed=permittedChannels(user),rows=db.prepare("SELECT id,json_extract(data,'$.connectionId') AS channel FROM records WHERE kind='conversations' AND id IN (SELECT value FROM json_each(?)) AND json_extract(data,'$.deletedAt') IS NULL AND coalesce(json_extract(data,'$.purgePending'),0)=0").all(JSON.stringify(input.ids)),visible=new Set(rows.filter(r=>!allowed||allowed.has(r.channel)).map(r=>r.id));
+  return {removedIds:input.ids.filter(id=>!visible.has(id))};
+ }
+ const unpin=path.match(/^\/api\/chat\/conversations\/([^/]+)\/platform-pins\/([^/]+)$/);
+ if(unpin&&method==='DELETE'){const c=chatConversation(user,unpin[1]);await changeZaloPin(c,null,false,decodeURIComponent(unpin[2]));audit(user.id,'zalo_message_unpinned',c.id,{topicId:unpin[2]});return get('conversations',c.id);}
+ const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
+ if(live&&method==='GET'){
+  const conversation=chatConversation(user,live[1]);
+  void refreshZaloPins(conversation);
+  // Check a covering index before loading potentially large media/quote payloads.
+  const rows=db.prepare("SELECT id,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY id").all(conversation.id);
+  const revision=createHash('sha256').update(JSON.stringify(conversation)).update(JSON.stringify(rows.map(r=>[r.id,r.version]))).digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
+  const messages=db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY json_extract(data,'$.createdAt'),id").all(conversation.id).map(r=>({...JSON.parse(r.data),id:r.id,version:r.version}));return {conversation,messages,revision};
+ }
+ const preview=path.match(/^\/api\/chat\/messages\/([^/]+)\/link-preview$/);if(preview&&method==='POST'){const m=get('messages',preview[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);return linkPreview(m,input.url);}
+
+ const review=consultationRoute(path,method,input,user);if(review!==undefined)return review;
+ if(path==='/api/chat/delete/preview'&&method==='POST')return purgePreview(user,input);
+ if(path==='/api/chat/delete'&&method==='POST')return purgeChats(user,input);
  let taskMatch=path.match(/^\/api\/chat\/conversations\/([^/]+)\/(task-staff|staff-tasks)$/);
  if(taskMatch){const c=chatConversation(user,taskMatch[1]);const staff=db.prepare('SELECT id,name,role,active FROM users WHERE active=1').all().filter(u=>['owner','manager','support'].includes(u.role)).filter(u=>{try{assertChannel(u,c.connectionId);return true;}catch{return false;}});
  if(taskMatch[2]==='task-staff'&&method==='GET')return {users:staff.map(({id,name})=>({id,name}))};
- if(taskMatch[2]==='staff-tasks'&&method==='POST'){if(input.version!==c.version)fail('Hội thoại vừa thay đổi, hãy tải lại.',409);if(!staff.some(u=>u.id===input.assignedStaffId))fail('Nhân viên không có quyền xử lý kênh này.',403);const message=input.messageId?get('messages',input.messageId):null;if(input.messageId&&(!message||message.deletedAt||message.conversationId!==c.id||!['incoming','outgoing','note'].includes(message.direction)))fail('Tin nhắn nhắc việc phải thuộc hội thoại này.');const text=String(input.text||'').trim();if(text.length>5000||(!text&&!message))fail('Nhập nội dung cần xử lý.');const task=put('staff_handoffs',{source:'mention',conversationId:c.id,customerId:c.customerId,assignedStaffId:input.assignedStaffId,actor:user.id,messageId:message?.id||null,questions:message?[{id:message.id,text:message.text,createdAt:message.createdAt}]:[],reason:text||'Xử lý tin nhắn được nhắc',status:'open'});audit(user.id,'mention_task_created',task.id);return task;}}
+ if(taskMatch[2]==='staff-tasks'&&method==='POST'){if(input.version!==c.version)fail('Hội thoại vừa thay đổi, hãy tải lại.',409);if(!staff.some(u=>u.id===input.assignedStaffId))fail('Nhân viên không có quyền xử lý kênh này.',403);const message=input.messageId?get('messages',input.messageId):null;if(input.messageId&&(!message||message.deletedAt||message.conversationId!==c.id||!['incoming','outgoing','note'].includes(message.direction)))fail('Tin nhắn nhắc việc phải thuộc hội thoại này.');const text=String(input.text||'').trim();if(text.length>5000||(!text&&!message))fail('Nhập nội dung cần xử lý.');const task=put('staff_handoffs',{source:'mention',conversationId:c.id,customerId:c.customerId,assignedStaffId:input.assignedStaffId,actor:user.id,messageId:message?.id||null,questions:message?[{id:message.id,text:message.text,createdAt:message.createdAt}]:[],reason:text||'Xử lý tin nhắn được nhắc',status:'open'});put('notifications',{id:'chat-reminder:task:'+task.id,title:'Nhắc việc mới',body:task.reason,route:'inbox',conversationId:c.id,recipientId:task.assignedStaffId,read:false});audit(user.id,'mention_task_created',task.id);return task;}}
 
  const retryMatch=path.match(/^\/api\/chat\/messages\/([^/]+)\/retry$/);
  if(retryMatch&&method==='POST'){
@@ -52,7 +81,7 @@ export async function chatRoute(path,method,input,user){
  if(progressMatch&&method==='POST'){
   const c=chatConversation(user,progressMatch[1]);if(c.threadType===1)fail('Chọn hồ sơ học viên cụ thể, không gán tiến trình cho cả nhóm.');
   const p=get('customers',c.customerId);if(!p)fail('Không tìm thấy khách.',404);if(input.customerVersion!==p.version)fail('Hồ sơ đã thay đổi. Mở lại tiến trình.',409);
-  if(!learnerStages[input.stage])fail('Tiến trình không hợp lệ.');const note=String(input.note||'').trim();if(note.length>2000)fail('Ghi chú quá dài.');
+  if(['NEW','APPOINTMENT','CONSULTED'].includes(input.stage)&&!studentOverview({customers:all('customers'),conversations:all('conversations'),messages:all('messages')},p).hasHistory)fail('Tiến trình tư vấn cần có lịch sử chat.');if(!learnerStages[input.stage])fail('Tiến trình không hợp lệ.');const note=String(input.note||'').trim();if(note.length>2000)fail('Ghi chú quá dài.');
   const current=progressFor({journeys:all('journeys'),orders:all('orders'),chatPlanSummaries:all('study_plans').map(r=>{const o=get('orders',r.lastOrderId);return {customerId:r.customerId,startDate:r.customer?.start_date,endDate:r.customer?.end_date,status:studyPlanStatus(r,o)};}),chatNameSettings:get('settings','chat-names')},p);
   if(['STUDYING','EXPIRING','EXPIRED'].includes(input.stage)&&(current.source!=='plan'||current.stage!==input.stage))fail('Bước học phải khớp phác đồ đã kích hoạt và thời hạn. Hãy cập nhật phác đồ trước.');
   if(current.source==='plan'&&input.stage!==current.stage)fail('Phác đồ đang xác định tiến trình. Cập nhật phác đồ trước khi chuyển bước.');
@@ -68,7 +97,7 @@ export async function chatRoute(path,method,input,user){
   const prev=get('settings','chat-names');if(input.version!==(prev?.version||0))fail('Cấu hình đã thay đổi. Hãy tải lại.',409);
   if(!Number.isInteger(input.expiringDays)||input.expiringDays<1||input.expiringDays>90)fail('Ngưỡng sắp hết hạn phải từ 1–90 ngày.');
   if(!Array.isArray(input.rules)||input.rules.length>50)fail('Tối đa 50 quy tắc.');
-  const ids=new Set(),rules=input.rules.map(r=>{if(!r||typeof r!=='object')fail('Quy tắc không hợp lệ.');if(typeof r.id!=='string'||! /^[a-zA-Z0-9_-]{1,100}$/.test(r.id)||ids.has(r.id))fail('Mã quy tắc không hợp lệ hoặc trùng.');ids.add(r.id);if(!Object.hasOwn(nameConditions,r.condition)||!/^#[0-9a-f]{6}$/i.test(r.color)||typeof r.enabled!=='boolean')fail('Điều kiện hoặc màu không hợp lệ.');return {id:r.id,label:required(r.label,'Tên trạng thái',80),color:r.color,condition:r.condition,enabled:r.enabled,value:r.condition==='tag'?required(r.value,'Tên nhãn',40):''};});
+  const ids=new Set(),rules=input.rules.map(r=>{if(!r||typeof r!=='object')fail('Quy tắc không hợp lệ.');if(typeof r.id!=='string'||! /^[a-zA-Z0-9_-]{1,100}$/.test(r.id)||ids.has(r.id))fail('Mã quy tắc không hợp lệ hoặc trùng.');ids.add(r.id);if(!Object.hasOwn(nameConditions,r.condition)||!/^#[0-9a-f]{6}$/i.test(r.color)||typeof r.enabled!=='boolean')fail('Điều kiện hoặc màu không hợp lệ.');return {id:r.id,label:required(r.label,'Tên trạng thái',80),color:r.color,condition:r.condition,enabled:r.enabled,...validateCareStaff(r),value:r.condition==='tag'?required(r.value,'Tên nhãn',40):''};});
   const result=put('settings',{id:defaultNameSettings.id,expiringDays:input.expiringDays,rules},prev?.version);audit(user.id,'chat_name_settings_updated',result.id);return result;
  }
  const cardDetails=path.match(/^\/api\/chat\/messages\/([^/]+)\/card$/);if(cardDetails&&method==='GET'){const m=get('messages',cardDetails[1]);if(!m||m.deletedAt||!m.contactCard)fail('Không tìm thấy danh thiếp.',404);const c=chatConversation(user,m.conversationId);if(m.contactCard.qrCodeImage&&m.contactCard.phone)return m.contactCard;const contact=m.contactId?get('conversations',m.contactId):null,person=contact?.connectionId===c.connectionId?get('customers',contact.customerId):null;const card=await readContactCard(c.connectionId,m.contactCard.userId||(person?contact.externalUserId:''),{...m.contactCard,phone:m.contactCard.phone||person?.phone||'',avatar:m.contactCard.avatar||person?.zaloAvatar||person?.avatar||''});const current=get('messages',m.id);if(current&&!current.deletedAt)put('messages',{...current,contactCard:card});return card;}
@@ -138,7 +167,7 @@ export async function chatRoute(path,method,input,user){
   if(!contact||contact.deletedAt||contact.threadType===1||contact.connectionId!==c.connectionId||!contact.externalUserId||contact.isFriend!==true)fail('Chọn bạn bè trên cùng kênh.');
   if(input.version!==c.version)fail('Hội thoại đã thay đổi.',409);
   const p=get('customers',contact.customerId),card=await readContactCard(c.connectionId,contact.externalUserId,{name:p?.name,phone:p?.phone,avatar:p?.zaloAvatar||p?.avatar}),message=put('messages',{conversationId:c.id,direction:'outgoing',senderType:'human',senderId:user.id,text:'[Danh thiếp] '+(p?.name||contact.externalUserId),status:'sending',contactId:contact.id,messageType:'chat.recommended',contactCard:card});
-  try{const sent=await sendContactCard(c.connectionId,c.externalUserId,c.threadType,contact.externalUserId,card.phone||'');if(!sent?.msgId)throw Error('Zalo không trả mã tin danh thiếp.');put('conversations',{...get('conversations',c.id),lastMessage:message.text,lastAt:now()});audit(user.id,'chat_contact_card',message.id);return put('messages',{...message,status:'sent',externalId:String(sent.msgId)});}catch(err){put('messages',{...message,status:'unknown',error:String(err.message).slice(0,500)});fail('Chưa xác nhận gửi danh thiếp. Kiểm tra trên Zalo trước khi gửi lại.',502);}
+  try{const sent=await sendContactCard(c.connectionId,c.externalUserId,c.threadType,contact.externalUserId,card.phone||'');if(!sent?.msgId)throw Error('Zalo không trả mã tin danh thiếp.');put('conversations',{...get('conversations',c.id),lastMessage:message.text,lastAt:now()});audit(user.id,'chat_contact_card',message.id);return put('messages',{...message,status:'sent',externalId:String(sent.msgId)});}catch(err){put('messages',{...message,status:'unknown',error:String(err.message).slice(0,500)});const error=Object.assign(new Error('Chưa xác nhận gửi danh thiếp. Kiểm tra trên Zalo trước khi gửi lại.'),{status:502,unknown:true});throw error;}
  }
  match=path.match(/^\/api\/chat\/conversations\/([^/]+)\/reminders$/);
  if(match&&method==='POST'){
@@ -154,9 +183,13 @@ export async function chatRoute(path,method,input,user){
  match=path.match(/^\/api\/chat\/messages\/([^/]+)$/);
  if(match&&method==='PATCH'){
   const m=get('messages',match[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);
-  if(input.version!==m.version)fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
+  if(input.version!==m.version&&!(typeof input.expectedPinned==='boolean'&&Boolean(m.pinned)===input.expectedPinned))fail('Tin nhắn đã thay đổi. Hãy tải lại.',409);
   if(typeof input.pinned!=='boolean')fail('Trạng thái ghim không hợp lệ.');
-  return put('messages',{...m,pinned:input.pinned,pinnedBy:input.pinned?user.id:null},input.version);
+  const c=chatConversation(user,m.conversationId),ch=get('connections',c.connectionId);
+  if(ch?.provider==='zalo_personal'&&ch.mode==='api'&&m.direction!=='note'){
+   await changeZaloPin(c,m,input.pinned);const current=get('messages',m.id);audit(user.id,input.pinned?'zalo_message_pinned':'zalo_message_unpinned',m.id);return put('messages',{...current,pinned:false,pinnedBy:null},current.version);
+  }
+  return put('messages',{...m,pinned:input.pinned,pinnedBy:input.pinned?user.id:null},m.version);
  }
  fail('Chức năng chat không tồn tại.',404);
 }

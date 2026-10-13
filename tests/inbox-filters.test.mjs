@@ -12,3 +12,14 @@ test('waiting reply queue uses persisted waiting state, not unread or conversati
 test('queue tabs still respect search and archive filters',()=>{assert.equal(filterThreads(state,'no match','action-needed').length,0);const updated=structuredClone(state);updated.conversations.find(c=>c.id==='ai').archived=true;assert.deepEqual(filterThreads(updated,'','action-needed').map(c=>c.id).sort(),['mention']);});
 
 test('action queue excludes unassigned tasks even for owner',()=>{const updated=structuredClone(state);updated.staffHandoffs.push({conversationId:'personal',status:'open',assignedStaffId:null});assert.deepEqual(filterThreads(updated,'','action-needed').map(c=>c.id).sort(),['ai','mention']);});
+
+test('disconnected channels are hidden across every queue and reappear on reconnect',()=>{const updated=structuredClone(state);updated.connections=[{id:'offline',status:'disconnected'},{id:'live',status:'connected'}];for(const c of updated.conversations)c.connectionId='offline';updated.conversations.find(c=>c.id==='personal').connectionId='live';for(const [key] of inboxTabs)assert.ok(filterThreads(updated,'',key).every(c=>c.connectionId==='live'));updated.connections[0].status='connected';assert.equal(filterThreads(updated).length,state.conversations.length);});
+
+test('error, stopped, reconnecting, missing and configured channels never expose chats',()=>{
+ const updated=structuredClone(state);for(const c of updated.conversations)c.connectionId='channel';
+ for(const ch of [{status:'error'},{status:'reconnecting'},{status:'configured'},{status:'connected',provider:'zalo_personal',listenerState:'stopped'}]){
+  updated.connections=[{id:'channel',...ch}];assert.equal(filterThreads(updated).length,0);
+ }
+ updated.connections=[];assert.equal(filterThreads(updated).length,0);
+ updated.connections=[{id:'channel',status:'connected',provider:'zalo_personal',listenerState:'listening'}];assert.equal(filterThreads(updated).length,state.conversations.length);
+});
