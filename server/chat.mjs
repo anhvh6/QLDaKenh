@@ -1,3 +1,4 @@
+import { syncFacebookChat } from './facebook-chat.mjs';
 import {createHash} from 'node:crypto';
 import {studentOverview} from '../public/student-overview.js';
 import {linkPreview} from './chat-link-preview.mjs';
@@ -41,6 +42,25 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user,url){
+ if(path==='/api/chat/channel-status'&&method==='GET'){
+  permission(user,'read');return all('connections').filter(c=>{try{assertChannel(user,c.id);return c.status==='connected';}catch{return false;}}).map(c=>({id:c.id,provider:c.provider,name:c.name,messaging:!!['facebook','zalo','zalo_personal'].includes(c.provider),sync:get('facebook_chat_sync',c.id)||null}));
+ }
+ const syncChannel=path.match(/^\/api\/chat\/channels\/([^/]+)\/sync$/);
+ if(syncChannel&&method==='POST'){permission(user,'inbox');assertChannel(user,syncChannel[1]);const ch=get('connections',syncChannel[1]);if(ch?.provider!=='facebook')fail('Kênh này chưa hỗ trợ đồng bộ Messenger.');void syncFacebookChat(ch).catch(()=>{});return {started:true};}
+
+ if(path==='/api/chat/filter-preferences'&&['GET','POST'].includes(method)){
+  permission(user,'read');const id='chat-filter-'+user.id;
+  if(method==='GET')return {filters:get('settings',id)?.filters||null};
+  const filters=input.filters;if(!filters||typeof filters!=='object'||Array.isArray(filters)||JSON.stringify(filters).length>12000)fail('Bộ lọc không hợp lệ.');
+  if(filters.connectionIds!==null&&(!Array.isArray(filters.connectionIds)||filters.connectionIds.length>100||filters.connectionIds.some(id=>typeof id!=='string')))fail('Danh sách kênh không hợp lệ.');
+  for(const key of ['tags','assignees'])if(filters[key]!==undefined&&(!Array.isArray(filters[key])||filters[key].length>100||filters[key].some(v=>typeof v!=='string'||v.length>200)))fail('Điều kiện lọc không hợp lệ.');
+  const enums={type:['all','personal','group','stranger'],phone:['all','yes','no'],reply:['all','waiting','read-waiting'],archive:['active','archived','all'],sort:['newest','oldest','waiting'],dateField:['lastAt','createdAt'],tagMode:['any','all'],assigneeMode:['any','all']};
+  for(const [key,values] of Object.entries(enums))if(filters[key]!==undefined&&!values.includes(filters[key]))fail('Điều kiện lọc không hợp lệ.');
+  for(const channel of filters.connectionIds||[])assertChannel(user,channel);
+  const saved=Object.fromEntries(Object.entries(filters).filter(([key])=>['type','phone','reply','archive','pinned','connectionIds','tags','tagMode','assignees','assigneeMode','dateField','from','to','sort','customerId'].includes(key)));
+  put('settings',{id,filters:saved});return {filters:saved};
+ }
+
  if(path==='/api/chat/conversation-presence'&&method==='POST'){
   permission(user,'inbox');if(!Array.isArray(input.ids)||input.ids.length>5000||input.ids.some(id=>typeof id!=='string'))fail('Danh sách hội thoại không hợp lệ.');
   const allowed=permittedChannels(user),rows=db.prepare("SELECT id,json_extract(data,'$.connectionId') AS channel FROM records WHERE kind='conversations' AND id IN (SELECT value FROM json_each(?)) AND json_extract(data,'$.deletedAt') IS NULL AND coalesce(json_extract(data,'$.purgePending'),0)=0").all(JSON.stringify(input.ids)),visible=new Set(rows.filter(r=>!allowed||allowed.has(r.channel)).map(r=>r.id));

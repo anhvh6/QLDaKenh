@@ -1,3 +1,4 @@
+import { ingestFacebookEvents, facebookChatTick } from './facebook-chat.mjs';
 import { publicationPreflight } from './publish-preflight.mjs';
 import { resumePurges } from './customer-purge.mjs';
 import { completeDriveOAuth } from './drive-oauth.mjs';
@@ -95,7 +96,7 @@ async function dispatch(req, res, url, user, input) {
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user };
     void refreshLearnerStatuses();
-    const state = { user, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = all(k); }
+    const state = { user, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = all(k); }
     const learnerFacts = new Map(all('learner_source_facts').map(f => [f.id, f])); state.customers = state.customers.map(c => { const f = learnerFacts.get(c.id); if (!f) return c; const { id, version, createdAt, updatedAt, sourceUpdatedAt, ...fields } = f; return { ...c, ...fields }; });
     state.messages = state.messages.map(m => { if (!m.quoteSource || !isTypeCode(m.text) && !/video|voice|audio/i.test(m.messageType || '')) return m; const content = parseZaloContent(m.quoteSource); return { ...m, ...content, attachments: content.attachments?.length ? content.attachments : m.attachments || [] }; }); state.conversations = state.conversations.map(c => isTypeCode(c.lastMessage) ? { ...c, lastMessage: /video/i.test(c.lastMessage) ? 'Video' : /voice|audio/i.test(c.lastMessage) ? 'Tin nhắn thoại' : /photo|image/i.test(c.lastMessage) ? 'Ảnh' : 'Tệp đính kèm' } : c);
     filterDeletedChats(state);
@@ -176,11 +177,7 @@ async function webhook(req, res, url) {
   const { raw, value } = await body(req); const signature = req.headers['x-hub-signature-256'] || ''; const appSecrets = [...new Set([process.env.META_APP_SECRET, ...channels.map(c => secret(c.id).appSecret)].filter(Boolean))]; if (!appSecrets.length) domain.fail('Chưa có META_APP_SECRET.', 403); const validSignature = appSecrets.some(appSecret => { const expected = 'sha256=' + createHmac('sha256', appSecret).update(raw).digest('hex'); return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected)); }); if (!validSignature) domain.fail('Chữ ký không hợp lệ.', 403);
   transaction(() => {
     for (const c of channels) {
-      const id = c.id; for (const entry of value.entry || []) for (const event of entry.messaging || []) {
-        if (!event.message?.text || event.message.is_echo || String(event.recipient?.id) !== String(c.accountId)) continue; const tombstone = get('chat_purge_tombstones', id + ':0:' + event.sender.id); if (tombstone && (!Number.isFinite(event.timestamp) || new Date(event.timestamp).toISOString() <= tombstone.cutoff)) continue; if (all('conversations').some(v => v.connectionId === id && v.externalUserId === event.sender.id && v.purgePending)) continue; const eventId = event.message.mid; if (!eventId || db.prepare('SELECT id FROM events WHERE id=?').get(id + eventId)) continue;
-        db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(id + eventId, id, now(), JSON.stringify(event)); let conv = all('conversations').find(x => x.connectionId === id && x.kind === 'message' && x.externalUserId === event.sender.id); if (!conv) { const customer = put('customers', { name: 'Khách Facebook ' + String(event.sender.id).slice(-6), phone: '', tags: [], consent: false }); conv = put('conversations', { customerId: customer.id, connectionId: id, externalUserId: event.sender.id, kind: 'message', status: 'open', tags: [], mode: 'api' }); }
-        const msg = put('messages', { conversationId: conv.id, direction: 'incoming', text: event.message.text, externalId: eventId, status: 'received' }); put('conversations', { ...conv, deletedAt: null, archived: conv.deletedAt ? false : conv.archived, unread: true, status: 'open', lastMessage: event.message.text, lastAt: now(), lastInboundAt: new Date(event.timestamp || Date.now()).toISOString() }); domain.runWorkflows('message_received', msg); care.captureLead(get('conversations', conv.id), msg);
-      } care.ingestComments(c, value.entry);
+      ingestFacebookEvents(c, value.entry); care.ingestComments(c, value.entry);
     }
   }); for (const c of channels) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
 }
@@ -241,3 +238,5 @@ setInterval(() => pushTick().catch(error => console.error('Push tick:', error.me
 
 setInterval(() => resumePurges().catch(e => console.error('Customer purge:', e.message)), 30000).unref();
 recoverCopyJobs(); setInterval(copyTick, 2000).unref();
+
+void facebookChatTick(); setInterval(() => void facebookChatTick(), 10000).unref();

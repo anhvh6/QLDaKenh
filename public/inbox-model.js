@@ -1,7 +1,7 @@
 import {chatName} from './chat-names.js';
 import {conversationConnected} from './chat-connection-state.js';
 export {conversationConnected} from './chat-connection-state.js';
-export const defaultFilters={type:'all',phone:'all',reply:'all',archive:'active',pinned:false,connectionId:'',tags:[],tagMode:'any',assignees:[],assigneeMode:'any',dateField:'lastAt',from:'',to:'',sort:'newest',customerId:''};
+export const defaultFilters={type:'all',phone:'all',reply:'all',archive:'active',pinned:false,connectionId:'',connectionIds:null,tags:[],tagMode:'any',assignees:[],assigneeMode:'any',dateField:'lastAt',from:'',to:'',sort:'newest',customerId:''};
 export const assignedIds=c=>[...new Set([...(c.assigneeIds||[]),...(c.assignee?[c.assignee]:[])])];
 export const normalize=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
 export const inboxTabs=[['all','Tất cả'],['unread','Chưa đọc'],['personal','Cá nhân'],['group','Nhóm'],['action-needed','Đợi xử lý'],['scheduled','Lên lịch'],['waiting-reply','Đợi phản hồi']];
@@ -23,7 +23,7 @@ export function filterThreads(S,q='',status='all',f=defaultFilters){
   if(f.phone==='yes'&&!phone||f.phone==='no'&&phone)return false;
   if(f.reply==='waiting'&&!c.waitingSince||f.reply==='read-waiting'&&(!c.waitingSince||c.unread))return false;
   if(f.archive==='active'&&c.archived||f.archive==='archived'&&!c.archived)return false;
-  if(f.pinned&&!c.pinned||f.connectionId&&c.connectionId!==f.connectionId||f.customerId&&c.customerId!==f.customerId)return false;
+  if(f.pinned&&!c.pinned||(Array.isArray(f.connectionIds)?!f.connectionIds.includes(c.connectionId):f.connectionId&&c.connectionId!==f.connectionId)||f.customerId&&c.customerId!==f.customerId)return false;
   if(f.tags.length){const match=t=>t==='__none__'?!tags.length:tags.includes(t);if(!(f.tagMode==='all'?f.tags.every(match):f.tags.some(match)))return false;}
   if(f.assignees.length){const match=id=>id==='__none__'?!ids.length:ids.includes(id);if(!(f.assigneeMode==='all'?f.assignees.every(match):f.assignees.some(match)))return false;}
   const stamp=Date.parse(c[f.dateField]||c.lastAt||c.createdAt);

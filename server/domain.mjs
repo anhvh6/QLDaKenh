@@ -189,12 +189,13 @@ export async function reply(user, id, input) {
   const ids = input.assetIds || []; if (!Array.isArray(ids) || ids.length > 10) fail('Chọn tối đa 10 media.'); const assets = ids.map(id => { const a = get('assets', id); if (!a || a.active === false || !(a.scopes || ['chat']).includes('chat') || !/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z0-9]+$/.test(a.url)) fail('Media không hợp lệ.'); if (a.connectionId) assertChannel(user, a.connectionId); return a; });
   if (!text && !assets.length) fail('Nhập nội dung hoặc chọn media.');
   const commentMediaSupported = conv.kind === 'comment' && ch.provider === 'facebook';
-  if (assets.length && ch.mode !== 'demo' && ch.provider !== 'zalo_personal' && !commentMediaSupported && !input.note) fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
+  if (assets.length && ch.mode !== 'demo' && !['zalo_personal','facebook'].includes(ch.provider) && !commentMediaSupported && !input.note) fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
   if (assets.length > 1 && commentMediaSupported) fail('Bình luận Facebook chỉ nhận 1 media mỗi lần trả lời.');
   let quoted = input.quoteId ? get('messages', input.quoteId) : null; if (input.quoteId && (!quoted || quoted.deletedAt || quoted.conversationId !== id || quoted.direction === 'note')) fail('Tin trích dẫn không hợp lệ.');
   const mentionText = String(input.text || ''); let mentions = validateGroupMentions(conv, mentionText, input.mentions).map(m => ({ ...m, pos: m.pos - (mentionText.length - mentionText.trimStart().length) })); if (input.note && mentions.length) fail('Ghi chú nội bộ không tag thành viên nhóm.'); if (mentions.length && ch.mode !== 'demo' && ch.provider !== 'zalo_personal') fail('Kênh này chưa hỗ trợ tag thành viên nhóm qua API.'); const nativeQuote = quoted && ch.provider === 'zalo_personal' && quoted.quoteSource;
   if (quoted && !nativeQuote) { const prefix = '> ' + quoted.text.slice(0, 1000) + '\n\n'; text = prefix + text; mentions = mentions.map(m => ({ ...m, pos: m.pos + prefix.length })); }
   if (text.length > 5000) fail('Nội dung kèm trích dẫn vượt 5000 ký tự.');
+  if(!input.note&&ch.provider==='facebook'&&conv.kind!=='comment'&&Array.from(text).length>2000)fail('Messenger giới hạn 2000 ký tự mỗi tin nhắn. Rút gọn nội dung trước khi gửi.');
   const options = { ...(mentions.length ? { mentions } : {}), ...(nativeQuote ? { quote: quoted.quoteSource } : {}), ...(assets.length ? { attachments: assets.map(a => join(dataDir, 'uploads', basename(a.url))), assetRefs: assets } : {}) };
   if (input.version !== conv.version) fail('Hội thoại vừa thay đổi. Tải lại trước khi gửi.', 409);
   if (conv.sending) fail('Có một tin nhắn đang gửi. Vui lòng chờ.', 409); put('conversations', { ...conv, sending: true, assignee: user.id });
@@ -206,7 +207,7 @@ export async function reply(user, id, input) {
     let result; if (input.note) result = {}; else if (ch.mode === 'demo') result = { demo: true }; else { if (ch.status !== 'connected') fail('Kênh chưa được kết nối thực tế.'); result = await sendMessage(ch, conv, text, options); }
     msg = saveSendReceipt(msg, result, assets.map(({ id, url, name, type }) => ({ assetId: id, url, name, type })));
     const current = get('conversations', id); put('conversations', { ...current, sending: false, lastMessage: input.note ? current.lastMessage : text, lastAt: input.note ? current.lastAt : now(), unread: input.note ? current.unread : false, waitingSince: input.note ? current.waitingSince : null, slaAlerted: input.note ? current.slaAlerted : false, firstResponseSeconds: !input.note && current.waitingSince ? Math.round((Date.now() - Date.parse(current.waitingSince)) / 1000) : current.firstResponseSeconds, assignee: user.id }); audit(user.id, input.note ? 'note_added' : 'message_sent', id); if (!input.note) finishMentionTasks(user, id, msg.id); return msg;
-  } catch (e) { put('messages', { ...msg, status: e.unknown ? 'unknown' : 'failed', error: e.message }); put('conversations', { ...get('conversations', id), sending: false }); throw e; }
+  } catch (e) { if(e.externalMessages?.length)msg=saveSendReceipt(msg,{externalMessages:e.externalMessages},msg.attachments); put('messages', { ...msg, status: e.unknown ? 'unknown' : 'failed', error: e.message }); put('conversations', { ...get('conversations', id), sending: false }); throw e; }
 }
 export async function reactMessage(user, id, input) {
   permission(user, 'inbox'); const msg = get('messages', id); if (!msg) fail('Không tìm thấy bình luận.', 404); const conv = get('conversations', msg.conversationId); if (!conv) fail('Không tìm thấy hội thoại.', 404); assertChannel(user, conv.connectionId); if (conv.kind !== 'comment' || msg.direction !== 'incoming') fail('Chỉ react được bình luận của khách.');
