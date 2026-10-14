@@ -3700,3 +3700,29 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 .conversation-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
 .chat-head-tools{display:flex;align-items:center;gap:4px;flex-shrink:0}.chat-head-compact .chat-head-tools button,.chat-head-compact .chat-actions summary,.chat-head-compact [data-action=resolve-chat]{border:0;box-shadow:none;background:transparent;width:32px;height:32px;min-height:32px;padding:6px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px}.chat-head-tools button:hover,.chat-head-compact [data-action=resolve-chat]:hover,.chat-head-compact .chat-actions summary:hover{background:#edf3ef}.chat-head-compact .chat-name-line .chat-name-icons{display:none}.chat-head-compact .chat-head-tools [data-care=profile]{display:inline-flex}.chat-head-compact>.row:nth-child(2){align-items:center;flex-shrink:0}.chat-head-compact .chat-actions{display:flex;align-items:center}.chat-head-compact .chat-actions details{margin:0;border:0;padding:0}.chat-head-compact .bot-toggle{color:#12774b}.chat-head-compact .bot-toggle.active{background:#ddf7e5;color:#047c3e}
 .chat-head-compact .chat-head-tools .bot-toggle.on{background:#ddf7e5;color:#047c3e}.chat-head-compact .chat-head-tools .bot-toggle.attention{background:#fff1b8;color:#946500}
+/* Message footer: one action row below the bubble, separate from its timestamp. */
+.chat-messages .bubble-wrap{max-width:calc(100% - 40px);margin-bottom:30px!important}
+.chat-messages .bubble-wrap.has-contact-order{margin-bottom:30px!important}
+.bubble-wrap .message-under-actions{position:absolute;top:calc(100% + 2px);bottom:auto;left:0;right:auto;width:max-content;display:flex;align-items:center;justify-content:flex-start;gap:4px;min-height:28px;padding:0;z-index:4}
+.bubble-wrap.outgoing .message-under-actions{left:auto;right:0;justify-content:flex-end}
+.bubble-wrap .message-under-actions>.message-tools,.bubble-wrap.outgoing .message-under-actions>.message-tools,.bubble-wrap.incoming .message-under-actions>.message-tools{position:static;transform:none;display:flex!important;visibility:hidden;opacity:0;align-items:center;flex-wrap:nowrap;gap:2px;width:max-content;height:28px;margin:0;padding:1px 3px;border:1px solid #e2e7ed;border-radius:8px;background:white;box-shadow:0 2px 7px #172a3b0d;transition:opacity .12s ease}
+.bubble-wrap .message-under-actions>.message-reaction-selector,.bubble-wrap .message-under-actions>.message-contact-order{position:relative;top:auto;bottom:auto;left:auto;right:auto;flex:none;margin:0;visibility:hidden}
+.bubble-wrap .message-under-actions>.message-reaction-selector{order:0}
+.bubble-wrap.outgoing .message-under-actions>.message-reaction-selector{order:3}
+.bubble-wrap .message-under-actions>.message-contact-order{order:1}
+.bubble-wrap .message-under-actions>.message-tools{order:2}
+.bubble-wrap .message-under-actions>.message-reaction-selector.has-reactions{visibility:visible}
+.bubble-wrap:hover .message-under-actions>*,.bubble-wrap.message-hover-active .message-under-actions>*,.bubble-wrap.message-revealed .message-under-actions>*,.bubble-wrap:has(:focus-visible) .message-under-actions>*,.bubble-wrap:has(.message-more[open]) .message-under-actions>*{visibility:visible;opacity:1}
+.bubble-wrap .message-under-actions>.message-reaction-selector>button{width:auto;min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;padding:1px 5px!important;background:white!important;border:1px solid #e2e7ed!important;border-radius:14px}
+.bubble-wrap .message-under-actions>.message-contact-order{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:3px;border-radius:8px;border:1px solid #e2e7ed;background:white}
+.bubble-wrap .message-under-actions .message-more>summary{height:24px;min-width:26px;padding:2px 4px!important}
+.bubble-wrap .bubble>.message-info{position:static;top:auto;bottom:auto;left:auto;right:auto;display:block!important;min-height:14px;margin:4px 0 0;padding:0;line-height:14px;font-size:10px;white-space:normal;text-align:left;visibility:hidden;opacity:0}
+.bubble-wrap.message-first-minute .bubble>.message-info,.bubble-wrap.message-failed .bubble>.message-info,.bubble-wrap:hover .bubble>.message-info,.bubble-wrap.message-hover-active .bubble>.message-info,.bubble-wrap.message-revealed .bubble>.message-info,.bubble-wrap:has(:focus-visible) .bubble>.message-info{visibility:visible;opacity:1}
+.message-info .message-attribution{display:none}.bubble-wrap:hover .message-attribution,.bubble-wrap.message-hover-active .message-attribution,.bubble-wrap:has(:focus-visible) .message-attribution{display:inline}
+.chat-messages>.chat-day{display:block;align-self:center;max-width:100%;margin:12px 0 8px;background:#adb2b8;color:white;border-radius:12px;font-size:11px;padding:4px 15px;line-height:18px;text-align:center}
+.message-more>div button,.chat-message-menu-popup button{display:grid!important;grid-template-columns:20px minmax(0,1fr);align-items:center;justify-content:start!important;gap:12px!important;text-align:left!important;min-height:40px;padding:9px 12px!important;text-indent:0;margin:0}
+.message-more>div button svg,.chat-message-menu-popup button svg{width:18px;height:18px;justify-self:center;flex:none;margin:0}
+.message-more>div button span,.chat-message-menu-popup button span{justify-self:start;min-width:0;white-space:normal;text-align:left}
+.chat-messages .bubble-wrap.message-selecting{margin-bottom:8px!important}.bubble-wrap.message-selecting .message-under-actions{display:none!important}
+@media(pointer:coarse){.bubble-wrap .message-under-actions>.message-reaction-selector{visibility:visible}}
+@media(max-width:760px){.chat-messages .bubble-wrap{max-width:calc(100% - 24px)}.chat-messages{padding-left:12px;padding-right:12px}.bubble-wrap .message-under-actions{gap:3px}}
