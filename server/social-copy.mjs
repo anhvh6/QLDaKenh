@@ -35,6 +35,7 @@ export async function packagePost(post,job,deps={}){const extract=deps.extract||
  else for(const [i,m] of post.media.entries()){const extension=String(m.ext||'jpg').toLowerCase();if(!/^(jpg|jpeg|png|webp|mp4|webm|mov)$/.test(extension))fail('Định dạng media không hỗ trợ.');const name=String(i+1).padStart(3,'0')+'.'+extension;await download(m.url,join(folder,name));files.push({name,type:m.type,mime:mimeFor(name)});}
  if(post.media.length&&files.length!==post.media.length)fail('Không tải được đầy đủ media của bài.');
  for(const file of files)if(!(await stat(join(folder,file.name))).size)fail('Media tải về bị rỗng. Vui lòng thử lại.');
+ if(files.some(f=>f.type==='video'))await (deps.validate||runExtractor)({action:'validate',folder});
  await writeFile(join(folder,'caption.txt'),post.caption||'','utf8');await writeFile(join(folder,'post.json'),JSON.stringify(manifest(post,files),null,2),'utf8');return {folder,files};}
 const active=new Set();
 const copyActive=()=>[...active].filter(id=>!id.startsWith('preview:')).length;

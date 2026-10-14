@@ -1,5 +1,5 @@
 """Isolated extractor and ZIP worker. Input/output is JSON, never shell interpolation."""
-import json, sys, zipfile, re, html, time
+import json, sys, zipfile, re, html, time, subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -92,8 +92,48 @@ def caption(meta):
             return value
     return ''
 
+def tiktok_embed(url):
+    match = re.search(r'/video/(\d+)', urlparse(url).path)
+    if not match:
+        return None
+    from curl_cffi import requests
+    video_id = match[1]
+    response = requests.get('https://www.tiktok.com/embed/v2/' + video_id, impersonate='chrome', timeout=25)
+    if response.status_code != 200:
+        return None
+    for script in re.findall(r'<script[^>]*>(.*?)</script>', response.text, re.S):
+        try:
+            data = json.loads(script)
+        except ValueError:
+            continue
+        node = data.get('source', {}).get('data', {}).get('/embed/v2/' + video_id, {})
+        payload = node.get('videoData') or {}
+        item = payload.get('itemInfos') or {}
+        if str(item.get('id')) != video_id or payload.get('imagePostInfo'):
+            continue
+        video = item.get('video') or {}
+        urls = video.get('urls') or []
+        direct = next((u for u in urls if isinstance(u, str) and u.startswith('https://')), None)
+        if not direct:
+            continue
+        text = item.get('text') or ''
+        meta = video.get('videoMeta') or {}
+        return {'title': (text or 'Bài TikTok')[:200], 'caption': text,
+                'author': (payload.get('authorInfos') or {}).get('nickName', ''),
+                'media': [{'type': 'video', 'url': direct, 'ext': 'mp4',
+                           'poster': next(iter(item.get('coversOrigin') or item.get('covers') or []), None),
+                           'width': meta.get('width'), 'height': meta.get('height')}], 'engine': 'gallery'}
+    return None
+
 def extract(url, target=None):
     url = resolve_source(url)
+    if urlparse(url).hostname in ('www.tiktok.com', 'tiktok.com'):
+        try:
+            post = tiktok_embed(url)
+            if post:
+                return post
+        except Exception:
+            pass
     if 'facebook.com' in url and re.search(r'/(?:posts|permalink)/', url):
         post = facebook_post(url)
         if post:
@@ -143,7 +183,14 @@ def extract(url, target=None):
 def main():
     try:
         req = json.load(sys.stdin)
-        if req['action'] == 'zip':
+        if req['action'] == 'validate':
+            for p in Path(req['folder']).iterdir():
+                if p.suffix.lower() in ('.mp4', '.webm', '.mov'):
+                    probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'json', str(p)], capture_output=True, text=True, timeout=30)
+                    if probe.returncode or not any(s.get('codec_type') == 'video' for s in json.loads(probe.stdout or '{}').get('streams', [])):
+                        raise ValueError('TikTok hoặc nền tảng nguồn chỉ trả âm thanh, không có hình ảnh video. Chưa thể Reup bài này; vui lòng xem trước lại hoặc thử sau.')
+            result = {'ok': True}
+        elif req['action'] == 'zip':
             folder = Path(req['folder'])
             with zipfile.ZipFile(str(folder) + '.zip', 'w', zipfile.ZIP_STORED) as z:
                 for p in sorted(folder.iterdir()):
