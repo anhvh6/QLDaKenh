@@ -100,7 +100,7 @@ test('bulk delete trashes Drive folders once, keeps publications, checks ownersh
 
 test('audio-only extractor failure falls back to playable preview video and rejects audio responses',async()=>{
  const {packagePost}=await import('../server/social-copy.mjs'),original=global.fetch;
- const p={url:'https://www.tiktok.com/@qa/video/123',engine:'video',caption:'Caption',media:[{type:'video',ext:'mp4',url:'https://8.8.8.8/video.mp4'}]};
+ const p={url:'https://www.tiktok.com/@qa/video/123',engine:'video',caption:'Caption',media:[{type:'video',ext:'mp3',url:'https://8.8.8.8/video.mp4'}]};
  try{global.fetch=async()=>new Response(new Uint8Array([1,2,3]),{headers:{'Content-Type':'video/mp4'}});const pack=await packagePost(p,{id:'preview-video-fallback'},{extract:async()=>{throw new Error('Only audio available');}});assert.equal(pack.files[0].name,'001.mp4');
  global.fetch=async()=>new Response('audio',{headers:{'Content-Type':'audio/mpeg'}});await assert.rejects(packagePost(p,{id:'reject-audio-fallback'},{extract:async()=>{throw new Error('Only audio');}}),/hợp lệ/);
  }finally{global.fetch=original;}
