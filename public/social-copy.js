@@ -1,7 +1,23 @@
 import {jobControls,renderJobsTable,jobIconButton,filterCopyJobs,copyPlatforms} from './copy-job-table.js';
 let H,post=null,jobs=[],drive=null,busy=false,sourceInput='' ,copyUser='',previewGeneration=0;
 const jobView={search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,platformOpen:false,selecting:false,selected:new Set()};
-let deleteIds=[],copyHold=null;
+let deleteIds=[],copyHold=null,jobsRefreshing=false;
+const renderedJobTables=new WeakMap();
+
+// Anchor the visible row, so insertion of newer jobs above it does not move the reader.
+export function captureCopyScroll(){
+ const table=document.querySelector('#copy-jobs');if(!table)return null;
+ const scroller=document.scrollingElement,rows=[...table.querySelectorAll('[data-copy-row]')];
+ const row=rows.find(r=>r.getBoundingClientRect().bottom>100&&r.getBoundingClientRect().top<innerHeight);
+ return {top:scroller.scrollTop,left:table.querySelector('table')?.parentElement.scrollLeft||0,id:row?.dataset.copyRow,offset:row?.getBoundingClientRect().top};
+}
+export function restoreCopyScroll(state){
+ const table=document.querySelector('#copy-jobs');if(!state||!table)return;
+ const scroller=document.scrollingElement;scroller.scrollTop=state.top;
+ const wrapper=table.querySelector('table')?.parentElement;if(wrapper)wrapper.scrollLeft=state.left;
+ const row=[...table.querySelectorAll('[data-copy-row]')].find(r=>r.dataset.copyRow===state.id);
+ if(row)scroller.scrollTop+=row.getBoundingClientRect().top-state.offset;
+}
 const connectedPlatforms=()=>[...new Set((H?.state?.connections||[]).filter(c=>c.status==='connected'&&c.mode!=='demo'&&copyPlatforms[c.provider]).map(c=>c.provider))];
 async function waitImport(jobId,contentId){while(document.querySelector('#drive-import-progress')){const rows=await H.api('/copy/jobs'),job=rows.find(j=>j.id===jobId);if(job?.status==='done'){await H.refresh(false);if(document.querySelector('#drive-import-progress'))H.openContent(contentId);return;}if(job?.status==='failed')throw new Error(job.error);const status=document.querySelector('#drive-import-progress');if(status)status.textContent=labels[job?.status]||'Đang tải…';await new Promise(r=>setTimeout(r,3000));}}
 const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,7 +31,14 @@ function preview(){
 }
 function jobRows(){return renderJobsTable(jobs,jobView);}
 export function driveSettings(){return `<section class="panel"><div class="panel-body"><h2>Google Drive — Kho bài đăng đa nền tảng</h2><div id="drive-state">Đang kiểm tra kết nối…</div><p class="help-text">Mỗi bài lưu trong một thư mục riêng. Khi tạo bài đăng, chọn “Từ Google Drive” và chọn thư mục bài để tự nạp nội dung cùng ảnh/video.</p>${H?.state?.user?.role==='owner'?`<form id="drive-config-form"><h3>Cấu hình ứng dụng Google OAuth</h3><label>Địa chỉ ứng dụng công khai<input class="input" name="publicOrigin" type="url" value="${e(location.origin)}" required></label><label>Google OAuth Client ID<input class="input" name="clientId" placeholder="Nhập để thay đổi; để trống giữ cấu hình cũ"></label><label>Google OAuth Client Secret<input class="input" name="clientSecret" type="password" autocomplete="new-password" placeholder="Để trống giữ secret đã lưu"></label><label>Google Picker API key (nếu dự án yêu cầu)<input class="input" name="pickerKey" placeholder="Để trống giữ key đã lưu"></label><p class="help-text">Bật Google Drive API và Google Picker API, tạo OAuth client loại Web application. Authorized redirect URI: <code>${e(location.origin)}/api/drive/callback</code>. Mỗi người dùng kết nối Drive của mình bên dưới.</p><button class="btn primary">Lưu cấu hình</button></form>`:''}<div class="row" style="margin-top:20px">${button('Kết nối Google Drive','connect')}${button('Ngắt kết nối','disconnect')}</div>${button('Chọn thư mục từ Google Drive','pick-folder')}<p class="help-text">Thư mục có sẵn cần chọn qua Google để cấp quyền cho ứng dụng. Dán ID chỉ dùng được với thư mục đã được cấp quyền. Để trống để tự tạo kho khi tải bài đầu tiên.</p><form id="drive-folder-form" style="margin-top:20px"><label>ID thư mục kho (để trống để hệ thống tự tạo)<input class="input" name="folderId" placeholder="ID trong link drive.google.com/drive/folders/…"></label><button class="btn">Lưu thư mục</button></form></div></section>`;}
-async function refreshJobs(){if(copyHold)return;jobs=await H.api('/copy/jobs');for(const id of jobView.selected)if(!jobs.some(j=>j.id===id))jobView.selected.delete(id);const el=document.querySelector('#copy-jobs');if(el)el.innerHTML=jobRows();}
+async function refreshJobs(){
+ if(copyHold||jobsRefreshing)return;jobsRefreshing=true;const userId=H?.state?.user?.id;
+ try{const next=await H.api('/copy/jobs');if(userId!==H?.state?.user?.id)return;jobs=next;
+ for(const id of jobView.selected)if(!jobs.some(j=>j.id===id))jobView.selected.delete(id);
+ const el=document.querySelector('#copy-jobs'),html=jobRows();
+ if(el&&!copyHold&&renderedJobTables.get(el)!==html){const position=captureCopyScroll();el.innerHTML=html;renderedJobTables.set(el,html);restoreCopyScroll(position);}
+ }finally{jobsRefreshing=false;}
+}
 export function openDriveSettings(){H.modal('Kết nối Google Drive',driveSettings());void refreshDrive().catch(error=>H.toast(error.message,true));}
 function updateDriveCards(){
  const connected=document.querySelector('#drive-connected-slot'),available=document.querySelector('#drive-available-slot');

@@ -1,3 +1,4 @@
+import { publicationPreflight } from './publish-preflight.mjs';
 import { resumePurges } from './customer-purge.mjs';
 import { completeDriveOAuth } from './drive-oauth.mjs';
 import { copyRoute, copyArchive, copyPreviewMedia, publicCopyMedia, scheduleCopied, recoverCopyJobs, copyTick } from './social-copy.mjs';
@@ -126,6 +127,7 @@ async function dispatch(req, res, url, user, input) {
   if (path.match(/^\/api\/users\/[^/]+$/) && method === 'PATCH') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const id = path.split('/').pop(); if (id === user.id) domain.fail('Không thể khóa tài khoản đang sử dụng.'); db.prepare('UPDATE users SET active=? WHERE id=? AND role!=?').run(input.active ? 1 : 0, id, 'owner'); db.prepare('DELETE FROM sessions WHERE user_id=?').run(id); return { ok: true }; }
   if (path === '/api/password' && method === 'POST') { const u = db.prepare('SELECT * FROM users WHERE id=?').get(user.id); if (!verify(input.current || '', u.password)) domain.fail('Mật khẩu hiện tại không đúng.'); if ((input.password || '').length < 10) domain.fail('Mật khẩu mới cần ít nhất 10 ký tự.'); db.prepare('UPDATE users SET password=? WHERE id=?').run(hashPassword(input.password), user.id); db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id); return { ok: true }; }
   const match = path.match(generic); if (match) { const [, kind, id] = match; if (method === 'POST' && !id) return domain.editRecord(user, kind, null, input); if (method === 'PATCH' && id) return domain.editRecord(user, kind, id, input); if (method === 'DELETE' && id) return domain.deleteRecord(user, kind, id, input); }
+  if (path.match(/^\/api\/contents\/[^/]+\/preflight$/) && method === 'POST') { domain.permission(user, 'content'); const content = get('contents', path.split('/')[3]); if (!content) domain.fail('Không tìm thấy nội dung.', 404); if (input.version !== content.version) domain.fail('Nội dung đã thay đổi. Mở lại trước khi đăng.', 409); return publicationPreflight(user, content, input); }
   if (path.match(/^\/api\/contents\/[^/]+\/schedule$/) && method === 'POST') return scheduleCopied(user, path.split('/')[3], input);
   if (path.match(/^\/api\/contents\/[^/]+\/update-published$/) && method === 'POST') return domain.updatePublishedContent(user, path.split('/')[3]);
   if (path.match(/^\/api\/publications\/[^/]+\/action$/) && method === 'POST') return domain.publicationAction(user, path.split('/')[3], input);

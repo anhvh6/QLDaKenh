@@ -1,3 +1,4 @@
+import { assertPublicationPreflight } from './publish-preflight.mjs';
 import { validateGroupMentions } from './group-mentions.mjs';
 import { publishMedia } from './social-copy.mjs';
 import { assertCareConversation } from './student-care.mjs';
@@ -67,6 +68,7 @@ export async function deleteRecord(user, kind, id, input = {}) {
 }
 export function schedule(user, id, input, { prepared = false } = {}) {
   permission(user, 'content'); const c = get('contents', id); if (!c) fail('Không tìm thấy nội dung.', 404); if (input.version !== c.version) fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.', 409);
+  assertPublicationPreflight(user, c, input, { prepared });
   const channels = c.channels || []; if (!channels.length) fail('Chọn ít nhất một kênh.'); if (!c.caption.trim()) fail('Nhập nội dung bài đăng.');
   const scheduleAt = input.immediate ? now() : input.scheduleAt; if (!Number.isFinite(Date.parse(scheduleAt))) fail('Chọn lịch đăng hợp lệ.'); if (!input.immediate && Date.parse(scheduleAt) < Date.now() + (prepared ? 0 : 10 * 60000)) fail(prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
   const active = all('publications').filter(p => p.contentId === id && ['scheduled', 'dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status));
