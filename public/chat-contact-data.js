@@ -2,7 +2,7 @@ export const contactPhones=text=>[...new Set((String(text||'').match(/(?<!\d)(?:
 export const messagePhones=m=>contactPhones([m.text,m.contactCard?.phone,m.contactCard?.phoneNumber].filter(Boolean).join('\n'));
 export function contactAddress(text){
  const lines=String(text||'').split(/\n/).map(s=>s.trim()).filter(Boolean),address=lines.find(s=>/(?:địa chỉ|dia chi|đc\s*[:：]|dc\s*[:：])/i.test(s))||lines.find(s=>/(?:đường|phường|quận|huyện|thôn|ấp|xã|tổ\s*\d|chung cư|tỉnh|thành phố|hà nội|hồ chí minh|tp\.?\s*hcm)/i.test(s)&&(/\d/.test(s)||/[,;]/.test(s)));
- if(!address)return '';return address.replace(/^(?:địa chỉ|dia chi|đc|dc)(?:\s+nhận\s+hàng)?\s*[:：-]?\s*/i,'').replace(/(?:sđt|sdt|điện thoại|phone)\s*[:：].*$/i,'').trim().slice(0,1000);
+ const simple=lines.find(s=>/^\d+[a-z]?(?:[\/\-]\d+)*\s+\p{L}/iu.test(s)&&s.split(/\s+/).length>=3&&!contactPhones(s).length);if(!address&&!simple)return ''; return (address||simple).replace(/^(?:địa chỉ|dia chi|đc|dc)(?:\s+nhận\s+hàng)?\s*[:：-]?\s*/i,'').replace(/(?:sđt|sdt|điện thoại|phone)\s*[:：].*$/i,'').trim().slice(0,1000);
 }
 export function latestContact(messages,{senderId}={}){
  let phone='',address='';for(const m of [...messages].filter(m=>m.direction==='incoming'&&!m.deletedAt&&(!senderId||String(m.senderId)===String(senderId))).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))){const phones=messagePhones(m);if(!phone&&phones.length===1)phone=phones[0];if(!address)address=contactAddress(m.text);if(phone&&address)break;}return {phone,address};

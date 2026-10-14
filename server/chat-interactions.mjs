@@ -1,3 +1,4 @@
+import { reactFacebookMessage } from './facebook-reactions.mjs';
 import {db,get,put,all,transaction,audit,now} from './store.mjs';
 import {permission,fail,reply} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
@@ -34,7 +35,7 @@ export async function interactionRoute(path,method,input,user,send=sendMessageRe
  if(reaction&&method==='POST'){
   const m=get('messages',reaction[1]);if(!m||m.deletedAt||(m.direction==='note'||m.recalledAt))fail('Không thể thả cảm xúc vào tin này.',404);const c=conversation(user,m.conversationId),ch=get('connections',c.connectionId);if(!reactionEmoji[input.reaction])fail('Cảm xúc không hợp lệ.');if(busy.has(m.id))fail('Đang gửi cảm xúc. Chờ một chút.',409);
   busy.add(m.id);try{
-   if(ch?.mode!=='demo'){if(ch?.provider!=='zalo_personal')fail('Kênh này chưa hỗ trợ gửi cảm xúc.',400);if(!m.externalId||!(m.externalClientId||m.quoteSource?.cliMsgId))fail('Chưa đủ mã tin nhắn từ nền tảng. Hãy đồng bộ lại.',409);await send(c.connectionId,c.externalUserId,c.threadType,m.externalId,m.externalClientId||m.quoteSource?.cliMsgId,input.reaction);}
+   if(ch?.mode!=='demo'){if(ch?.provider==='facebook'){await reactFacebookMessage(ch,c,m,input.reaction);}else{if(ch?.provider!=='zalo_personal')fail('Kênh này chưa hỗ trợ gửi cảm xúc.',400);if(!m.externalId||!(m.externalClientId||m.quoteSource?.cliMsgId))fail('Chưa đủ mã tin nhắn từ nền tảng. Hãy đồng bộ lại.',409);await send(c.connectionId,c.externalUserId,c.threadType,m.externalId,m.externalClientId||m.quoteSource?.cliMsgId,input.reaction);}}
    const current=get('messages',m.id),reactor=ch?.mode==='demo'?user.id:'platform:'+c.connectionId,result=put('messages',{...current,reactions:[...(current.reactions||[]).filter(r=>r.reactor!==reactor),{reactor,actor:user.id,reaction:input.reaction,emoji:reactionEmoji[input.reaction]}]});audit(user.id,'message_reacted',m.id,{reaction:input.reaction});return result;
   }finally{busy.delete(m.id);}
  }

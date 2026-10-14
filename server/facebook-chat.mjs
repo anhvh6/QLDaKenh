@@ -68,6 +68,7 @@ export async function syncFacebookChat(channel, request = remote) {
    const participant = thread.participants?.data?.find(p => String(p.id) !== String(channel.accountId));
    if (!participant?.id) continue;
    const checkpointId = channel.id + ':' + thread.id, checkpoint = get('facebook_chat_cursors', checkpointId) || {};
+   if(checkpoint.complete&&thread.updated_time&&checkpoint.remoteUpdatedAt===thread.updated_time)continue;
    // Always read the newest page; then advance an older-history cursor on later cycles.
    const readPage = async after => {
     const messages = await request(`${base}/${encodeURIComponent(thread.id)}/messages?limit=100&fields=id,created_time,message,from,to,attachments&${after ? 'after=' + encodeURIComponent(after) : ''}`, { headers });
@@ -76,7 +77,7 @@ export async function syncFacebookChat(channel, request = remote) {
    };
    const newestNext = await readPage('');
    const olderNext = checkpoint.after ? await readPage(checkpoint.after) : checkpoint.complete ? '' : newestNext;
-   put('facebook_chat_cursors', { id: checkpointId, after: olderNext, complete: !olderNext, syncedAt: now() });
+   put('facebook_chat_cursors', { id: checkpointId, after: olderNext, complete: !olderNext, remoteUpdatedAt:thread.updated_time||'', syncedAt: now() });
   }
   put('facebook_chat_sync', { id: channel.id, startedAt, after: conversations.paging?.next ? conversations.paging?.cursors?.after || '' : '', status: 'ready', syncedAt: now(), imported, error: '' });
   return { imported, more: !!conversations.paging?.next };
@@ -89,7 +90,7 @@ export async function syncFacebookChat(channel, request = remote) {
 export async function facebookChatTick() {
  for (const channel of all('connections').filter(c => c.provider === 'facebook' && c.status === 'connected' && c.mode === 'api')) {
   const state = get('facebook_chat_sync', channel.id);
-  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.after && state.status !== 'error' ? 5000 : 60000)) continue;
+  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.after && state.status !== 'error' ? 5000 : state.status==='error'?60000:10000)) continue;
   try { await syncFacebookChat(channel); } catch { /* Error is stored for the channel's diagnostic UI. */ }
  }
 }

@@ -3,10 +3,12 @@ import {mkdirSync,mkdtempSync} from 'node:fs';import {join,resolve} from 'node:p
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'reminders-'));
 const {put,get,all,db}=await import('../server/store.mjs');
 const {createChatReminder,reminderTick}=await import('../server/chat-reminders.mjs');
+const {customerReminderTick,recoverCustomerReminders}=await import('../server/chat-reminders.mjs');
 const owner={id:'owner',role:'owner'};db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run('owner','reminder@qa.test','Owner','owner','qa');
 put('connections',{id:'z',provider:'zalo_personal',mode:'api'});put('customers',{id:'p',name:'QA'});
 const c=put('conversations',{id:'c',connectionId:'z',customerId:'p',externalUserId:'123',threadType:0});
 const {progressFor}=await import('../public/learner-progress.js');const {progressState}=await import('../server/consultation-review.mjs');const {reminderPopup}=await import('../public/chat-tools.js');
+
 test('creates native reminder once and durable system notification once',async()=>{
  const due=Date.now()+60000;let calls=0;const r=await createChatReminder(owner,c,{title:'Nhắc tư vấn',dueAt:new Date(due).toISOString(),platform:true},async(id,thread,type,title,time)=>{calls++;assert.equal(thread,'123');assert.equal(time,due);return{id:'native'};});
  assert.equal(get('customers','p').learnerProgress.stage,'APPOINTMENT');assert.equal(get('customers','p').learnerProgress.manualOverride,true);assert.equal(calls,1);assert.equal(r.platformStatus,'created');assert.equal(reminderTick(due-1),0);assert.equal(reminderTick(due),1);assert.equal(reminderTick(due+1),0);assert.equal(get('notifications','chat-reminder:'+r.id).recipientId,'owner');assert.ok(get('chat_reminders',r.id).alertedAt);
@@ -31,3 +33,20 @@ test('appointments always allowed and only promote a lower stage, including grou
 const group=put('conversations',{id:'group-stage',connectionId:'z',threadType:1,learnerCustomerId:'stage-DEPOSIT',learnerMemberId:'uid-DEPOSIT',group:{memberIds:['uid-DEPOSIT']}});const before=get('customers','stage-DEPOSIT').learnerProgress,r=await createChatReminder(owner,group,{title:'Nhóm QA',dueAt:new Date(Date.now()+60000).toISOString()});assert.equal(r.customerId,'stage-DEPOSIT');assert.deepEqual(get('customers','stage-DEPOSIT').learnerProgress,before);});
 test('Hoàng Anh deleted source replaces stale study status and a new appointment becomes visible',async()=>{const p=put('customers',{id:'deleted-learner',name:'Hoàng Anh',origin:'taophacdo',status:'ACTIVE',link:'https://example.test/plan',start_date:'2026-01-01',end_date:'2099-12-31',learnerProgress:{stage:'CONSULTED',manualOverride:true,source:'staff'}}),facts=put('learner_source_facts',{id:p.id,status:'DELETED',learnerDeleted:true,statusCheckedAt:new Date().toISOString()}),conv=put('conversations',{id:'deleted-chat',connectionId:'z',customerId:p.id,threadType:0});assert.equal(progressFor(progressState(),{...p,...facts,id:p.id}).stage,'NEW');const r=await createChatReminder(owner,conv,{title:'Tư vấn lại',dueAt:new Date(Date.now()+60000).toISOString(),platform:false});const saved=get('customers',p.id);assert.equal(r.status,'pending');assert.equal(progressFor(progressState(),{...saved,...facts,id:p.id}).stage,'APPOINTMENT');assert.equal(all('journey_events').find(e=>e.reminderId===r.id).from,'NEW');assert.equal(progressFor(progressState(),{...saved,...facts,id:p.id,statusCheckedAt:'2099-01-01T00:00:00.000Z'}).stage,'NEW');});
 test('automatic consultation status cannot be downgraded by a new pending reminder',async()=>{const p=put('customers',{id:'automatic-consulted',name:'QA',is_consultation:true}),conv=put('conversations',{id:'auto-chat',connectionId:'z',customerId:p.id,threadType:0});await createChatReminder(owner,conv,{title:'Tái hẹn',dueAt:new Date(Date.now()+60000).toISOString()});assert.equal(progressFor(progressState(),get('customers',p.id)).stage,'CONSULTED');assert.equal(get('customers',p.id).learnerProgress,undefined);});
+
+test('customer advance reminder uses 15-minute steps, remembers defaults, sends once and preserves local Facebook appointment',async()=>{
+ const page=put('connections',{id:'reminder-page',provider:'facebook',mode:'api',status:'connected'}),chat=put('conversations',{id:'reminder-page-chat',connectionId:page.id,customerId:'p'});
+ const due=Date.now()+3600000,input={title:'Lịch tư vấn',dueAt:new Date(due).toISOString(),customerReminder:true,reminderMinutes:15,reminderText:'Chị sắp đến giờ tư vấn nhé.'};
+ await assert.rejects(createChatReminder(owner,chat,{...input,reminderMinutes:17}),/15 phút/);
+ const r=await createChatReminder(owner,chat,input);assert.equal(r.platformStatus,'not_requested');assert.equal(Date.parse(r.customerReminderAt),due-900000);assert.equal(get('settings','chat-reminder-defaults-owner').text,input.reminderText);
+ let calls=0;const send=async(user,id,body)=>{calls++;assert.equal(id,chat.id);assert.equal(body.text,input.reminderText);return{id:'reminder-sent'};};
+ await customerReminderTick(due-900001,send);assert.equal(calls,0);await customerReminderTick(due-900000,send);await customerReminderTick(due-899999,send);assert.equal(calls,1);assert.equal(get('chat_reminders',r.id).customerReminderStatus,'sent');
+});
+test('customer reminder errors notify staff; expired, cancelled and crash-interrupted reminders never resend',async()=>{
+ const due=Date.now()+3600000,r=await createChatReminder(owner,c,{title:'Lịch lỗi',dueAt:new Date(due).toISOString(),customerReminder:true,reminderMinutes:30,reminderText:'Nhắc hẹn'});
+ await customerReminderTick(due-1800000,async()=>{throw Error('Ngoài cửa sổ Messenger');});assert.equal(get('chat_reminders',r.id).customerReminderStatus,'failed');assert.match(get('notifications','chat-reminder-error:'+r.id).body,/cửa sổ/);
+ put('chat_reminders',{id:'crash-auto',customerReminderStatus:'sending',actor:'owner',conversationId:c.id});recoverCustomerReminders();assert.equal(get('chat_reminders','crash-auto').customerReminderStatus,'unknown');
+ put('chat_reminders',{id:'late-auto',status:'pending',customerReminder:true,customerReminderStatus:'pending',customerReminderAt:new Date(due-1000).toISOString(),dueAt:new Date(due).toISOString()});
+ put('chat_reminders',{id:'cancel-auto',status:'cancelled',customerReminder:true,customerReminderStatus:'pending',customerReminderAt:new Date(due-1000).toISOString(),dueAt:new Date(due+1000).toISOString()});
+ let calls=0;await customerReminderTick(due,async()=>{calls++;});assert.equal(calls,0);assert.equal(get('chat_reminders','late-auto').customerReminderStatus,'skipped');
+});

@@ -3727,3 +3727,4 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 @media(pointer:coarse){.bubble-wrap .message-under-actions>.message-reaction-selector{visibility:visible}}
 @media(max-width:760px){.chat-messages .bubble-wrap{max-width:calc(100% - 24px)}.chat-messages{padding-left:12px;padding-right:12px}.bubble-wrap .message-under-actions{gap:3px}}
 .bubble-wrap:is(:hover,.message-hover-active,.message-revealed,:has(:focus-visible),:has(.message-more[open])) .message-under-actions>:is(.message-tools,.message-contact-order,.message-reaction-selector){visibility:visible;opacity:1}
+.bubble-wrap.has-contact-order .message-under-actions>.message-contact-order{visibility:visible;opacity:1}.chat-calendar-reminder{width:100%;text-align:left;border:1px solid #d8c688;background:#fff8df;color:#705c24;cursor:pointer}

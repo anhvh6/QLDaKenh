@@ -8,7 +8,7 @@ import { isTypeCode } from '../public/chat-media-content.js';
 import { quickReplyRoute } from './quick-replies.mjs';
 import { refreshLearnerStatuses } from './learner-status-sync.mjs';
 import { consultationTick } from './consultation-review.mjs';
-import { reminderTick } from './chat-reminders.mjs';
+import { reminderTick, customerReminderTick, recoverCustomerReminders } from './chat-reminders.mjs';
 import { shippingRoute, shippingState, receiveVtpWebhook, carrierOrdersState, importVtpOrder } from './shipping.mjs';
 import { interactionRoute } from './chat-interactions.mjs';
 import { pushRoute, pushTick } from './web-push.mjs';
@@ -96,7 +96,7 @@ async function dispatch(req, res, url, user, input) {
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user };
     void refreshLearnerStatuses();
-    const state = { user, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = all(k); }
+    const state = { user, reminderDefaults: get('settings','chat-reminder-defaults-'+user.id) || null, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = all(k); }
     const learnerFacts = new Map(all('learner_source_facts').map(f => [f.id, f])); state.customers = state.customers.map(c => { const f = learnerFacts.get(c.id); if (!f) return c; const { id, version, createdAt, updatedAt, sourceUpdatedAt, ...fields } = f; return { ...c, ...fields }; });
     state.messages = state.messages.map(m => { if (!m.quoteSource || !isTypeCode(m.text) && !/video|voice|audio/i.test(m.messageType || '')) return m; const content = parseZaloContent(m.quoteSource); return { ...m, ...content, attachments: content.attachments?.length ? content.attachments : m.attachments || [] }; }); state.conversations = state.conversations.map(c => isTypeCode(c.lastMessage) ? { ...c, lastMessage: /video/i.test(c.lastMessage) ? 'Video' : /voice|audio/i.test(c.lastMessage) ? 'Tin nhắn thoại' : /photo|image/i.test(c.lastMessage) ? 'Ảnh' : 'Tệp đính kèm' } : c);
     filterDeletedChats(state);
@@ -240,3 +240,5 @@ setInterval(() => resumePurges().catch(e => console.error('Customer purge:', e.m
 recoverCopyJobs(); setInterval(copyTick, 2000).unref();
 
 void facebookChatTick(); setInterval(() => void facebookChatTick(), 10000).unref();
+
+recoverCustomerReminders();setInterval(() => void customerReminderTick().catch(e=>console.error('Customer reminders:',e.message)), 5000).unref();

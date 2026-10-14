@@ -53,3 +53,13 @@ test('Messenger media sends preserve all receipts; a partial failure cannot be r
   await assert.rejects(sendMessage(ch,conv,'Xin chào',{assetRefs:[asset]}),e=>e.unknown===true&&e.externalMessages[0].id==='partial');
  }finally{global.fetch=priorFetch;if(priorOrigin)process.env.OAUTH_BASE_URL=priorOrigin;else delete process.env.OAUTH_BASE_URL;}
 });
+
+test('Facebook reaction adapter requires platform acknowledgement and pin stays explicitly internal',async()=>{
+ const {reactFacebookMessage}=await import('../server/facebook-reactions.mjs');let body;
+ await reactFacebookMessage(ch,{externalUserId:'person'},{externalId:'message-id'},'heart',async(url,options)=>{body=JSON.parse(options.body);return {recipient_id:'person'};});
+ assert.equal(body.sender_action,'react');assert.equal(body.payload.message_id,'message-id');assert.equal(body.payload.reaction,'love');
+ await assert.rejects(reactFacebookMessage(ch,{externalUserId:'person'},{externalId:'message-id'},'heart',async()=>({})),/chưa xác nhận/);
+ const conv=all('conversations')[0],m=put('messages',{conversationId:conv.id,direction:'incoming',text:'Ghim QA'}),user={id:'owner',role:'owner'};
+ const pinned=await chatRoute('/api/chat/messages/'+m.id,'PATCH',{pinned:true,expectedPinned:false,version:m.version},user);assert.equal(pinned.pinned,true);
+ const unpinned=await chatRoute('/api/chat/messages/'+m.id,'PATCH',{pinned:false,expectedPinned:true,version:pinned.version},user);assert.equal(unpinned.pinned,false);
+});
