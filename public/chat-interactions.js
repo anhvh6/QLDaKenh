@@ -74,8 +74,9 @@ export function initMessageInteractions(host){H=host;initChatMenuLayout();setInt
 
 function initMessageHover(){
  let active=null,frame=0,point;
- const clear=()=>{active?.classList.remove('message-hover-active');active=null;};
+ const clear=()=>{active?.classList.remove('message-hover-active','message-revealed');active=null;};
  document.addEventListener('pointerover',event=>{if(event.pointerType==='touch')return;const row=event.target.closest?.('.bubble-wrap[data-message]');if(!row||row.classList.contains('message-selecting'))return;if(active!==row){clear();active=row;}row.classList.add('message-hover-active');});
  document.addEventListener('pointermove',event=>{if(!active||event.pointerType==='touch')return;point={x:event.clientX,y:event.clientY};if(frame)return;frame=requestAnimationFrame(()=>{frame=0;if(!active?.isConnected){clear();return;}if(active.querySelector('.message-more[open]'))return;const rects=[active.getBoundingClientRect(),...Array.from(active.querySelectorAll('.message-under-actions')).map(n=>n.getBoundingClientRect())];if(!nearMessage(point.x,point.y,rects))clear();});},{passive:true});
  window.addEventListener('blur',clear);document.addEventListener('scroll',event=>{if(event.target.matches?.('.chat-messages'))clear();},true);
 }
+
