@@ -41,7 +41,7 @@ export async function syncComments(channel,request=remote){
  if(locks.has(channel.id))return locks.get(channel.id);
  const job=(async()=>{let state=get('comment_sync',channel.id)||{id:channel.id};try{
  const token=secret(channel.id).token;if(!token)throw Error('Chưa có token kết nối.');
- const headers={Authorization:'Bearer '+token};const read=(path,params)=>request(base(channel)+'/'+encodeURIComponent(path.split('/')[0])+'/'+path.split('/').slice(1).join('/')+'?'+new URLSearchParams(params),{headers});
+ const headers={Authorization:'Bearer '+token};const read=async(path,params)=>{const url=base(channel)+'/'+encodeURIComponent(path.split('/')[0])+'/'+path.split('/').slice(1).join('/')+'?'+new URLSearchParams(params);try{return await request(url,{headers});}catch(error){if(!error.unknown)throw error;return request(url,{headers});}};
  let queue=state.queue||[],after=state.after||'',processed=0;
  if(!queue.length){const page=await read(channel.accountId+'/'+(channel.provider==='threads'?'threads':'feed'),{fields:channel.provider==='threads'?'id,text,timestamp,permalink':'id,message,created_time,permalink_url',limit:'20',...(after?{after}:{})});queue=page.data||[];after=page.paging?.next?page.paging?.cursors?.after||'':'';}
  for(const post of queue.slice(0,5)){
@@ -53,6 +53,6 @@ export async function syncComments(channel,request=remote){
  queue=queue.slice(processed);state=put('comment_sync',{...state,queue,after,status:'ready',error:'',syncedAt:now(),...(!queue.length&&!after?{completedAt:now()}:{})});return state;
  }catch(error){return put('comment_sync',{...state,status:'error',error:error.message,syncedAt:now()});}})();locks.set(channel.id,job);try{return await job;}finally{locks.delete(channel.id);}
 }
-export async function commentsTick(){for(const c of all('connections').filter(c=>c.status==='connected'&&c.mode==='api'&&commentProviders.has(c.provider))){const s=get('comment_sync',c.id);if(Date.now()-Date.parse(s?.syncedAt||0)<(s?.status==='error'?300000:20000))continue;await syncComments(c);}}
+export async function commentsTick(){await Promise.all(all('connections').filter(c=>c.status==='connected'&&c.mode==='api'&&commentProviders.has(c.provider)).map(async c=>{const s=get('comment_sync',c.id);if(Date.now()-Date.parse(s?.syncedAt||0)<(s?.status==='error'?300000:20000))return;await syncComments(c);}));}
 export function commentsStatus(user){permission(user,'inbox');return all('connections').filter(c=>c.status==='connected').filter(c=>{try{assertChannel(user,c.id);return true;}catch{return false;}}).map(c=>{const s=get('comment_sync',c.id);return {id:c.id,name:c.name,provider:c.provider,supported:commentProviders.has(c.provider)||c.mode==='demo',status:s?.status||'waiting',syncedAt:s?.syncedAt,error:s?.error||'',backfilling:!!s?.queue?.length||!!s?.after,count:all('conversations').filter(x=>x.kind==='comment'&&x.connectionId===c.id).length};});}
 export async function commentsRoute(path,method,input,user){if(path==='/api/comments/status'&&method==='GET')return commentsStatus(user);if(path==='/api/comments/sync'&&method==='POST'){permission(user,'inbox');const channels=commentsStatus(user).filter(c=>c.supported);const apiChannels=channels.filter(c=>get('connections',c.id)?.mode==='api');for(const c of apiChannels)void syncComments(get('connections',c.id));return {started:apiChannels.length};}}

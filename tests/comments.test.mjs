@@ -34,3 +34,9 @@ test('Threads reply publishes against the selected original comment and returns 
  try{const r=await sendMessage(get('connections','threads'),{kind:'comment',externalCommentId:'target'},'Response');assert.equal(r.id,'published-reply');assert.equal(calls[0].body.reply_to_id,'target');assert.equal(calls[1].body.creation_id,'container');assert.equal(calls.length,2);await assert.rejects(sendMessage(get('connections','threads'),{kind:'comment',externalCommentId:'target'},'a'.repeat(501)),/500/);}finally{globalThis.fetch=previous;}
 });
 test('channel diagnostics exclude channels unavailable to a staff account',()=>{assert.equal(commentsStatus({id:'unassigned',role:'support'}).length,0);});
+
+test('failed or unconfirmed moderation never changes local liked/deleted state',async()=>{
+ const {reactMessage,deleteCommentMessage}=await import('../server/domain.mjs');const m=upsertComment(c,{id:'moderate',message:'Keep me',from:{id:'moderator-test'}});const previous=globalThis.fetch;let success=false;
+ globalThis.fetch=async()=>new Response(JSON.stringify({success}),{status:200});
+ try{const owner={id:'owner',role:'owner'};await assert.rejects(reactMessage(owner,m.id,{like:true}),/chưa xác nhận/);assert.equal(get('messages',m.id).liked,undefined);await assert.rejects(deleteCommentMessage(owner,m.id),/chưa xác nhận/);assert.equal(get('messages',m.id).deletedAt,undefined);success=true;await reactMessage(owner,m.id,{like:true});assert.equal(get('messages',m.id).liked,true);await deleteCommentMessage(owner,m.id);assert.ok(get('messages',m.id).deletedAt);}finally{globalThis.fetch=previous;}
+});

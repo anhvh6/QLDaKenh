@@ -193,12 +193,12 @@ export async function updatePublication(c, p, content) {
 export async function reactComment(c, externalCommentId, like = true) {
   if (c.provider !== 'facebook') throw new Error('Kênh này chưa hỗ trợ react bình luận.');
   const token = secret(c.id).token; if (!token) throw new Error('Chưa cấu hình token.');
-  return remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}/likes`, { method: like ? 'POST' : 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}/likes`, { method: like ? 'POST' : 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error('Facebook chưa xác nhận thay đổi cảm xúc bình luận.'),{unknown:true});return result;
 }
 export async function deleteComment(c, externalCommentId) {
   if (c.provider !== 'facebook') throw new Error('Kênh này chưa hỗ trợ xóa bình luận.');
   const token = secret(c.id).token; if (!token) throw new Error('Chưa cấu hình token.');
-  return remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error('Facebook chưa xác nhận xóa bình luận.'),{unknown:true});return result;
 }
 export async function sendMessage(c, conv, text, options = {}) {
   if (c.provider === 'zalo_personal') {

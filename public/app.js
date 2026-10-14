@@ -175,6 +175,7 @@ function commentsPage() {
   people = people.filter(group => filter === 'all' || group.conversations.some(c => filter === 'unread' ? c.unread : c.status === filter)).sort((a, b) => Date.parse(b.lastAt || 0) - Date.parse(a.lastAt || 0));
   const selectedGroup = people.find(group => group.conversations.some(c => c.id === selectedConversation)) || people[0];
   const conv = selectedGroup?.conversations.find(c => c.id === selectedConversation) || selectedGroup?.conversations[0] || null;
+  if(conv)selectedConversation=conv.id;
   const customer = selectedGroup?.person || null, ch = conv ? find('connections', conv.connectionId) : null;
   const groupConversationIds = new Set(selectedGroup?.conversations.map(c => c.id) || []);
   const messages = S.messages.filter(message => groupConversationIds.has(message.conversationId)).sort((a, b) => Date.parse(a.createdAt || 0) - Date.parse(b.createdAt || 0));
@@ -564,7 +565,7 @@ async function enhanceCommentStatus(){
  if(route!=='comments'||commentSyncLoading)return;commentSyncLoading=true;
  try{if(Date.now()-commentSyncAt>5000){commentSyncRows=await api('/comments/status');commentSyncAt=Date.now();}
  const box=$('#comment-sync-status');if(!box)return;
- box.innerHTML=commentSyncRows.map(c=>`<div class="comment-channel-status ${c.status==='error'?'error':''}">${social(c.provider)} <strong>${e(c.name)}</strong> · ${c.supported?e(c.status==='error'?'Lỗi đồng bộ: '+c.error:c.status==='ready'?(c.backfilling?'Đang tải lịch sử':'Đã đồng bộ')+' · '+c.count+' bình luận':'Chờ đồng bộ'):'Kết nối này chưa hỗ trợ API bình luận'}${c.status==='error'&&S.providers[c.provider]?.oauth?btn('Kết nối lại','oauth-connect','refresh','small',c.id):''}</div>`).join('');
+ box.innerHTML=commentSyncRows.map(c=>`<div class="comment-channel-status ${c.status==='error'?'error':''}">${social(c.provider)} <strong>${e(c.name)}</strong> · ${c.supported?e(c.status==='error'?'Lỗi đồng bộ: '+c.error:c.status==='ready'?(c.backfilling?'Đang tải lịch sử':'Đã đồng bộ')+' · '+c.count+' bình luận':'Chờ đồng bộ'):'Kết nối này chưa hỗ trợ API bình luận'}${c.status==='error'&&/quyền|permission|code 10|code 190|token/i.test(c.error)&&S.providers[c.provider]?.oauth?btn('Kết nối lại','oauth-connect','refresh','small',c.id):''}</div>`).join('');
  }catch(error){const box=$('#comment-sync-status');if(box)box.textContent=error.message;}finally{commentSyncLoading=false;}
 }
 setInterval(()=>{if(route==='comments'&&!document.hidden)void enhanceCommentStatus();},10000);
