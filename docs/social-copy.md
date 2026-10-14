@@ -26,7 +26,7 @@ bài. Không cần nhập lại caption hay gắn từng media. Kho chỉ duyệ
 
 ## Cấu hình Google
 
-Chủ hệ thống mở Cài đặt > Google Drive, nhập OAuth Client ID, Client Secret
+Chủ hệ thống mở Cài đặt > Kênh kết nối > Google Drive, nhập OAuth Client ID, Client Secret
 và địa chỉ HTTPS công khai của ứng dụng. Bật Google Drive API trong Google
 Cloud; OAuth client loại Web application. Redirect URI:
 `https://quanlydakenh.vercel.app/api/drive/callback` (hoặc origin đã cấu hình).
@@ -78,7 +78,7 @@ trực tiếp trên VPS; video Reel đầu tiên đã tải thành MP4 có cả 
 
 Danh sách tải có tìm kiếm nội dung/link, lọc Đang tải, Chưa Reup, ZIP, Google Drive và sắp xếp ngày tải hai chiều. Trạng thái ZIP và Drive được lưu riêng; ZIP nội bộ của một lần tải Drive không được đánh dấu là người dùng đã chọn lưu ZIP. Chuyển một gói ZIP sang Drive tái sử dụng caption và media đã tải trên máy chủ, cập nhật chính dòng cũ. Reup từ dòng đã lưu Drive tạo bản nháp sử dụng media có sẵn; chỉ đánh dấu Reup thành công khi có publication `published` hoặc `manually_confirmed`, không tính đăng mẫu. Xóa dòng là ẩn khỏi danh sách, giữ tệp và bài đã đăng; không cho xóa khi tác vụ đang chạy.
 
-Kết nối dùng scope `drive.file`. Dán ID không tự cấp quyền truy cập thư mục đã tạo ngoài ứng dụng. Trong Cài đặt > Google Drive, dùng **Chọn thư mục từ Google Drive** (Google Picker) để chọn và cấp quyền cho thư mục. Bật Google Picker API trong cùng dự án OAuth; nếu dự án yêu cầu developer key, nhập Google Picker API key ở cấu hình. Hạn chế key cho Google Picker API và website của ứng dụng cùng `https://docs.google.com/*`.
+Kết nối dùng scope `drive.file`. Dán ID không tự cấp quyền truy cập thư mục đã tạo ngoài ứng dụng. Trong Cài đặt > Kênh kết nối > Google Drive, dùng **Chọn thư mục từ Google Drive** (Google Picker) để chọn và cấp quyền cho thư mục. Bật Google Picker API trong cùng dự án OAuth; nếu dự án yêu cầu developer key, nhập Google Picker API key ở cấu hình. Hạn chế key cho Google Picker API và website của ứng dụng cùng `https://docs.google.com/*`.
 
 Endpoint POST `/api/drive/picker` yêu cầu phiên đăng nhập, quyền Nội dung và CSRF; chỉ trả access token ngắn hạn của người gọi để mở bộ chọn. Không trả refresh token hay client secret, không lưu token trong trình duyệt. Lưu thư mục kiểm tra lại quyền ghi qua Drive API trước khi thay cấu hình. ID hoặc link `https://drive.google.com/drive/folders/...` đều được hỗ trợ; lỗi 404/403 được phân biệt với lỗi máy chủ.
 
@@ -107,7 +107,7 @@ Hai URL mẫu:
 
 Bộ quét thử yt-dlp, sau đó đọc payload công khai/nhúng. Facebook đối chiếu chủ video với hồ sơ nguồn; TikTok bỏ video riêng tư và video thuộc người khác. Không suy ngày đăng từ ID. Nguồn chỉ trả một phần được ghi **Đã lấy một phần**, không ghi quét toàn bộ. Không vượt đăng nhập/CAPTCHA. Không yêu cầu tài khoản của người khác cấp OAuth.
 
-Đọc công khai không bảo đảm trả toàn bộ lịch sử, video mới nhất hoặc luôn truy cập được từ VPS. Theo dõi định kỳ chỉ phát hiện những video nền tảng thực sự trả về. Trong nghiệm thu trực tiếp, Facebook trả 10 video có ngày; TikTok creator embed từng trả 12 video nhưng những lần gọi khác trả rỗng/lỗi TLS và chưa xác minh đủ ngày đăng. Vì vậy chưa thể nghiệm thu đồng bộ đầy đủ hai nguồn bên ngoài; giao diện hiển thị lỗi/giới hạn thay vì báo thành công giả.
+Đọc công khai không bảo đảm trả toàn bộ lịch sử, video mới nhất hoặc luôn truy cập được từ VPS. Theo dõi định kỳ chỉ phát hiện những video nền tảng thực sự trả về. Trong nghiệm thu trực tiếp, Facebook trả 10 video có ngày; TikTok creator embed trả 12 video, xác minh được ngày của 5 video; những lần gọi khác có thể trả rỗng/lỗi TLS, 7 video chưa đủ metadata ngày nên không được tự xếp lịch. Vì vậy chưa thể nghiệm thu đồng bộ đầy đủ hai nguồn bên ngoài; giao diện hiển thị lỗi/giới hạn thay vì báo thành công giả.
 
 ### Lưu trữ và khôi phục
 
@@ -121,6 +121,6 @@ Các loại records mới: `copy_sources`, `copy_videos`, `copy_plans`, `copy_pl
 
 Ma trận gồm: hai dạng URL, GMT+7/ngày biên, nguồn trả một phần/lỗi/dừng/restart, loại video sai chủ/thiếu ngày, chống trùng qua lần quét và kế hoạch, thứ tự cũ/mới, chọn nhiều/hủy chọn, lọc OR/tất cả/không chọn, lịch 24 giờ, T−30, giới hạn ba lần thử, preflight Threads 500 ký tự, pause/resume/cancel, quyền nhân viên, Drive → publication → thành công, lỗi từng kênh và đối soát kết quả chưa rõ. Drive/đăng bài trong test tự động dùng adapter giả lập; không coi đó là bằng chứng đã đăng thật lên các tài khoản kết nối.
 
-Kết quả kiểm thử 14/10/2026: 425/425 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 9 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
+Kết quả kiểm thử 14/10/2026: 427/427 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 10 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
 
 Bản dự phòng trước triển khai trên VPS: `/root/backups/copy-automation-20261014/` gồm lịch sử code Git, bản sao SQLite bằng backup API, encryption.key, cấu hình và gói tệp dữ liệu. Trước khi hạ về code cũ cần tạm dừng tất cả kế hoạch Sao chép và hủy publication Sao chép chưa gửi, vì worker cũ không hiểu trạng thái kế hoạch mới. Ưu tiên khôi phục code, giữ database hiện tại để không mất tin nhắn mới. Chỉ khôi phục toàn bộ database/tệp từ bản dự phòng khi đã xác nhận chấp nhận quay dữ liệu về thời điểm sao lưu. Bản dự phòng tại máy: `test-results/before-copy-automation-20261014.bundle` và `.patch` (patch giữ cả thay đổi cục bộ trước triển khai).

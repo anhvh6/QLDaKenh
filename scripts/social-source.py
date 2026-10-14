@@ -55,27 +55,31 @@ def page_rows(text, req):
 
 def tiktok_date(row):
     # Only explicit platform metadata is accepted. Do not infer publication dates from IDs.
+    if row.get('publishedAt'):
+        return row
     from curl_cffi import requests
-    try:
-        r=requests.get(row['url'],impersonate='chrome',timeout=10)
-        if r.status_code!=200:
-            return row
-        for raw in re.findall(r'<script[^>]*>(.*?)</script>',r.text,re.S):
-            try:
-                data=json.loads(raw)
-            except ValueError:
+    urls=[row['url'],'https://www.tiktok.com/embed/v2/'+row['externalId']]
+    for url in urls:
+        try:
+            r=requests.get(url,impersonate='chrome',timeout=8)
+            if r.status_code!=200:
                 continue
-            for node in walk(data):
-                if str(node.get('id'))==row['externalId']:
-                    value=iso(node.get('createTime') or node.get('create_time'))
-                    if value:
-                        return {**row,'publishedAt':value}
-                if node.get('@type')=='VideoObject' and node.get('uploadDate'):
-                    date=datetime.datetime.fromisoformat(node['uploadDate'].replace('Z','+00:00'))
-                    if date.tzinfo:
-                        return {**row,'publishedAt':date.isoformat()}
-    except Exception:
-        pass
+            for raw in re.findall(r'<script[^>]*>(.*?)</script>',r.text,re.S):
+                try:
+                    data=json.loads(raw)
+                except ValueError:
+                    continue
+                for node in walk(data):
+                    if str(node.get('id'))==row['externalId']:
+                        value=iso(node.get('createTime') or node.get('create_time'))
+                        if value:
+                            return {**row,'publishedAt':value}
+                    if node.get('@type')=='VideoObject' and node.get('uploadDate') and row['externalId'] in str(node.get('url') or node.get('@id') or node.get('embedUrl') or node.get('identifier') or ''):
+                        date=datetime.datetime.fromisoformat(node['uploadDate'].replace('Z','+00:00'))
+                        if date.tzinfo:
+                            return {**row,'publishedAt':date.isoformat()}
+        except Exception:
+            pass
     return row
 
 def public_page(req):
@@ -102,7 +106,7 @@ def public_page(req):
     if req['provider']=='tiktok':
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=3) as pool:
-            videos=list(pool.map(tiktok_date,videos))
+            videos=list(pool.map(tiktok_date,videos[:20]))+videos[20:]
     return {'videos':videos,'nextOffset':None,'complete':False,'partial':True,'note':'Chỉ lấy được các video hiện có trong trang công khai/nhúng; chưa xác nhận toàn bộ lịch sử. Video thiếu ngày đăng chưa được tự động xếp lịch.'}
 
 def scan(req):

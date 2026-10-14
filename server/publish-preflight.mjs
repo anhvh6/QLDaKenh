@@ -3,7 +3,7 @@ import { providers } from './connectors.mjs';
 import { assertChannel } from './taophacdo.mjs';
 
 // Read-only: validate every destination before any copy download or publication is queued.
-export function publicationPreflight(user, content, input = {}, { prepared = false, sourceMedia = null } = {}) {
+export function publicationPreflight(user, content, input = {}, { prepared = false, sourceMedia = null, checkHistory = true } = {}) {
   const issues = [], add = (channel, message) => issues.push({ channelId: channel?.id || '', channel: channel?.name || 'Bài viết', message });
   if (!content) return { ok: false, issues: [{ channel: 'Bài viết', message: 'Không tìm thấy nội dung.' }] };
   const channels = content.channels || [];
@@ -12,7 +12,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
   if (!input.immediate && (!Number.isFinite(Date.parse(input.scheduleAt)) || Date.parse(input.scheduleAt) < Date.now() + (prepared ? 0 : 600000))) add(null, prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
   const source = content.sourceCopyId && !content.copyReady ? get('copy_posts', content.sourceCopyId) : null;
   const media = sourceMedia || (source ? source.media || [] : (content.assets || []).map(id => get('assets', id)).filter(a => a && a.active !== false));
-  const publications = all('publications').filter(p => p.contentId === content.id);
+  const publications = checkHistory ? all('publications').filter(p => p.contentId === content.id) : [];
   for (const id of channels) {
     const ch = get('connections', id);
     if (!ch) { add(null, 'Kênh đã bị xóa. Hãy chọn lại kênh đăng.'); continue; }

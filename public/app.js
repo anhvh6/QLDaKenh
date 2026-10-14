@@ -408,7 +408,7 @@ document.addEventListener('click', async event => {
     if (action === 'prev-month' || action === 'next-month') { calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + (action === 'prev-month' ? -1 : 1), 1); render(); return; }
     if (action === 'today') { calendarDate = new Date(); render(); return; }
     if (action === 'job-list') { jobsModal(); return; }
-    if(action==='copy-plan-open'){route='content';filter='copy';location.hash='content';render();window.dispatchEvent(new CustomEvent('copy:open-plan',{detail:{id}}));return;}
+    if(action==='copy-plan-open'){route='content';filter='copy';history.replaceState(null,'','#content');render();window.dispatchEvent(new CustomEvent('copy:open-plan',{detail:{id}}));return;}
     if (action === 'content-jobs') { jobsModal(S.publications.filter(p => p.contentId === id)); return; }
     if (action === 'day-jobs') { jobsModal(S.publications.filter(p => vnDate(p.scheduleAt).toDateString() === new Date(id).toDateString())); return; }
     if (action === 'publication') { publicationDetail(id); return; }
