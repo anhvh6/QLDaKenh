@@ -109,7 +109,7 @@ async function refreshInbox(paintOnly = false) {
 function syncIncomingWhileInteracting(next) {
   const form = $('#reply-form'), chat = $('.chat-messages'), c = next.conversations.find(c => c.id === form?.dataset.id); if (!chat || !c || !conversationConnected(next, c)) return;
   const known = new Set([...chat.querySelectorAll('[data-message]')].map(row => row.dataset.message)); const incoming = next.messages.filter(m => m.conversationId === c.id && !m.deletedAt && !m.history && !known.has(m.id)).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
-  S = next; updateChatNotifications(next.notifications || []);
+  S = next; updateChatNotifications(next.notifications || []); enhanceLiveMessages();
   if (incoming.length) { const bottom = chat.scrollHeight - chat.clientHeight - chat.scrollTop < 60; chat.insertAdjacentHTML('beforeend', chatMessages(incoming, c, S)); enhanceLiveMessages(); if (bottom) chat.scrollTop = chat.scrollHeight; }
 }
 function navigate(next) { filter = 'all'; query = ''; if (next !== 'inbox') selectedConversation = null; location.hash = next; route = next; document.body.classList.remove('menu-open'); render(); }

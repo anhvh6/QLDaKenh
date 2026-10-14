@@ -1,3 +1,4 @@
+import {facebookMessageMedia} from './facebook-media.mjs';
 import { createReadStream, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { secret, get, saveSecret, dataDir } from './store.mjs';
@@ -214,7 +215,7 @@ export async function sendMessage(c, conv, text, options = {}) {
   if (!conv.externalUserId) throw new Error('Hội thoại chưa có định danh người nhận thực tế.');
   if (c.provider === 'facebook') {
     if (!conv.lastInboundAt || Date.now() - Date.parse(conv.lastInboundAt) > 24 * 3600000) throw new Error('Ngoài cửa sổ trả lời tiêu chuẩn. Mở nền tảng gốc để chọn cách gửi hợp lệ.');
-    const messages = [...(text ? [{ text }] : []), ...(options.assetRefs || []).map(asset => ({ attachment: { type: ['image','video','audio'].includes(asset.type) ? asset.type : 'file', payload: { url: publicMediaUrl(asset), is_reusable: true } } }))];
+    const messages = [...(text ? [{ text }] : []), ...await facebookMessageMedia(c,options.assetRefs||[],remote,token)];
     const externalMessages = [];
     try { for (const message of messages) { const result = await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(c.accountId)}/messages`, json({ recipient: { id: conv.externalUserId }, messaging_type: 'RESPONSE', message }, token)); if (!result.message_id) throw Object.assign(new Error('Facebook chưa trả mã xác nhận tin nhắn. Kiểm tra trên Messenger trước khi thử lại.'), { unknown: true }); externalMessages.push({ id: String(result.message_id) }); } }
     catch (error) { if (externalMessages.length) throw Object.assign(new Error('Một phần tin nhắn đã gửi. Kiểm tra trên Messenger trước khi gửi lại. ' + error.message), { unknown: true, externalMessages }); throw error; }

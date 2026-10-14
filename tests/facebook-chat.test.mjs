@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'facebook-chat-'));process.env.PLAN_REMOTE_CATALOG='0';
-const {put,get,all,saveSecret}=await import('../server/store.mjs');
+const {put,get,all,saveSecret,dataDir}=await import('../server/store.mjs');
 const {ingestFacebookMessage,ingestFacebookEvents,syncFacebookChat}=await import('../server/facebook-chat.mjs');
 const {chatRoute}=await import('../server/chat.mjs');
 const {defaultFilters,filterThreads}=await import('../public/inbox-model.js');
@@ -45,10 +45,10 @@ test('saved filters belong to authenticated staff and survive subsequent request
 test('Messenger media sends preserve all receipts; a partial failure cannot be retried as unsent',async()=>{
  const {sendMessage}=await import('../server/connectors.mjs');saveSecret(ch.id,{token:'test-token'});
  const priorFetch=global.fetch,priorOrigin=process.env.OAUTH_BASE_URL;process.env.OAUTH_BASE_URL='https://example.com';let bodies=[];
- const asset=put('assets',{type:'image',url:'/uploads/asset_test.jpg'}),conv={externalUserId:'person',lastInboundAt:new Date().toISOString()};
+ writeFileSync(join(dataDir,'uploads','asset_test.jpg'),'image');const asset=put('assets',{type:'image',url:'/uploads/asset_test.jpg'}),conv={externalUserId:'person',lastInboundAt:new Date().toISOString()};
  try{
-  global.fetch=async(url,options)=>{bodies.push(JSON.parse(options.body));return new Response(JSON.stringify({message_id:'sent-'+bodies.length}),{status:200});};
-  const result=await sendMessage(ch,conv,'Xin chào',{assetRefs:[asset]});assert.equal(result.externalMessages.length,2);assert.equal(bodies[0].message.text,'Xin chào');assert.equal(bodies[1].message.attachment.type,'image');assert.match(bodies[1].message.attachment.payload.url,/^https:\/\/example.com\/public-media\//);
+  global.fetch=async(url,options)=>{if(url.includes('message_attachments'))return new Response(JSON.stringify({attachment_id:'uploaded'}),{status:200});bodies.push(JSON.parse(options.body));return new Response(JSON.stringify({message_id:'sent-'+bodies.length}),{status:200});};
+  const result=await sendMessage(ch,conv,'Xin chào',{assetRefs:[asset]});assert.equal(result.externalMessages.length,2);assert.equal(bodies[0].message.text,'Xin chào');assert.equal(bodies[1].message.attachment.type,'image');assert.equal(bodies[1].message.attachment.payload.attachment_id,'uploaded');
   bodies=[];global.fetch=async(url,options)=>{bodies.push(JSON.parse(options.body));return bodies.length===1?new Response(JSON.stringify({message_id:'partial'}),{status:200}):new Response(JSON.stringify({error:{message:'Media bị từ chối'}}),{status:400});};
   await assert.rejects(sendMessage(ch,conv,'Xin chào',{assetRefs:[asset]}),e=>e.unknown===true&&e.externalMessages[0].id==='partial');
  }finally{global.fetch=priorFetch;if(priorOrigin)process.env.OAUTH_BASE_URL=priorOrigin;else delete process.env.OAUTH_BASE_URL;}
@@ -70,4 +70,18 @@ test('Facebook sticker and reactions are rendered as media; media-only placehold
  const html=richMessage({text:'[image-12345]',attachments:[{type:'image',url:'https://example.com/image.jpg'}]});assert.doesNotMatch(html,/image-12345/);assert.match(html,/<img/);
  ingestFacebookEvents(ch,[{messaging:[{sender:{id:'person'},recipient:{id:'page-id'},reaction:{mid:'sticker-new',action:'react',emoji:'😆'}}]}]);assert.equal(get('messages',m.id).reactions[0].emoji,'😆');
  ingestFacebookEvents(ch,[{messaging:[{sender:{id:'person'},recipient:{id:'page-id'},reaction:{mid:'sticker-new',action:'unreact'}}]}]);assert.equal(get('messages',m.id).reactions.length,0);
+});
+
+test('customer reactions resolve every receipt ID in a staff text/media send',()=>{
+ const conv=all('conversations')[0],m=put('messages',{conversationId:conv.id,direction:'outgoing',actor:'staff',externalId:'text-part',externalMessages:[{id:'text-part'},{id:'image-part'}],text:'Hình ảnh'});
+ ingestFacebookEvents(ch,[{messaging:[{sender:{id:'person'},recipient:{id:'page-id'},reaction:{mid:'image-part',action:'react',emoji:'😄'}}]}]);
+ assert.equal(get('messages',m.id).reactions[0].emoji,'😄');assert.equal(get('messages',m.id).actor,'staff');
+});
+
+test('multiple images upload concurrently, send as one album and reuse cached Facebook attachments',async()=>{
+ const {facebookMessageMedia}=await import('../server/facebook-media.mjs');
+ const assets=[1,2].map(i=>{writeFileSync(join(dataDir,'uploads',`asset_album${i}.jpg`),'image');return put('assets',{id:'album'+i,type:'image',url:`/uploads/asset_album${i}.jpg`,mime:'image/jpeg'});});
+ let calls=0;const request=async(url,options)=>{calls++;assert.ok(options.body instanceof FormData);assert.equal(JSON.parse(options.body.get('message')).attachment.payload.is_reusable,true);return{attachment_id:'upload-'+calls};};
+ const messages=await facebookMessageMedia(ch,assets,request,'token');assert.equal(messages.length,1);assert.equal(messages[0].attachments.length,2);assert.equal(calls,2);
+ assert.deepEqual(await facebookMessageMedia(ch,assets,request,'token'),messages);assert.equal(calls,2);
 });
