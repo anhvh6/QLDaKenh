@@ -1,7 +1,7 @@
 import {jobControls,renderJobsTable,jobIconButton,filterCopyJobs,copyPlatforms} from './copy-job-table.js';
 let H,post=null,jobs=[],drive=null,busy=false,sourceInput='' ,copyUser='',previewGeneration=0;
-const jobView={search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,selecting:false,selected:new Set()};
-let deleteIds=[],copyHold=null,suppressCopyClickUntil=0;
+const jobView={search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,platformOpen:false,selecting:false,selected:new Set()};
+let deleteIds=[],copyHold=null;
 const connectedPlatforms=()=>[...new Set((H?.state?.connections||[]).filter(c=>c.status==='connected'&&c.mode!=='demo'&&copyPlatforms[c.provider]).map(c=>c.provider))];
 async function waitImport(jobId,contentId){while(document.querySelector('#drive-import-progress')){const rows=await H.api('/copy/jobs'),job=rows.find(j=>j.id===jobId);if(job?.status==='done'){await H.refresh(false);if(document.querySelector('#drive-import-progress'))H.openContent(contentId);return;}if(job?.status==='failed')throw new Error(job.error);const status=document.querySelector('#drive-import-progress');if(status)status.textContent=labels[job?.status]||'Đang tải…';await new Promise(r=>setTimeout(r,3000));}}
 const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -24,8 +24,8 @@ function updateDriveCards(){
  const empty=document.querySelector('#channels-empty');if(empty)empty.hidden=!!drive?.connected;
 }
 async function refreshDrive(){drive=await H.api('/drive/config');updateDriveCards();const el=document.querySelector('#drive-state');if(el)el.innerHTML=`<p>${drive.connected?'✓ Đã kết nối Google Drive':drive.configured?'Chưa kết nối Drive của bạn':'Chưa cấu hình ứng dụng Google OAuth'}</p>`;const input=document.querySelector('#drive-folder-form [name=folderId]');if(input&&document.activeElement!==input)input.value=drive.folderId;}
-export function enhanceCopy(){if(copyUser!==H?.state?.user?.id){copyUser=H?.state?.user?.id;post=null;jobs=[];sourceInput='';drive=null;Object.assign(jobView,{search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,selecting:false,selected:new Set()});}if(document.querySelector('#copy-jobs'))void refreshJobs().catch(()=>{});if(document.querySelector('#drive-state,#drive-connected-slot')){updateDriveCards();void refreshDrive().catch(e=>H.toast(e.message,true));}}
-export function initCopy(host){H=host;initCopySelection();document.addEventListener('input',event=>{if(event.target.matches('#copy-preview-form [name=url]'))sourceInput=event.target.value;if(event.target.id==='copy-job-search'){jobView.search=event.target.value;document.querySelector('#copy-jobs').innerHTML=jobRows();}});document.addEventListener('change',event=>{
+export function enhanceCopy(){if(copyUser!==H?.state?.user?.id){copyUser=H?.state?.user?.id;post=null;jobs=[];sourceInput='';drive=null;Object.assign(jobView,{search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,platformOpen:false,selecting:false,selected:new Set()});}if(document.querySelector('#copy-jobs'))void refreshJobs().catch(()=>{});if(document.querySelector('#drive-state,#drive-connected-slot')){updateDriveCards();void refreshDrive().catch(e=>H.toast(e.message,true));}}
+export function initCopy(host){H=host;initCopySelection();document.addEventListener('toggle',event=>{if(event.target.isConnected&&event.target.matches?.('.copy-platform-filter'))jobView.platformOpen=event.target.open;},true);document.addEventListener('input',event=>{if(event.target.matches('#copy-preview-form [name=url]'))sourceInput=event.target.value;if(event.target.id==='copy-job-search'){jobView.search=event.target.value;document.querySelector('#copy-jobs').innerHTML=jobRows();}});document.addEventListener('change',event=>{
  const el=event.target;
  if(el.id==='copy-job-filter')jobView.filter=el.value;
  else if(el.dataset.copySelect){if(el.checked)jobView.selected.add(el.dataset.copySelect);else jobView.selected.delete(el.dataset.copySelect);}
@@ -105,11 +105,11 @@ async function chooseDriveFolder(){
 function initCopySelection(){
  const cancel=()=>{if(copyHold)clearTimeout(copyHold.timer);copyHold=null;};
  const select=id=>{const job=jobs.find(j=>j.id===id);if(!job)return;jobView.selecting=true;if(!['queued','downloading','uploading'].includes(job.status))jobView.selected.add(id);const panel=document.querySelector('#copy-jobs');if(panel)panel.innerHTML=jobRows();};
- document.addEventListener('pointerdown',event=>{if(event.button!==0)return;const row=event.target.closest('[data-copy-row]');if(!row||event.target.closest('button,a,input,summary'))return;cancel();const hold={id:row.dataset.copyRow,x:event.clientX,y:event.clientY,pointer:event.pointerId};hold.timer=setTimeout(()=>{copyHold=null;suppressCopyClickUntil=Date.now()+600;select(hold.id);},550);copyHold=hold;});
+ document.addEventListener('pointerdown',event=>{if(event.button!==0)return;const row=event.target.closest('[data-copy-row]');if(!row||event.target.closest('button,a,input,summary'))return;cancel();const hold={id:row.dataset.copyRow,x:event.clientX,y:event.clientY,pointer:event.pointerId};hold.timer=setTimeout(()=>{copyHold=null;select(hold.id);},550);copyHold=hold;});
  document.addEventListener('pointermove',event=>{if(copyHold&&event.pointerId===copyHold.pointer&&Math.hypot(event.clientX-copyHold.x,event.clientY-copyHold.y)>8)cancel();},{passive:true});
  for(const event of ['pointerup','pointercancel'])document.addEventListener(event,cancel);
  window.addEventListener('blur',cancel);document.addEventListener('scroll',cancel,true);
- document.addEventListener('click',event=>{if(Date.now()<suppressCopyClickUntil&&event.target.closest('#copy-jobs')){suppressCopyClickUntil=0;event.preventDefault();event.stopImmediatePropagation();return;}const filter=document.querySelector('.copy-platform-filter[open]');if(filter&&!filter.contains(event.target))filter.open=false;},true);
+ document.addEventListener('click',event=>{const filter=document.querySelector('.copy-platform-filter[open]');if(filter&&!filter.contains(event.target))filter.open=false;},true);
  document.addEventListener('contextmenu',event=>{if(event.target.closest('[data-copy-row]')&&(copyHold||jobView.selecting)){event.preventDefault();if(copyHold){const id=copyHold.id;cancel();select(id);}}});
  document.addEventListener('keydown',event=>{const row=event.target.closest('[data-copy-row]');if(row&&event.target===row&&event.key===' '){event.preventDefault();select(row.dataset.copyRow);}});
 }
