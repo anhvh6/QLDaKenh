@@ -16,10 +16,19 @@ test('table uses saved storage state, gates Reup, escapes content, and highlight
  assert.match(html,/drive\.google\.com\/drive\/folders\/folder/);
 });
 
-test('platform filter uses OR across source and published platforms and supports published-only sorting',()=>{
+test('platform filter uses OR only across successful publication destinations and supports published-only sorting',()=>{
  const rows=[{id:'a',createdAt:'2026-01-01',caption:'B',status:'done',provider:'tiktok',reupPlatforms:['facebook'],reupPublished:true},{id:'b',createdAt:'2026-01-02',caption:'A',status:'done',provider:'youtube'}];
- assert.deepEqual(filterCopyJobs(rows,{platforms:['facebook','youtube'],sortKey:'caption',sort:'oldest'}).map(j=>j.id),['b','a']);
+ assert.deepEqual(filterCopyJobs(rows,{platforms:['facebook','youtube'],sortKey:'caption',sort:'oldest'}).map(j=>j.id),['a']);
  assert.deepEqual(filterCopyJobs(rows,{filter:'reup'}).map(j=>j.id),['a']);
  assert.equal(filterCopyJobs(rows,{platforms:['instagram']}).length,0);
- const html=renderJobsTable(rows,{selected:new Set(['a'])});assert.doesNotMatch(html,/>Link bài viết</);assert.match(html,/data-copy-select="a"[^>]+checked/);assert.match(html,/aria-label="Facebook"/);
+ const html=renderJobsTable(rows,{selecting:true,selected:new Set(['a'])});assert.doesNotMatch(html,/>Link bài viết</);assert.match(html,/data-copy-select="a"[^>]+checked/);assert.match(html,/aria-label="Facebook"/);
+});
+
+test('selection is hidden normally; platform filtering excludes source-only, failed and unpublished rows',()=>{
+ const rows=[{id:'source',createdAt:'1',provider:'facebook',status:'done'},{id:'ok',createdAt:'2',status:'done',reupPlatforms:['facebook']},{id:'bad',createdAt:'3',status:'done',reupPlatforms:['facebook'],reupError:'Failed on another channel'},{id:'publishing',createdAt:'4',status:'done',reupPublishing:true}];
+ assert.doesNotMatch(renderJobsTable(rows),/type="checkbox"/);assert.match(renderJobsTable(rows,{selecting:true}),/>Hủy</);assert.deepEqual(filterCopyJobs(rows,{platforms:['facebook']}).map(j=>j.id),['ok']);assert.equal(filterCopyJobs(rows,{platforms:[]}).length,0);assert.equal(filterCopyJobs(rows,{filter:'error'})[0].id,'bad');assert.equal(filterCopyJobs(rows,{filter:'publishing'})[0].id,'publishing');
+});
+
+test('connected platform picker checks every platform with select-all and offers no disconnected platforms',async()=>{
+ const {jobControls}=await import('../public/copy-job-table.js');const html=jobControls({search:'',filter:'all',platforms:['facebook','threads'],connectedPlatforms:['facebook','threads']});assert.match(html,/id="copy-platform-all" checked/);assert.match(html,/data-copy-platform="facebook" checked/);assert.match(html,/data-copy-platform="threads" checked/);assert.doesNotMatch(html,/data-copy-platform="tiktok"/);assert.match(html,/>Lỗi</);assert.match(html,/>Đang đăng</);
 });
