@@ -81,3 +81,27 @@ test('ZIP to Drive reuses saved files, keeps one library row, gates ownership, a
   await route('/api/copy/hide','POST',{jobId:j.id});assert.equal((await route('/api/copy/jobs','GET')).some(x=>x.id===j.id),false);assert.equal(get('contents',c.id).id,c.id);assert.equal(copyArchive(owner,j.id),folder+'.zip');
  }finally{global.fetch=original;}
 });
+
+test('video download handles extractor switching to direct gallery media',async()=>{
+ const {packagePost}=await import('../server/social-copy.mjs');const original=global.fetch;global.fetch=async()=>new Response(new Uint8Array([1,2,3]));
+ try{const pack=await packagePost({url:'https://www.tiktok.com/@qa/video/123',engine:'video',caption:'Exact #caption',media:[{type:'video'}]},{id:'switched-extractor'},{extract:async()=>({engine:'gallery',media:[{url:'https://8.8.8.8/video.mp4',ext:'mp4',type:'video'}]})});assert.equal(pack.files.length,1);assert.equal(pack.files[0].type,'video');assert.equal(readFileSync(join(pack.folder,'001.mp4')).length,3);assert.equal(JSON.parse(readFileSync(join(pack.folder,'post.json'))).caption,'Exact #caption');}finally{global.fetch=original;}
+});
+
+test('bulk delete trashes Drive folders once, keeps publications, checks ownership and preserves failed rows',async()=>{
+ saveSecret('drive-'+owner.id,{refreshToken:'qa-refresh',folderId:'root-folder'});
+ const rows=['delete-one','delete-two'].map(id=>put('copy_jobs',{id,userId:owner.id,postId:post.id,status:'done',folderId:'shared-folder',driveSaved:true}));put('publications',{id:'keep-published',contentId:'published-content',status:'published'});
+ await assert.rejects(route('/api/copy/delete','POST',{jobIds:rows.map(j=>j.id)},peer),{status:404});
+ const original=global.fetch;let trash=0;global.fetch=async(url,options)=>{if(String(url).includes('oauth2.googleapis.com'))return Response.json({access_token:'qa'});assert.equal(options.method,'PATCH');assert.deepEqual(JSON.parse(options.body),{trashed:true});trash++;return Response.json({id:'shared-folder'});};
+ try{const result=await route('/api/copy/delete','POST',{jobIds:rows.map(j=>j.id)});assert.equal(result.results.every(r=>r.ok),true);assert.equal(trash,1);assert.ok(get('copy_jobs',rows[0].id).hiddenAt);assert.equal(get('publications','keep-published').status,'published');
+ put('copy_jobs',{id:'denied-delete',userId:owner.id,status:'done',folderId:'denied-folder'});global.fetch=async url=>String(url).includes('oauth2.googleapis.com')?Response.json({access_token:'qa'}):Response.json({error:{message:'Denied'}},{status:403});const denied=await route('/api/copy/delete','POST',{jobIds:['denied-delete']});assert.equal(denied.results[0].ok,false);assert.equal(get('copy_jobs','denied-delete').hiddenAt,undefined);
+ put('copy_jobs',{id:'busy-delete',userId:owner.id,status:'downloading'});await assert.rejects(route('/api/copy/delete','POST',{jobIds:['busy-delete']}),{status:409});await assert.rejects(route('/api/copy/delete','POST',{jobIds:'bad'}));
+ }finally{global.fetch=original;}
+});
+
+test('audio-only extractor failure falls back to playable preview video and rejects audio responses',async()=>{
+ const {packagePost}=await import('../server/social-copy.mjs'),original=global.fetch;
+ const p={url:'https://www.tiktok.com/@qa/video/123',engine:'video',caption:'Caption',media:[{type:'video',ext:'mp4',url:'https://8.8.8.8/video.mp4'}]};
+ try{global.fetch=async()=>new Response(new Uint8Array([1,2,3]),{headers:{'Content-Type':'video/mp4'}});const pack=await packagePost(p,{id:'preview-video-fallback'},{extract:async()=>{throw new Error('Only audio available');}});assert.equal(pack.files[0].name,'001.mp4');
+ global.fetch=async()=>new Response('audio',{headers:{'Content-Type':'audio/mpeg'}});await assert.rejects(packagePost(p,{id:'reject-audio-fallback'},{extract:async()=>{throw new Error('Only audio');}}),/hợp lệ/);
+ }finally{global.fetch=original;}
+});

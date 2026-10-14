@@ -122,7 +122,7 @@ def extract(url, target=None):
         return {'title': (text or 'Bài viết')[:200], 'caption': text, 'author': author, 'media': media, 'engine': 'gallery'}
     import yt_dlp
     opts = {'quiet': True, 'no_warnings': True, 'noprogress': True, 'noplaylist': True, 'socket_timeout': 25,
-            'retries': 1, 'extractor_retries': 1, 'format': 'bv*+ba/b', 'merge_output_format': 'mp4',
+            'retries': 1, 'extractor_retries': 1, 'format': 'bv*[vcodec!=none]+ba/b[vcodec!=none]', 'merge_output_format': 'mp4',
             'allowed_extractors': ['default', '-generic'], 'playlistend': 100,
             'impersonate': __import__('yt_dlp.networking.impersonate', fromlist=['ImpersonateTarget']).ImpersonateTarget(client='chrome')}
     if target:
@@ -131,6 +131,8 @@ def extract(url, target=None):
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=bool(target))
         entries = list(info.get('entries') or [info])
+        if any(e.get('vcodec') == 'none' for e in entries):
+            raise ValueError('Nền tảng chỉ cung cấp âm thanh, chưa có video để Reup. Xem trước lại hoặc thử sau.')
         if len(entries) > 100:
             raise ValueError('Bài có quá 100 media.')
         for e in entries:

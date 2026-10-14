@@ -15,3 +15,11 @@ test('table uses saved storage state, gates Reup, escapes content, and highlight
  assert.match(html,/data-copy-action="reup-job" data-id="zip"[^>]+disabled/);
  assert.match(html,/drive\.google\.com\/drive\/folders\/folder/);
 });
+
+test('platform filter uses OR across source and published platforms and supports published-only sorting',()=>{
+ const rows=[{id:'a',createdAt:'2026-01-01',caption:'B',status:'done',provider:'tiktok',reupPlatforms:['facebook'],reupPublished:true},{id:'b',createdAt:'2026-01-02',caption:'A',status:'done',provider:'youtube'}];
+ assert.deepEqual(filterCopyJobs(rows,{platforms:['facebook','youtube'],sortKey:'caption',sort:'oldest'}).map(j=>j.id),['b','a']);
+ assert.deepEqual(filterCopyJobs(rows,{filter:'reup'}).map(j=>j.id),['a']);
+ assert.equal(filterCopyJobs(rows,{platforms:['instagram']}).length,0);
+ const html=renderJobsTable(rows,{selected:new Set(['a'])});assert.doesNotMatch(html,/>Link bài viết</);assert.match(html,/data-copy-select="a"[^>]+checked/);assert.match(html,/aria-label="Facebook"/);
+});
