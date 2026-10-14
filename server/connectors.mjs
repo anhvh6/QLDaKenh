@@ -30,7 +30,7 @@ export async function remote(url, options = {}) {
       : new URL(url).hostname.endsWith('googleapis.com') && /insufficient authentication scopes/i.test(String(rawMessage))
         ? 'Kết nối YouTube chưa có quyền sửa/xóa. Hãy chọn Kết nối lại YouTube và cấp quyền mới, sau đó thử lại.'
         : new URL(url).hostname === 'graph.threads.net' && Number(error.code) === 10
-          ? 'Ứng dụng Threads chưa được cấp quyền threads_delete. Hãy thêm quyền này trong Meta App Dashboard, sau đó kết nối lại Threads và thử lại.'
+          ? 'Threads từ chối quyền API. Kiểm tra quyền của thao tác trong Meta App Dashboard và kết nối lại Threads (đọc bình luận: threads_read_replies; quản lý trả lời: threads_manage_replies; xóa bài: threads_delete).'
           : rawMessage;
     const details = [message, error.code != null ? `code ${error.code}` : '', error.error_subcode != null ? `subcode ${error.error_subcode}` : '', error.error_user_msg || '', error.fbtrace_id ? `trace ${error.fbtrace_id}` : ''].filter(Boolean);
     throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, providerCode: error.code, providerSubcode: error.error_subcode });
@@ -210,7 +210,18 @@ export async function sendMessage(c, conv, text, options = {}) {
   if (c.provider === 'facebook' && conv.kind === 'comment') {
     if (!conv.externalCommentId) throw new Error('Thiếu ID bình luận gốc.'); const body = text ? { message: text } : {}, asset = options.assetRefs?.[0];
     if (asset) body.attachment_url = publicMediaUrl(asset);
-    return remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(conv.externalCommentId)}/comments`, json(body, token));
+    const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(conv.externalCommentId)}/comments`, json(body, token));if(!result.id)throw Object.assign(Error('Facebook chưa xác nhận trả lời bình luận.'),{unknown:true});return result;
+  }
+  if(c.provider==='threads'&&conv.kind==='comment'){
+    if(!conv.externalCommentId)throw Error('Thiếu ID bình luận gốc.');
+    if(options.assetRefs?.length)throw Error('Trả lời bình luận Threads hiện dùng văn bản.');
+    if(Array.from(text).length>500)throw Error('Threads giới hạn 500 ký tự.');
+    const root='https://graph.threads.net/v1.0/'+encodeURIComponent(c.accountId);
+    const container=await remote(root+'/threads',json({media_type:'TEXT',text,reply_to_id:conv.externalCommentId},token));
+    if(!container.id)throw Error('Threads chưa xác nhận tạo nội dung trả lời.');
+    const result=await remote(root+'/threads_publish',json({creation_id:container.id},token));
+    if(!result.id)throw Object.assign(Error('Threads chưa xác nhận đăng trả lời. Kiểm tra trên nền tảng trước khi thử lại.'),{unknown:true});
+    return result;
   }
   if (!conv.externalUserId) throw new Error('Hội thoại chưa có định danh người nhận thực tế.');
   if (c.provider === 'facebook') {

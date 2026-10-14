@@ -188,6 +188,8 @@ export async function reply(user, id, input) {
   permission(user, 'inbox'); const conv = get('conversations', id); if (!conv || conv.deletedAt) fail('Không tìm thấy hội thoại.', 404); assertChannel(user, conv.connectionId); let text = String(input.text || '').trim(); if (text.length > 5000) fail('Nội dung quá dài.'); const ch = get('connections', conv.connectionId); if (!ch) fail('Kênh không tồn tại.'); if (conv.groupUnavailable && !input.note) fail('Tài khoản đã rời nhóm hoặc nhóm đã giải tán.');
   const ids = input.assetIds || []; if (!Array.isArray(ids) || ids.length > 10) fail('Chọn tối đa 10 media.'); const assets = ids.map(id => { const a = get('assets', id); if (!a || a.active === false || !(a.scopes || ['chat']).includes('chat') || !/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z0-9]+$/.test(a.url)) fail('Media không hợp lệ.'); if (a.connectionId) assertChannel(user, a.connectionId); return a; });
   if (!text && !assets.length) fail('Nhập nội dung hoặc chọn media.');
+  if(conv.kind==='comment'&&conv.remoteDeleted&&!input.note)fail('Bình luận gốc đã bị xóa.');
+  if(conv.kind==='comment'&&ch.provider==='threads'&&Array.from(text).length>500)fail('Threads giới hạn 500 ký tự.');
   const commentMediaSupported = conv.kind === 'comment' && ch.provider === 'facebook';
   if (assets.length && ch.mode !== 'demo' && !['zalo_personal','facebook'].includes(ch.provider) && !commentMediaSupported && !input.note) fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
   if (assets.length > 1 && commentMediaSupported) fail('Bình luận Facebook chỉ nhận 1 media mỗi lần trả lời.');
