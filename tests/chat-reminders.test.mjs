@@ -37,7 +37,7 @@ test('automatic consultation status cannot be downgraded by a new pending remind
 test('customer advance reminder uses 15-minute steps, remembers defaults, sends once and preserves local Facebook appointment',async()=>{
  const page=put('connections',{id:'reminder-page',provider:'facebook',mode:'api',status:'connected'}),chat=put('conversations',{id:'reminder-page-chat',connectionId:page.id,customerId:'p'});
  const due=Date.now()+3600000,input={title:'Lịch tư vấn',dueAt:new Date(due).toISOString(),customerReminder:true,reminderMinutes:15,reminderText:'Chị sắp đến giờ tư vấn nhé.'};
- await assert.rejects(createChatReminder(owner,chat,{...input,reminderMinutes:17}),/15 phút/);
+ await assert.rejects(createChatReminder(owner,chat,{...input,reminderMinutes:1.5}),/số nguyên/);
  const r=await createChatReminder(owner,chat,input);assert.equal(r.platformStatus,'not_requested');assert.equal(Date.parse(r.customerReminderAt),due-900000);assert.equal(get('settings','chat-reminder-defaults-owner').text,input.reminderText);
  let calls=0;const send=async(user,id,body)=>{calls++;assert.equal(id,chat.id);assert.equal(body.text,input.reminderText);return{id:'reminder-sent'};};
  await customerReminderTick(due-900001,send);assert.equal(calls,0);await customerReminderTick(due-900000,send);await customerReminderTick(due-899999,send);assert.equal(calls,1);assert.equal(get('chat_reminders',r.id).customerReminderStatus,'sent');

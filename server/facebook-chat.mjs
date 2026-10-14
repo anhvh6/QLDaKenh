@@ -5,11 +5,12 @@ import { runWorkflows } from './domain.mjs';
 import { captureLead } from './taophacdo.mjs';
 
 const running = new Set();
+const liveJobs=new Map();
 const stamp = value => Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : now();
 const safeURL = value => { try { const u = new URL(value); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; } };
 export function facebookAttachments(items = []) {
  return items.map(a => {
-  const type = a.type || (a.mime_type?.startsWith('image/') || a.image_data ? 'image' : a.mime_type?.startsWith('video/') || a.video_data ? 'video' : a.mime_type?.startsWith('audio/') ? 'audio' : 'file');
+  const type = a.type === 'sticker' ? 'image' : a.type || (a.mime_type?.startsWith('image/') || a.image_data ? 'image' : a.mime_type?.startsWith('video/') || a.video_data ? 'video' : a.mime_type?.startsWith('audio/') ? 'audio' : 'file');
   const url = safeURL(a.payload?.url || a.image_data?.url || a.video_data?.url || a.file_url || a.url);
   return { type, url, name: a.name || ({ image: 'Ảnh', video: 'Video', audio: 'Âm thanh' }[type] || 'Tệp') };
  }).filter(a => a.url);
@@ -25,8 +26,16 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  let conv = all('conversations').find(c => c.connectionId === channel.id && c.kind === 'message' && String(c.externalUserId) === peerId);
  if (conv?.purgePending) return null;
  const duplicate = db.prepare("SELECT id FROM records WHERE kind='messages' AND (json_extract(data,'$.externalId')=? OR EXISTS(SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) e WHERE json_extract(e.value,'$.id')=?)) AND json_extract(data,'$.conversationId')=?").get(String(item.id), String(item.id), conv?.id || '');
- if (duplicate) return get('messages', duplicate.id);
- const attachments = facebookAttachments(item.attachments?.data || item.attachments || []), text = item.message || (attachments.length ? '[' + attachments[0].name + ']' : '[Tin nhắn Facebook]');
+ const attachments = facebookAttachments(item.attachments?.data || item.attachments || []);
+ const stickerURL = safeURL(typeof item.sticker === 'string' ? item.sticker : item.sticker?.url);
+ const sticker = stickerURL ? {url:stickerURL,text:'Sticker Facebook'} : null;
+ const text = item.message || (item.sticker_id === 369239263222822 ? '👍' : attachments.length || sticker ? '' : '[Tin nhắn Facebook]');
+ if (duplicate) {
+  const existing=get('messages',duplicate.id);
+  // The webhook can arrive before the richer history response. Enrich media without losing staff attribution or local deletion.
+  if (!existing.deletedAt && (sticker && !existing.sticker || attachments.length && !existing.attachments?.length)) return put('messages',{...existing,attachments:attachments.length?attachments:existing.attachments,sticker:sticker||existing.sticker,text:/^\[(?:image|video|audio|file|sticker|Tin nhắn Facebook)/i.test(existing.text||'')?text:existing.text});
+  return existing;
+ }
  return transaction(() => {
   if (!conv) {
    const customer = put('customers', { name: peer?.name || participant.name || 'Khách Facebook ' + peerId.slice(-6), phone: '', tags: [], consent: false });
@@ -35,9 +44,9 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
    const customer = get('customers', conv.customerId), name = peer?.name || participant.name;
    if (customer?.name?.startsWith('Khách Facebook ') && customer.name !== name) put('customers', { ...customer, name });
   }
-  const msg = put('messages', { conversationId: conv.id, direction: outgoing ? 'outgoing' : 'incoming', text, attachments, externalId: String(item.id), status: outgoing ? 'sent' : 'received', senderType: outgoing ? 'channel' : 'customer', createdAt, history });
+  const msg = put('messages', { conversationId: conv.id, direction: outgoing ? 'outgoing' : 'incoming', text, attachments, sticker, externalId: String(item.id), status: outgoing ? 'sent' : 'received', senderType: outgoing ? 'channel' : 'customer', createdAt, history });
   const latest = !conv.lastAt || createdAt >= conv.lastAt;
-  put('conversations', { ...conv, deletedAt: null, archived: conv.deletedAt ? false : conv.archived, ...(latest ? { lastAt: createdAt, lastMessage: text, unread: !outgoing && (history ? !!unread : true) } : {}), ...(!outgoing && (!conv.lastInboundAt || createdAt > conv.lastInboundAt) ? { lastInboundAt: createdAt, waitingSince: latest ? conv.waitingSince || createdAt : conv.waitingSince } : {}), ...(outgoing && latest ? { waitingSince: null } : {}) });
+  put('conversations', { ...conv, deletedAt: null, archived: conv.deletedAt ? false : conv.archived, ...(latest ? { lastAt: createdAt, lastMessage: text || (sticker?'Sticker':attachments[0]?.name||'Tin nhắn'), unread: !outgoing && (history ? !!unread : true) } : {}), ...(!outgoing && (!conv.lastInboundAt || createdAt > conv.lastInboundAt) ? { lastInboundAt: createdAt, waitingSince: latest ? conv.waitingSince || createdAt : conv.waitingSince } : {}), ...(outgoing && latest ? { waitingSince: null } : {}) });
   if (!history && !outgoing) { runWorkflows('message_received', msg); captureLead(get('conversations', conv.id), msg); }
   return msg;
  });
@@ -45,11 +54,28 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
 
 export function ingestFacebookEvents(channel, entries = []) {
  for (const entry of entries) for (const event of entry.messaging || []) {
+  if(event.reaction?.mid){const conv=all('conversations').find(c=>c.connectionId===channel.id&&[String(event.sender?.id),String(event.recipient?.id)].includes(String(c.externalUserId)));const row=conv&&db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=?").get(conv.id,event.reaction.mid);if(row){const m=get('messages',row.id),senderId=String(event.sender?.id),reactions=(m.reactions||[]).filter(r=>r.senderId!==senderId);if(event.reaction.action!=='unreact')reactions.push({senderId,emoji:event.reaction.emoji||({love:'❤️',like:'👍',haha:'😆',wow:'😮',sad:'😢',angry:'😡'}[event.reaction.reaction]||'❤️')});put('messages',{...m,reactions});}continue;}
   if (!event.message?.mid) continue;
   const echo = event.message.is_echo || String(event.sender?.id) === String(channel.accountId);
   if (String((echo ? event.sender : event.recipient)?.id) !== String(channel.accountId)) continue;
-  ingestFacebookMessage(channel, { id: event.message.mid, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [] });
+  ingestFacebookMessage(channel, { id: event.message.mid, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [],sticker_id:event.message.sticker_id });
  }
+}
+
+// Active chats refresh independently of the slower historical import queue.
+export async function syncFacebookConversation(channel,conversation,request=remote){
+ if(channel?.provider!=='facebook'||channel.status!=='connected'||channel.mode!=='api'||!conversation.externalUserId)return;
+ const key=channel.id+':'+conversation.id,prior=liveJobs.get(key);
+ if(prior&&(prior.running||Date.now()-prior.at<3000))return;
+ liveJobs.set(key,{running:true,at:Date.now()});
+ const base=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`,headers={Authorization:'Bearer '+secret(channel.id).token};
+ try{
+  let threadId=conversation.facebookThreadId;
+  if(!threadId){const threads=await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=messenger&user_id=${encodeURIComponent(conversation.externalUserId)}&fields=id&limit=1`,{headers});threadId=threads.data?.[0]?.id;if(threadId){const current=get('conversations',conversation.id);if(!current?.deletedAt)put('conversations',{...current,facebookThreadId:threadId});}}
+  if(!threadId)return;
+  const page=await request(`${base}/${encodeURIComponent(threadId)}/messages?limit=25&fields=id,created_time,message,from,to,attachments,sticker`,{headers});
+  for(const item of [...(page.data||[])].reverse())ingestFacebookMessage(channel,item,{history:Date.parse(item.created_time)<Date.now()-120000,participant:{id:conversation.externalUserId}});
+ }finally{liveJobs.set(key,{running:false,at:Date.now()});if(liveJobs.size>300)for(const [id,job] of liveJobs)if(!job.running&&Date.now()-job.at>60000)liveJobs.delete(id);}
 }
 
 // Bounded pages and cursors keep initial imports out of the UI request path.
@@ -71,7 +97,7 @@ export async function syncFacebookChat(channel, request = remote) {
    if(checkpoint.complete&&thread.updated_time&&checkpoint.remoteUpdatedAt===thread.updated_time)continue;
    // Always read the newest page; then advance an older-history cursor on later cycles.
    const readPage = async after => {
-    const messages = await request(`${base}/${encodeURIComponent(thread.id)}/messages?limit=100&fields=id,created_time,message,from,to,attachments&${after ? 'after=' + encodeURIComponent(after) : ''}`, { headers });
+    const messages = await request(`${base}/${encodeURIComponent(thread.id)}/messages?limit=100&fields=id,created_time,message,from,to,attachments,sticker&${after ? 'after=' + encodeURIComponent(after) : ''}`, { headers });
     for (const item of [...(messages.data || [])].reverse()) if (ingestFacebookMessage(channel, item, { history: Date.parse(item.created_time) < Date.parse(startedAt), participant })) imported++;
     return messages.paging?.next ? messages.paging?.cursors?.after || '' : '';
    };

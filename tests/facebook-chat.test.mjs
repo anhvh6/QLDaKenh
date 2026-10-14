@@ -63,3 +63,11 @@ test('Facebook reaction adapter requires platform acknowledgement and pin stays 
  const pinned=await chatRoute('/api/chat/messages/'+m.id,'PATCH',{pinned:true,expectedPinned:false,version:m.version},user);assert.equal(pinned.pinned,true);
  const unpinned=await chatRoute('/api/chat/messages/'+m.id,'PATCH',{pinned:false,expectedPinned:true,version:pinned.version},user);assert.equal(unpinned.pinned,false);
 });
+
+test('Facebook sticker and reactions are rendered as media; media-only placeholder text is suppressed',async()=>{
+ const {richMessage}=await import('../public/chat-message-rich.js');
+ const m=ingestFacebookMessage(ch,{...item('sticker-new','2026-10-14T12:00:00Z',''),sticker:'https://example.com/sticker.png'},{history:true});assert.equal(m.text,'');assert.equal(m.sticker.url,'https://example.com/sticker.png');assert.match(richMessage(m),/chat-sticker/);
+ const html=richMessage({text:'[image-12345]',attachments:[{type:'image',url:'https://example.com/image.jpg'}]});assert.doesNotMatch(html,/image-12345/);assert.match(html,/<img/);
+ ingestFacebookEvents(ch,[{messaging:[{sender:{id:'person'},recipient:{id:'page-id'},reaction:{mid:'sticker-new',action:'react',emoji:'😆'}}]}]);assert.equal(get('messages',m.id).reactions[0].emoji,'😆');
+ ingestFacebookEvents(ch,[{messaging:[{sender:{id:'person'},recipient:{id:'page-id'},reaction:{mid:'sticker-new',action:'unreact'}}]}]);assert.equal(get('messages',m.id).reactions.length,0);
+});

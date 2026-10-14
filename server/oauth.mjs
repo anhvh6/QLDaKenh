@@ -122,7 +122,7 @@ export async function finishOAuth(req,res,url){
    // for a Page once it is explicitly subscribed to this app via subscribed_apps. Without this call, the
    // /api/webhooks/:id receiver never fires even though everything else is configured correctly.
    if(provider==='facebook')try{
-    await remote(`https://graph.facebook.com/${graphVersion}/${item.accountId}/subscribed_apps?subscribed_fields=feed,messages`,{method:'POST',headers:{Authorization:`Bearer ${item.token}`}});
+    await remote(`https://graph.facebook.com/${graphVersion}/${item.accountId}/subscribed_apps?subscribed_fields=feed,messages,message_echoes,message_reactions`,{method:'POST',headers:{Authorization:`Bearer ${item.token}`}});
     audit(record.userId,'oauth_webhook_subscribed',target.id);
     const {hydrateCommentAuthors}=await import('./taophacdo.mjs');
     await hydrateCommentAuthors(target,500);

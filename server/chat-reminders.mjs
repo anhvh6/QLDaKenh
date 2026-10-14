@@ -13,7 +13,7 @@ export async function createChatReminder(user,c,input,platform=createNativeRemin
  const learner=groupLearner({customers:all('customers').map(p=>({...p,...(get('learner_source_facts',p.id)||{}),id:p.id})),conversations:all('conversations')},c);
  const title=required(input.title,'Nội dung nhắc',500),ch=get('connections',c.connectionId);
  const enabled=input.customerReminder===true,minutes=Number(input.reminderMinutes||15),reminderText=String(input.reminderText||'').trim();
- if(!Number.isInteger(minutes)||minutes<15||minutes>10080||minutes%15)fail('Thời gian nhắc khách phải là bội số 15 phút (15–10080 phút).');
+ if(!Number.isInteger(minutes)||minutes<1||minutes>10080)fail('Thời gian nhắc khách phải là số nguyên từ 1 đến 10080 phút.');
  if(enabled){if(!reminderText||reminderText.length>2000)fail('Nhập nội dung nhắc khách (tối đa 2000 ký tự).');if(due-minutes*60000<=Date.now())fail('Thời điểm gửi nhắc khách phải ở tương lai.');if(!['facebook','zalo_personal','zalo'].includes(ch?.provider))fail('Kênh này chưa hỗ trợ tự động gửi tin nhắn cho khách.');}
  let r=put('chat_reminders',{conversationId:c.id,customerId:learner?.id||c.customerId,connectionId:c.connectionId,title,phone:String(input.phone||learner?.phone||(c.customerId?get('customers',c.customerId)?.phone:'')||'').slice(0,50),dueAt:new Date(due).toISOString(),assignee,actor:user.id,status:'pending',platformStatus:input.platform?'creating':'not_requested',customerReminder:enabled,reminderMinutes:minutes,reminderText,customerReminderAt:new Date(due-minutes*60000).toISOString(),customerReminderStatus:enabled?'pending':'disabled'});
  put('settings',{id:'chat-reminder-defaults-'+user.id,enabled,minutes,text:reminderText});

@@ -1,4 +1,4 @@
-import { syncFacebookChat } from './facebook-chat.mjs';
+import { syncFacebookChat, syncFacebookConversation } from './facebook-chat.mjs';
 import {createHash} from 'node:crypto';
 import {studentOverview} from '../public/student-overview.js';
 import {linkPreview} from './chat-link-preview.mjs';
@@ -71,7 +71,7 @@ export async function chatRoute(path,method,input,user,url){
  const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
  if(live&&method==='GET'){
   const conversation=chatConversation(user,live[1]);
-  void refreshZaloPins(conversation);
+  void refreshZaloPins(conversation);void syncFacebookConversation(get('connections',conversation.connectionId),conversation).catch(()=>{});
   // Check a covering index before loading potentially large media/quote payloads.
   const rows=db.prepare("SELECT id,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY id").all(conversation.id);
   const revision=createHash('sha256').update(JSON.stringify(conversation)).update(JSON.stringify(rows.map(r=>[r.id,r.version]))).digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
