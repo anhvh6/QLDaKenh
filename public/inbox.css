@@ -3734,3 +3734,5 @@ body:has(.inbox-page #reply-form) .care-update-pill{top:164px;bottom:auto;left:a
 
 /* Keep attribution beside the action row, below the bubble. */
 .bubble-wrap.outgoing .message-info .message-attribution{right:140px;top:calc(100% + 8px)}.bubble-wrap.outgoing.has-contact-order .message-info .message-attribution{right:174px}
+
+.chat-list-meta .chat-appointment-icon{display:inline-flex;align-items:center;gap:4px;color:#d5293c;min-width:0;max-width:100%}.chat-appointment-icon>svg{flex:none;stroke-width:2.3}.chat-appointment-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.message-reaction-selector>button{font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif}
