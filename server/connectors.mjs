@@ -96,6 +96,8 @@ export async function testConnection(c) {
   if (c.provider === 'zalo') return remote('https://openapi.zalo.me/v2.0/oa/getoa', { headers: { access_token: s.token } });
   throw new Error('Kênh này hiện dùng hỗ trợ đăng.');
 }
+export function validateThreadsText(value){const count=Array.from(String(value||'')).length;if(count>500)throw new Error(`Threads giới hạn nội dung ở 500 ký tự; bài này có ${count} ký tự. Rút gọn caption cho riêng kênh Threads rồi đăng lại.`);}
+async function createMediaContainer(url,options){try{const r=await remote(url,options);if(!r.id)throw new Error('Nền tảng chưa trả mã chuẩn bị bài; bài chưa được xuất bản.');return r;}catch(error){if(error.unknown)throw Object.assign(new Error('Không nhận được mã chuẩn bị bài từ nền tảng. Bài chưa được xuất bản; hãy thử lại.'),{unknown:false});throw error;}}
 export async function publish(c, p) {
   const s = secret(c.id); if (!s.token) throw new Error('Chưa cấu hình token.'); const id = encodeURIComponent(c.accountId || ''); let r;
   if (c.provider === 'youtube') return publishYouTube(c, p);
@@ -113,12 +115,12 @@ export async function publish(c, p) {
   }
   if (c.provider === 'threads' || c.provider === 'instagram') {
       if (p.type !== 'text' && !p.mediaItems?.length) await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
-    const threads = c.provider === 'threads'; const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.instagram.com/${graphVersion(c)}`;
+    const threads = c.provider === 'threads'; if(threads)validateThreadsText(p.caption); const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.instagram.com/${graphVersion(c)}`;
     let body = threads ? { media_type: p.type === 'text' ? 'TEXT' : p.type === 'image' ? 'IMAGE' : 'VIDEO', text: p.caption } : { caption: p.caption };
-    if (p.mediaItems?.length > 1) { if (p.mediaItems.length > 10) throw new Error('Carousel tối đa 10 media trong connector này.'); const children = []; for (const item of p.mediaItems) { const child = await remote(`${base}/${id}/${threads ? 'threads' : 'media'}`, json({ ...(threads || item.type === 'video' ? { media_type: item.type === 'video' ? 'VIDEO' : 'IMAGE' } : {}), is_carousel_item: true, ...(item.type === 'video' ? { video_url: validMediaURL(item.url) } : { image_url: validMediaURL(item.url) }) }, s.token)); children.push(child.id); } return { childContainerIds: children, processing: true, carouselPending: true }; }
+    if (p.mediaItems?.length > 1) { if (p.mediaItems.length > 10) throw new Error('Carousel tối đa 10 media trong connector này.'); const children = []; for (const item of p.mediaItems) { const child = await createMediaContainer(`${base}/${id}/${threads ? 'threads' : 'media'}`, json({ ...(threads || item.type === 'video' ? { media_type: item.type === 'video' ? 'VIDEO' : 'IMAGE' } : {}), is_carousel_item: true, ...(item.type === 'video' ? { video_url: validMediaURL(item.url) } : { image_url: validMediaURL(item.url) }) }, s.token)); children.push(child.id); } return { childContainerIds: children, processing: true, carouselPending: true }; }
     if (p.type === 'image') body.image_url = validMediaURL(p.mediaUrl);
     if (p.type === 'video') { body.video_url = validMediaURL(p.mediaUrl); if (!threads) body.media_type = 'REELS'; }
-    r = await remote(`${base}/${id}/${threads ? 'threads' : 'media'}`, json(body, s.token));
+    r = await createMediaContainer(`${base}/${id}/${threads ? 'threads' : 'media'}`, json(body, s.token));
     // Container ID must be persisted before any subsequent publish request.
     return { containerId: r.id, processing: true, container: true };
   }
@@ -132,12 +134,14 @@ export async function continuePublish(c, p) {
     const externalId = String(data.publicaly_available_post_id?.[0] || data.publicly_available_post_id?.[0] || p.containerId); return { externalId, url: '' };
   }
   const token = secret(c.id).token; const threads = c.provider === 'threads'; const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.instagram.com/${graphVersion(c)}`;
-  if (p.carouselPending) { for (const child of p.childContainerIds || []) { const state = await remote(`${base}/${encodeURIComponent(child)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: 'Bearer ' + token } }); const code = state.status_code || state.status; if (['ERROR', 'EXPIRED'].includes(code)) throw new Error('Media trong carousel bị lỗi: ' + (state.error_message || state.status || code)); if (code !== 'FINISHED') return null; } const container = await remote(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads' : 'media'}`, json({ media_type: 'CAROUSEL', children: p.childContainerIds.join(','), ...(threads ? { text: p.caption } : { caption: p.caption }) }, token)); return { containerId: container.id, carouselPending: false, processing: true, container: true }; }
+  if (p.carouselPending) { for (const child of p.childContainerIds || []) { const state = await remote(`${base}/${encodeURIComponent(child)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: 'Bearer ' + token } }); const code = state.status_code || state.status; if (['ERROR', 'EXPIRED'].includes(code)) throw new Error('Media trong carousel bị lỗi: ' + (state.error_message || state.status || code)); if (code !== 'FINISHED') return null; } const container = await createMediaContainer(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads' : 'media'}`, json({ media_type: 'CAROUSEL', children: p.childContainerIds.join(','), ...(threads ? { text: p.caption } : { caption: p.caption }) }, token)); return { containerId: container.id, carouselPending: false, processing: true, container: true }; }
   const state = await remote(`${base}/${encodeURIComponent(p.containerId)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: `Bearer ${token}` } });
   const code = state.status_code || state.status;
   if (code === 'ERROR' || code === 'EXPIRED') throw new Error('Nền tảng không xử lý được media: ' + (state.error_message || code));
+  if(threads&&code==='PUBLISHED')throw Object.assign(new Error('Threads báo bài đã được xuất bản. Cần đối soát đường dẫn bài; không đăng lại tự động để tránh trùng.'),{unknown:true});
   if (code !== 'FINISHED') return null;
   const r = await remote(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads_publish' : 'media_publish'}`, json({ creation_id: p.containerId }, token));
+  if(!r.id)throw Object.assign(new Error('Nền tảng chưa trả mã bài đăng. Cần đối soát trước khi thử lại.'),{unknown:true});
   let url = ''; try { const meta = await remote(`${base}/${r.id}?fields=permalink`, { headers: { Authorization: `Bearer ${token}` } }); url = meta.permalink || ''; } catch { }
   return { externalId: r.id, url };
 }

@@ -8,7 +8,7 @@ import { dataDir } from './store.mjs';
 import { all, get, put, remove, transaction, audit, notification, now, uid, secret, saveSecret, db } from './store.mjs';
 import { syncPlanHandoff } from './plan-bridge.mjs';
 import { captureLead, syncPaymentOrder, enrollmentFromOrder, assertChannel } from './taophacdo.mjs';
-import { providers, publish, continuePublish, deletePublication, updatePublication, sendMessage, reactComment, deleteComment, ghn, validMediaURL } from './connectors.mjs';
+import { providers, publish, continuePublish, validateThreadsText, deletePublication, updatePublication, sendMessage, reactComment, deleteComment, ghn, validMediaURL } from './connectors.mjs';
 import { publicMediaUrl } from './public-media.mjs';
 export function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 export function required(v, label, max = 10000) { if (typeof v !== 'string' || !v.trim() || v.length > max) fail(`${label} không hợp lệ.`); return v.trim(); }
@@ -84,6 +84,7 @@ export function schedule(user, id, input, { prepared = false } = {}) {
       if (ch.status !== 'connected') fail(`${ch.name}: cần kiểm tra kết nối trước.`);
       if (!providers[ch.provider].formats.includes(type)) fail(`${ch.name}: API hiện chưa hỗ trợ định dạng ${type}; chuyển sang hỗ trợ đăng.`);
       if (type !== 'text' && !localUpload) validMediaURL(mediaUrl);
+      if(ch.provider==='threads')validateThreadsText(v.caption||c.caption);
       if (ch.provider === 'x' && (v.caption || c.caption).length > 280) fail('Bản X đang giới hạn văn bản ở 280 ký tự.');
     }
     if (mode === 'api' && mediaItems.length > 1 && !['facebook', 'instagram', 'threads'].includes(ch.provider)) fail('Kênh này chưa hỗ trợ tự động đăng nhiều media. Chọn chế độ hỗ trợ đăng.');
@@ -229,7 +230,7 @@ export async function tick() {
     for (const p of all('publications').filter(x => x.status === 'processing' && (x.containerId || x.carouselPending)).slice(0, 5)) {
       if (Date.now() - Date.parse(p.updatedAt) > 30 * 60000) { put('publications', { ...p, status: 'unknown', error: 'Xử lý quá lâu. Đối soát trên nền tảng gốc.' }); continue; }
       const ch = get('connections', p.connectionId); if (!ch || ch.status !== 'connected') continue;
-      try { const r = await continuePublish(ch, p); if (r) put('publications', { ...p, ...r, status: r.processing ? 'processing' : 'published', publishedAt: r.processing ? null : now() }); } catch (e) { put('publications', { ...p, status: e.unknown ? 'unknown' : 'failed', error: e.message }); }
+      try { const r = await continuePublish(ch, p); if (r) put('publications', { ...p, ...r, status: r.processing ? 'processing' : 'published', publishedAt: r.processing ? null : now() }); } catch (e) { put('publications', { ...p, status: e.unknown ? 'unknown' : 'failed', error: e.message }); notification('Cần xử lý bài đăng', `${ch.name}: ${e.message}`, 'content', {contentId:p.contentId}); }
     }
   } finally { ticking = false; }
 }
