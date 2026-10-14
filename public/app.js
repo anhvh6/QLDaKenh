@@ -165,7 +165,7 @@ function commentPostGroups() {
 }
 function commentsPage() {
   const grouped = new Map();
-  for (const conversation of S.conversations.filter(c => c.kind === 'comment' && conversationConnected(S,c) && (!commentChannel||c.connectionId===commentChannel) && (filter==='all'||filter==='unread'&&c.unread||c.status===filter))) {
+  for (const conversation of S.conversations.filter(c => c.kind === 'comment' && !c.remoteDeleted && conversationConnected(S,c) && (!commentChannel||c.connectionId===commentChannel) && (filter==='all'||filter==='unread'&&c.unread||c.status===filter))) {
     const person = find('customers', conversation.customerId), key = conversation.connectionId+':'+(conversation.externalUserId || conversation.customerId || conversation.id);
     if (!grouped.has(key)) grouped.set(key, { key, person, conversations: [], lastAt: conversation.lastAt });
     const group = grouped.get(key); group.conversations.push(conversation); if (Date.parse(conversation.lastAt || 0) > Date.parse(group.lastAt || 0)) group.lastAt = conversation.lastAt;
