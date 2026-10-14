@@ -107,7 +107,7 @@ Hai URL mẫu:
 
 Bộ quét thử yt-dlp, sau đó đọc payload công khai/nhúng. Facebook đối chiếu chủ video với hồ sơ nguồn; TikTok bỏ video riêng tư và video thuộc người khác. Không suy ngày đăng từ ID. Nguồn chỉ trả một phần được ghi **Đã lấy một phần**, không ghi quét toàn bộ. Không vượt đăng nhập/CAPTCHA. Không yêu cầu tài khoản của người khác cấp OAuth.
 
-Đọc công khai không bảo đảm trả toàn bộ lịch sử, video mới nhất hoặc luôn truy cập được từ VPS. Theo dõi định kỳ chỉ phát hiện những video nền tảng thực sự trả về. Trong nghiệm thu trực tiếp, Facebook trả 10 video có ngày; TikTok creator embed trả 12 video, xác minh được ngày của 5 video; những lần gọi khác có thể trả rỗng/lỗi TLS, 7 video chưa đủ metadata ngày nên không được tự xếp lịch. Vì vậy chưa thể nghiệm thu đồng bộ đầy đủ hai nguồn bên ngoài; giao diện hiển thị lỗi/giới hạn thay vì báo thành công giả.
+Đọc công khai không bảo đảm trả toàn bộ lịch sử, video mới nhất hoặc luôn truy cập được từ VPS. Theo dõi định kỳ chỉ phát hiện những video nền tảng thực sự trả về. Trong nghiệm thu trực tiếp, Facebook trả 10 video có ngày; TikTok creator embed trả 12 video, lần kiểm tra cuối đối chiếu được ngày của 2 video; những lần gọi khác có thể trả rỗng/lỗi TLS, 10 video chưa đủ metadata ngày nên không được tự xếp lịch. Vì vậy chưa thể nghiệm thu đồng bộ đầy đủ hai nguồn bên ngoài; giao diện hiển thị lỗi/giới hạn thay vì báo thành công giả.
 
 ### Lưu trữ và khôi phục
 
@@ -121,6 +121,6 @@ Các loại records mới: `copy_sources`, `copy_videos`, `copy_plans`, `copy_pl
 
 Ma trận gồm: hai dạng URL, GMT+7/ngày biên, nguồn trả một phần/lỗi/dừng/restart, loại video sai chủ/thiếu ngày, chống trùng qua lần quét và kế hoạch, thứ tự cũ/mới, chọn nhiều/hủy chọn, lọc OR/tất cả/không chọn, lịch 24 giờ, T−30, giới hạn ba lần thử, preflight Threads 500 ký tự, pause/resume/cancel, quyền nhân viên, Drive → publication → thành công, lỗi từng kênh và đối soát kết quả chưa rõ. Drive/đăng bài trong test tự động dùng adapter giả lập; không coi đó là bằng chứng đã đăng thật lên các tài khoản kết nối.
 
-Kết quả kiểm thử 14/10/2026: 427/427 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 10 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
+Kết quả kiểm thử 14/10/2026: 427/427 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 11 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
 
 Bản dự phòng trước triển khai trên VPS: `/root/backups/copy-automation-20261014/` gồm lịch sử code Git, bản sao SQLite bằng backup API, encryption.key, cấu hình và gói tệp dữ liệu. Trước khi hạ về code cũ cần tạm dừng tất cả kế hoạch Sao chép và hủy publication Sao chép chưa gửi, vì worker cũ không hiểu trạng thái kế hoạch mới. Ưu tiên khôi phục code, giữ database hiện tại để không mất tin nhắn mới. Chỉ khôi phục toàn bộ database/tệp từ bản dự phòng khi đã xác nhận chấp nhận quay dữ liệu về thời điểm sao lưu. Bản dự phòng tại máy: `test-results/before-copy-automation-20261014.bundle` và `.patch` (patch giữ cả thay đổi cục bộ trước triển khai).
