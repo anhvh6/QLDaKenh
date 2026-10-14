@@ -119,7 +119,7 @@ def tiktok_embed(url):
         text = item.get('text') or ''
         meta = video.get('videoMeta') or {}
         return {'title': (text or 'Bài TikTok')[:200], 'caption': text,
-                'author': (payload.get('authorInfos') or {}).get('nickName', ''),
+                'author': (payload.get('authorInfos') or {}).get('nickName', ''), 'externalId': video_id,
                 'media': [{'type': 'video', 'url': direct, 'ext': 'mp4',
                            'poster': next(iter(item.get('coversOrigin') or item.get('covers') or []), None),
                            'width': meta.get('width'), 'height': meta.get('height')}], 'engine': 'gallery'}
@@ -178,7 +178,7 @@ def extract(url, target=None):
         for e in entries:
             direct = e.get('url') or next((f.get('url') for f in reversed(e.get('formats', [])) if f.get('acodec') != 'none' and f.get('vcodec') != 'none'), None)
             media.append({'type': 'video', 'url': direct, 'poster': e.get('thumbnail'), 'ext': e.get('ext', 'mp4'), 'width': e.get('width'), 'height': e.get('height')})
-        return {'title': info.get('title', 'Bài viết'), 'caption': info.get('description') or '', 'author': info.get('uploader') or '', 'media': media, 'engine': 'video'}
+        return {'externalId':str(info.get('id') or ''),'publishedAt':__import__('datetime').datetime.fromtimestamp(info['timestamp'],__import__('datetime').timezone.utc).isoformat() if info.get('timestamp') else None,'title': info.get('title', 'Bài viết'), 'caption': info.get('description') or '', 'author': info.get('uploader') or '', 'media': media, 'engine': 'video'}
 
 def main():
     try:

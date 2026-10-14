@@ -82,3 +82,45 @@ Kết nối dùng scope `drive.file`. Dán ID không tự cấp quyền truy c�
 
 Endpoint POST `/api/drive/picker` yêu cầu phiên đăng nhập, quyền Nội dung và CSRF; chỉ trả access token ngắn hạn của người gọi để mở bộ chọn. Không trả refresh token hay client secret, không lưu token trong trình duyệt. Lưu thư mục kiểm tra lại quyền ghi qua Drive API trước khi thay cấu hình. ID hoặc link `https://drive.google.com/drive/folders/...` đều được hỗ trợ; lỗi 404/403 được phân biệt với lỗi máy chủ.
 
+
+## Nâng cấp Sao chép tự động (14/10/2026)
+
+Ba tab dùng chung kho bài và luồng xuất bản hiện có:
+
+1. **Thủ công:** link bài riêng → xem trước → ZIP/Drive/Reup, giữ bảng tải hiện có.
+2. **Toàn bộ video:** link Reels/Video Facebook hoặc hồ sơ TikTok → lọc ngày đăng gốc → quét nền → chọn một/nhiều/toàn bộ → tải Drive hoặc tạo kế hoạch Reup. Video chưa xác định ngày đăng không được tự xếp lịch. Có thể chỉnh nội dung Reup mà giữ dữ liệu gốc.
+3. **Video mới:** theo dõi nguồn có mốc từ ngày giờ, kiểm tra mặc định mỗi 15 phút (5–1440 phút), bổ sung video chưa có vào hàng chờ, ưu tiên video cũ nhất chưa đăng.
+
+Kế hoạch thuộc chiến dịch có sẵn; chọn các kênh đã kết nối và hỗ trợ đăng video, giờ bắt đầu/kết thúc, một hoặc nhiều giờ trong ngày, các ngày trong tuần. Bulk cho chọn cũ/mới trước; video mới luôn cũ trước. Mỗi khung giờ dùng một video cho các kênh đã chọn. Xem trước lịch và cảnh báo nội dung không ghi tác vụ đăng. Kiểm tra lại metadata, quyền kênh và giới hạn nền tảng trước khi chuẩn bị/đăng; không tự cắt nội dung.
+
+Tạo lịch theo cửa sổ 24 giờ sắp tới, tải về Drive từ T−30 phút. Hàng đợi tải giới hạn hai bài đồng thời, tối đa ba lần thử tổng cộng. Giữ thư mục và tệp đã tải thành công khi thử lại. Bỏ qua những kênh đã đăng video đó, kể cả bản sao thủ công cũ xác định được ID nguồn; chặn trùng giữa các kế hoạch. Lỗi một kênh có thể xếp lại riêng phần chưa thành công. Kết quả không xác định phải đối soát, không tự gửi lại. Lỡ giờ quá 60 giây thì dừng, không đăng dồn bù.
+
+Tạm dừng chiến dịch/kế hoạch sẽ hủy các publication chưa gửi và trả bài về hàng chờ. Bật lại sẽ xếp khung giờ tương lai. Không thu hồi cuộc gọi đăng đang chạy. Hủy hoặc hoàn tất không được bật lại; tạo kế hoạch mới nếu cần. Nhân viên bị khóa hoặc mất quyền kênh thì tác vụ dừng. Nguồn đang quét được tiếp tục theo offset sau restart; dữ liệu, lịch và nhật ký lưu bền vững.
+
+Bảng kết quả có tìm kiếm, lọc chiến dịch/kế hoạch/trạng thái/nền tảng (OR), phạm vi 24 giờ hoặc toàn bộ, sắp xếp qua tiêu đề cột, ngày đăng gốc/ngày tải/lịch đăng/nội dung/trạng thái/hành động, icon kết quả từng kênh. Có lịch Sao chép trong Lịch đăng; kế hoạch được đếm ở Chiến dịch. Loại video khỏi kết quả quét/kế hoạch không xóa bài đã xuất bản. Quản lý/xóa thư mục Drive tiếp tục dùng kho Các bài đã tải trong tab Thủ công.
+
+### Nguồn công khai của bên khác
+
+Hai URL mẫu:
+- https://www.facebook.com/phuong.tran.53181/reels/
+- https://www.tiktok.com/@faceyoga.megaphuong
+
+Bộ quét thử yt-dlp, sau đó đọc payload công khai/nhúng. Facebook đối chiếu chủ video với hồ sơ nguồn; TikTok bỏ video riêng tư và video thuộc người khác. Không suy ngày đăng từ ID. Nguồn chỉ trả một phần được ghi **Đã lấy một phần**, không ghi quét toàn bộ. Không vượt đăng nhập/CAPTCHA. Không yêu cầu tài khoản của người khác cấp OAuth.
+
+Đọc công khai không bảo đảm trả toàn bộ lịch sử, video mới nhất hoặc luôn truy cập được từ VPS. Theo dõi định kỳ chỉ phát hiện những video nền tảng thực sự trả về. Trong nghiệm thu trực tiếp, Facebook trả 10 video có ngày; TikTok creator embed từng trả 12 video nhưng những lần gọi khác trả rỗng/lỗi TLS và chưa xác minh đủ ngày đăng. Vì vậy chưa thể nghiệm thu đồng bộ đầy đủ hai nguồn bên ngoài; giao diện hiển thị lỗi/giới hạn thay vì báo thành công giả.
+
+### Lưu trữ và khôi phục
+
+Các loại records mới: `copy_sources`, `copy_videos`, `copy_plans`, `copy_plan_items`, `copy_plan_events`. Dùng bảng records SQLite hiện có; không có migration Supabase. API trạng thái kế hoạch chỉ trả dữ liệu của người gọi, token Drive vẫn mã hóa. Sao lưu đầy đủ cần database SQLite, `uploads`, kho `social-copy`, và `encryption.key`; xuất JSON có cả các bản ghi kế hoạch nhưng không thay thế bản sao đầy đủ.
+
+### Kiểm thử có thể chạy lại
+
+- `node --test tests/*.test.mjs`: toàn bộ hồi quy.
+- `node --test tests/copy-automation.test.mjs tests/social-source-parser.test.mjs tests/social-copy.test.mjs tests/copy-job-table.test.mjs tests/publish-preflight.test.mjs`: kiểm thử chuyên biệt.
+- `node scripts/test-copy-automation-ui.mjs`: Edge headless, dữ liệu và server riêng, không gửi lên kênh thật. Xuất báo cáo JSON và ảnh desktop/mobile tại `test-results/`.
+
+Ma trận gồm: hai dạng URL, GMT+7/ngày biên, nguồn trả một phần/lỗi/dừng/restart, loại video sai chủ/thiếu ngày, chống trùng qua lần quét và kế hoạch, thứ tự cũ/mới, chọn nhiều/hủy chọn, lọc OR/tất cả/không chọn, lịch 24 giờ, T−30, giới hạn ba lần thử, preflight Threads 500 ký tự, pause/resume/cancel, quyền nhân viên, Drive → publication → thành công, lỗi từng kênh và đối soát kết quả chưa rõ. Drive/đăng bài trong test tự động dùng adapter giả lập; không coi đó là bằng chứng đã đăng thật lên các tài khoản kết nối.
+
+Kết quả kiểm thử 14/10/2026: 425/425 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 9 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
+
+Bản dự phòng trước triển khai trên VPS: `/root/backups/copy-automation-20261014/` gồm lịch sử code Git, bản sao SQLite bằng backup API, encryption.key, cấu hình và gói tệp dữ liệu. Trước khi hạ về code cũ cần tạm dừng tất cả kế hoạch Sao chép và hủy publication Sao chép chưa gửi, vì worker cũ không hiểu trạng thái kế hoạch mới. Ưu tiên khôi phục code, giữ database hiện tại để không mất tin nhắn mới. Chỉ khôi phục toàn bộ database/tệp từ bản dự phòng khi đã xác nhận chấp nhận quay dữ liệu về thời điểm sao lưu. Bản dự phòng tại máy: `test-results/before-copy-automation-20261014.bundle` và `.patch` (patch giữ cả thay đổi cục bộ trước triển khai).

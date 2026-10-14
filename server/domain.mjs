@@ -1,3 +1,4 @@
+import {copyPlanBlock} from './copy-plan-guard.mjs';
 import {commentReplyTarget} from './comment-context.mjs';
 import { assertPublicationPreflight } from './publish-preflight.mjs';
 import { validateGroupMentions } from './group-mentions.mjs';
@@ -70,7 +71,7 @@ export async function deleteRecord(user, kind, id, input = {}) {
 export function schedule(user, id, input, { prepared = false } = {}) {
   permission(user, 'content'); const c = get('contents', id); if (!c) fail('Không tìm thấy nội dung.', 404); if (input.version !== c.version) fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.', 409);
   assertPublicationPreflight(user, c, input, { prepared });
-  const channels = c.channels || []; if (!channels.length) fail('Chọn ít nhất một kênh.'); if (!c.caption.trim()) fail('Nhập nội dung bài đăng.');
+  const channels = c.channels || []; if (!channels.length) fail('Chọn ít nhất một kênh.'); if (!String(c.caption||'').trim()&&!['video','image'].includes(c.type)) fail('Nhập nội dung bài đăng.');
   const scheduleAt = input.immediate ? now() : input.scheduleAt; if (!Number.isFinite(Date.parse(scheduleAt))) fail('Chọn lịch đăng hợp lệ.'); if (!input.immediate && Date.parse(scheduleAt) < Date.now() + (prepared ? 0 : 10 * 60000)) fail(prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
   const active = all('publications').filter(p => p.contentId === id && ['scheduled', 'dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status));
   if (active.some(p => p.status !== 'scheduled')) fail('Một đích đang được xử lý hoặc chờ đối soát; chưa thể thay đổi lịch.');
@@ -224,8 +225,9 @@ export function ingestDemo(user, input) { permission(user, 'inbox'); assertChann
 let ticking = false;
 export async function tick() {
   if (ticking) return; ticking = true; try {
-    const jobs = all('publications').filter(p => p.status === 'scheduled' && Date.parse(p.scheduleAt) <= Date.now()).slice(0, 5);
+    const jobs = all('publications').filter(p => p.status === 'scheduled' && Date.parse(p.scheduleAt) <= Date.now()).filter(p=>{const block=copyPlanBlock(p);return !block||block.startsWith('Đã lỡ')||block.startsWith('Đã đăng');}).slice(0, 5);
     for (const p of jobs) {
+      const copyBlock=copyPlanBlock(p);if(copyBlock){if(copyBlock.startsWith('Đã lỡ')||copyBlock.startsWith('Đã đăng'))put('publications',{...p,status:'blocked',error:copyBlock});continue;}
       const ch = get('connections', p.connectionId); if (!ch || ch.status === 'disconnected') { put('publications', { ...p, status: 'blocked', error: 'Kênh đã ngắt kết nối.' }); continue; }
       if (p.mode === 'assisted') { put('publications', { ...p, status: 'awaiting_manual' }); notification('Đến giờ đăng: ' + p.title, `Mở gói đăng cho ${ch.name}.`, 'calendar'); continue; }
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }

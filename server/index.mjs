@@ -1,3 +1,4 @@
+import {automationRoute,automationTick,recoverAutomation} from './copy-automation.mjs';
 import {commentsRoute,commentsTick} from './comments.mjs';
 import { ingestFacebookEvents, facebookChatTick } from './facebook-chat.mjs';
 import { publicationPreflight } from './publish-preflight.mjs';
@@ -65,6 +66,7 @@ const generic = /^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req, res, url, user, input) {
   const path = url.pathname; const method = req.method;
   const comments=await commentsRoute(path,method,input,user);if(comments!==undefined)return comments;
+  const automation=await automationRoute(path,method,input,user);if(automation!==undefined)return automation;
   const copy = await copyRoute(path, method, input, user, url); if (copy !== undefined) return copy;
   const careConversation = path.match(/^\/api\/(?:chat\/|care\/|chatbot\/)?conversations\/([^/]+)/);
   const careMessage = path.match(/^\/api\/chat\/messages\/([^/]+)/);
@@ -99,6 +101,7 @@ async function dispatch(req, res, url, user, input) {
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user };
     void refreshLearnerStatuses();
     const state = { user, reminderDefaults: get('settings','chat-reminder-defaults-'+user.id) || null, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = all(k); }
+    state.copyPlanCalendar=all('copy_plan_items').filter(i=>i.userId===user.id&&i.scheduleAt&&['scheduled','preparing','ready','publishing'].includes(i.state)).map(i=>({id:i.id,planId:i.planId,scheduleAt:i.scheduleAt,state:i.state,title:get('copy_videos',i.videoId)?.title||'Video',planName:get('copy_plans',i.planId)?.name||'',campaignId:get('copy_plans',i.planId)?.campaignId}));state.copyPlanSummaries=all('copy_plans').filter(p=>p.userId===user.id).map(p=>({id:p.id,name:p.name,campaignId:p.campaignId,status:p.status,mode:p.mode}));
     const learnerFacts = new Map(all('learner_source_facts').map(f => [f.id, f])); state.customers = state.customers.map(c => { const f = learnerFacts.get(c.id); if (!f) return c; const { id, version, createdAt, updatedAt, sourceUpdatedAt, ...fields } = f; return { ...c, ...fields }; });
     state.messages = state.messages.map(m => { if (!m.quoteSource || !isTypeCode(m.text) && !/video|voice|audio/i.test(m.messageType || '')) return m; const content = parseZaloContent(m.quoteSource); return { ...m, ...content, attachments: content.attachments?.length ? content.attachments : m.attachments || [] }; }); state.conversations = state.conversations.map(c => isTypeCode(c.lastMessage) ? { ...c, lastMessage: /video/i.test(c.lastMessage) ? 'Video' : /voice|audio/i.test(c.lastMessage) ? 'Tin nhắn thoại' : /photo|image/i.test(c.lastMessage) ? 'Ảnh' : 'Tệp đính kèm' } : c);
     filterDeletedChats(state);
@@ -167,7 +170,7 @@ async function dispatch(req, res, url, user, input) {
   if (path === '/api/notifications/read' && method === 'POST') { transaction(() => { for (const n of filterCareNotifications(all('notifications'), user).filter(n => !n.read)) put('notifications', { ...n, read: true }); }); return { ok: true }; }
   if (path === '/api/audit' && method === 'GET') { if (!['owner', 'manager'].includes(user.role)) domain.fail('Cần quyền quản lý.', 403); return db.prepare('SELECT * FROM audit ORDER BY created_at DESC LIMIT 300').all(); }
   if (path === '/api/backup' && method === 'POST') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const name = `hub-${now().replace(/[:.]/g, '-')}.sqlite`; await backup(db, join(dataDir, 'backups', name)); audit(user.id, 'backup', name); return { name, note: 'Bản sao database trong data/backups. Để khôi phục đầy đủ, giữ cả uploads và encryption.key.' }; }
-  if (path === '/api/export' && method === 'GET') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const data = { exportedAt: now(), version: 1 }; for (const k of [...domain.kinds, ...care.extraKinds]) data[k] = all(k); res.setHeader('Content-Disposition', 'attachment; filename="moc-export.json"'); audit(user.id, 'export'); return data; }
+  if (path === '/api/export' && method === 'GET') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const data = { exportedAt: now(), version: 1 }; for (const k of [...domain.kinds, ...care.extraKinds,'copy_sources','copy_videos','copy_plans','copy_plan_items','copy_plan_events']) data[k] = all(k); res.setHeader('Content-Disposition', 'attachment; filename="moc-export.json"'); audit(user.id, 'export'); return data; }
   if (path === '/api/import/customers' && method === 'POST') { domain.permission(user, 'customers'); if (!Array.isArray(input.rows) || input.rows.length > 1000) domain.fail('Tối đa 1.000 khách/lần.'); const result = []; for (const row of input.rows) { try { if (row.phone && all('customers').some(c => c.phone === row.phone)) throw new Error('Số điện thoại đã tồn tại.'); result.push({ ok: true, id: domain.editRecord(user, 'customers', null, { ...row, consent: false }).id }); } catch (e) { result.push({ ok: false, error: e.message }); } } return result; }
   domain.fail('Không tìm thấy API.', 404);
 }
@@ -247,3 +250,5 @@ void facebookChatTick(); setInterval(() => void facebookChatTick(), 10000).unref
 recoverCustomerReminders();setInterval(() => void customerReminderTick().catch(e=>console.error('Customer reminders:',e.message)), 5000).unref();
 
 void commentsTick().catch(e=>console.error('Comments:',e.message));setInterval(()=>void commentsTick().catch(e=>console.error('Comments:',e.message)),20000).unref();
+
+recoverAutomation();setInterval(()=>void automationTick().catch(e=>console.error('Copy automation:',e.message)),5000).unref();
