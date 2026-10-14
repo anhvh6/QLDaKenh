@@ -38,7 +38,7 @@ export function startOAuth(user,connection,req){
   const scopes=['pages_show_list','pages_read_engagement','pages_read_user_content','pages_manage_posts','pages_manage_engagement','pages_manage_metadata','pages_messaging','instagram_basic','instagram_content_publish'];
   url=`https://www.facebook.com/${graphVersion}/dialog/oauth?${encode({client_id:env('META_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:scopes.join(',')})}`;
  }else if(connection.provider==='threads'){
-  url=`https://threads.net/oauth/authorize?${encode({client_id:env('THREADS_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:'threads_basic,threads_content_publish,threads_delete,threads_read_replies,threads_manage_replies'})}`;
+  url=`https://threads.net/oauth/authorize?${encode({client_id:env('THREADS_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:'threads_basic,threads_content_publish,threads_delete,threads_read_replies,threads_manage_replies,threads_manage_insights'})}`;
  }else if(connection.provider==='x'){
   const challenge=createHash('sha256').update(codeVerifier).digest('base64url');
   url=`https://x.com/i/oauth2/authorize?${encode({response_type:'code',client_id:env('X_CLIENT_ID'),redirect_uri:redirect,scope:'tweet.read tweet.write users.read offline.access',state,code_challenge:challenge,code_challenge_method:'S256'})}`;
