@@ -225,9 +225,9 @@ export function ingestDemo(user, input) { permission(user, 'inbox'); assertChann
 let ticking = false;
 export async function tick() {
   if (ticking) return; ticking = true; try {
-    const jobs = all('publications').filter(p => p.status === 'scheduled' && Date.parse(p.scheduleAt) <= Date.now()).filter(p=>{const block=copyPlanBlock(p);return !block||block.startsWith('Đã lỡ')||block.startsWith('Đã đăng');}).slice(0, 5);
+    const jobs = all('publications').filter(p => p.status === 'scheduled' && Date.parse(p.scheduleAt) <= Date.now()).filter(p=>{const block=copyPlanBlock(p);return !block||block.startsWith('Đã lỡ')||block.startsWith('Đã đăng')||block.startsWith('Kênh đã');}).slice(0, 5);
     for (const p of jobs) {
-      const copyBlock=copyPlanBlock(p);if(copyBlock){if(copyBlock.startsWith('Đã lỡ')||copyBlock.startsWith('Đã đăng'))put('publications',{...p,status:'blocked',error:copyBlock});continue;}
+      const copyBlock=copyPlanBlock(p);if(copyBlock){if(copyBlock.startsWith('Đã lỡ')||copyBlock.startsWith('Đã đăng')||copyBlock.startsWith('Kênh đã'))put('publications',{...p,status:'blocked',error:copyBlock});continue;}
       const ch = get('connections', p.connectionId); if (!ch || ch.status === 'disconnected') { put('publications', { ...p, status: 'blocked', error: 'Kênh đã ngắt kết nối.' }); continue; }
       if (p.mode === 'assisted') { put('publications', { ...p, status: 'awaiting_manual' }); notification('Đến giờ đăng: ' + p.title, `Mở gói đăng cho ${ch.name}.`, 'calendar'); continue; }
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }

@@ -97,7 +97,7 @@ Tạo lịch theo cửa sổ 24 giờ sắp tới, tải về Drive từ T−30 
 
 Tạm dừng chiến dịch/kế hoạch sẽ hủy các publication chưa gửi và trả bài về hàng chờ. Bật lại sẽ xếp khung giờ tương lai. Không thu hồi cuộc gọi đăng đang chạy. Hủy hoặc hoàn tất không được bật lại; tạo kế hoạch mới nếu cần. Nhân viên bị khóa hoặc mất quyền kênh thì tác vụ dừng. Nguồn đang quét được tiếp tục theo offset sau restart; dữ liệu, lịch và nhật ký lưu bền vững.
 
-Bảng kết quả có tìm kiếm, lọc chiến dịch/kế hoạch/trạng thái/nền tảng (OR), phạm vi 24 giờ hoặc toàn bộ, sắp xếp qua tiêu đề cột, ngày đăng gốc/ngày tải/lịch đăng/nội dung/trạng thái/hành động, icon kết quả từng kênh. Có lịch Sao chép trong Lịch đăng; kế hoạch được đếm ở Chiến dịch. Loại video khỏi kết quả quét/kế hoạch không xóa bài đã xuất bản. Quản lý/xóa thư mục Drive tiếp tục dùng kho Các bài đã tải trong tab Thủ công.
+Bảng kết quả có tìm kiếm, lọc chiến dịch/kế hoạch/trạng thái/nền tảng (OR), phạm vi 24 giờ hoặc toàn bộ, sắp xếp qua tiêu đề cột, ngày đăng gốc/ngày tải/lịch đăng/nội dung/trạng thái/hành động, icon kết quả từng kênh. Có lịch Sao chép trong Lịch đăng; kế hoạch được đếm ở Chiến dịch. Loại video khỏi kết quả quét sẽ hủy lịch chưa gửi của video trong các kế hoạch; khôi phục nguồn không tự bật lại các lịch đã loại. Tác vụ đang gửi/chờ đối soát không được loại. Bài đã xuất bản được giữ nguyên. Quản lý/xóa thư mục Drive tiếp tục dùng kho Các bài đã tải trong tab Thủ công.
 
 ### Nguồn công khai của bên khác
 
@@ -121,6 +121,6 @@ Các loại records mới: `copy_sources`, `copy_videos`, `copy_plans`, `copy_pl
 
 Ma trận gồm: hai dạng URL, GMT+7/ngày biên, nguồn trả một phần/lỗi/dừng/restart, loại video sai chủ/thiếu ngày, chống trùng qua lần quét và kế hoạch, thứ tự cũ/mới, chọn nhiều/hủy chọn, lọc OR/tất cả/không chọn, lịch 24 giờ, T−30, giới hạn ba lần thử, preflight Threads 500 ký tự, pause/resume/cancel, quyền nhân viên, Drive → publication → thành công, lỗi từng kênh và đối soát kết quả chưa rõ. Drive/đăng bài trong test tự động dùng adapter giả lập; không coi đó là bằng chứng đã đăng thật lên các tài khoản kết nối.
 
-Kết quả kiểm thử 14/10/2026: 427/427 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 11 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
+Kết quả kiểm thử 14/10/2026: 430/430 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 11 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
 
 Bản dự phòng trước triển khai trên VPS: `/root/backups/copy-automation-20261014/` gồm lịch sử code Git, bản sao SQLite bằng backup API, encryption.key, cấu hình và gói tệp dữ liệu. Trước khi hạ về code cũ cần tạm dừng tất cả kế hoạch Sao chép và hủy publication Sao chép chưa gửi, vì worker cũ không hiểu trạng thái kế hoạch mới. Ưu tiên khôi phục code, giữ database hiện tại để không mất tin nhắn mới. Chỉ khôi phục toàn bộ database/tệp từ bản dự phòng khi đã xác nhận chấp nhận quay dữ liệu về thời điểm sao lưu. Bản dự phòng tại máy: `test-results/before-copy-automation-20261014.bundle` và `.patch` (patch giữ cả thay đổi cục bộ trước triển khai).
