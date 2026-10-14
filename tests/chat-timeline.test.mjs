@@ -11,3 +11,7 @@ test('separator handles year rollover and invalid dates without crashing',()=>{
 test('action hover remains active near the bubble or footer but clears when moved well away',()=>{
  const rects=[{left:100,right:200,top:100,bottom:150},{left:100,right:250,top:154,bottom:182}];assert.equal(nearMessage(230,175,rects),true);assert.equal(nearMessage(270,185,rects),true);assert.equal(nearMessage(300,220,rects),false);
 });
+
+test('message menu stays inside the conversation pane without covering the conversation list',async()=>{
+ const {menuPosition}=await import('../public/chat-menu-layout.js');const area={left:540,right:1260,top:100,bottom:540};const p=menuPosition({top:320,bottom:344,right:685},{width:260,height:215},{width:1280,height:720},area);assert.ok(p.left>=548);assert.ok(p.top>=108);assert.ok(p.top+215<=532);assert.ok(p.left+p.width<=1252);
+});
