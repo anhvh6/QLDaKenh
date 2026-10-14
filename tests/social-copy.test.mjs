@@ -107,6 +107,6 @@ test('audio-only extractor failure falls back to playable preview video and reje
 });
 
 test('copy library reports active publication and publication failures independently from download status',async()=>{
- const j=put('copy_jobs',{id:'publication-state-library',userId:owner.id,postId:post.id,status:'done'});const c=put('contents',{id:'publication-state-content',copyJobId:j.id});put('publications',{id:'publication-state-pub',contentId:c.id,status:'processing',connectionId:'copy-demo'});let row=(await route('/api/copy/jobs','GET')).find(r=>r.id===j.id);assert.equal(row.reupPublishing,true);assert.equal(row.reupError,'');
+ const source=put('copy_posts',{id:'publication-state-source',userId:owner.id,caption:'Isolated status fixture',media:[]});const j=put('copy_jobs',{id:'publication-state-library',userId:owner.id,postId:source.id,status:'done'});const c=put('contents',{id:'publication-state-content',copyJobId:j.id});put('publications',{id:'publication-state-pub',contentId:c.id,status:'processing',connectionId:'copy-demo'});let row=(await route('/api/copy/jobs','GET')).find(r=>r.id===j.id);assert.equal(row.reupPublishing,true);assert.equal(row.reupError,'');
  put('publications',{id:'publication-state-pub',contentId:c.id,status:'failed',error:'Provider rejected',connectionId:'copy-demo'});row=(await route('/api/copy/jobs','GET')).find(r=>r.id===j.id);assert.equal(row.reupPublishing,false);assert.equal(row.reupError,'Provider rejected');assert.equal(row.reupPublished,false);
 });
