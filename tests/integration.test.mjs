@@ -6,7 +6,7 @@ import { mkdtempSync,readFileSync,existsSync } from 'node:fs';
 import { resolve,join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 const root=resolve('test-data');mkdirSync(root,{recursive:true});const dataDir=mkdtempSync(join(root,'api-'));
-const port=4399;let child,cookie='',csrf='';
+const port=Number(process.env.TEST_API_PORT||4399);let child,cookie='',csrf='';
 const base=`http://127.0.0.1:${port}`;
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function start(){child=spawn(process.execPath,['server/index.mjs'],{cwd:process.cwd(),env:{...process.env,PORT:String(port),DATA_DIR:dataDir},stdio:['ignore','pipe','pipe'],windowsHide:true});let logs='';child.stdout.on('data',x=>logs+=x);child.stderr.on('data',x=>logs+=x);for(let i=0;i<40;i++){try{const r=await fetch(base+'/api/health');if(r.ok)return;}catch{}await pause(100);}throw new Error(logs);}

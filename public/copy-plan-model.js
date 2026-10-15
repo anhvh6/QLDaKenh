@@ -4,8 +4,8 @@ export function sourceIdentity(value){
  const u=new URL(String(value).trim());if(u.protocol!=='https:'||u.username||u.password||u.port)throw Error('Nguồn phải là link HTTPS hợp lệ.');
  const host=u.hostname.toLowerCase(),path=decodeURIComponent(u.pathname).replace(/\/+$/,'');
  if(['www.tiktok.com','tiktok.com'].includes(host)&&/^\/@[\w.-]+$/.test(path))return {provider:'tiktok',url:'https://www.tiktok.com'+path};
- if(['www.facebook.com','facebook.com','m.facebook.com'].includes(host)&&/^\/[\w.-]+\/(reels|videos)$/.test(path))return {provider:'facebook',url:'https://www.facebook.com'+path+'/'};
- throw Error('Dán link hồ sơ TikTok hoặc mục Reels/Video Facebook. Link bài riêng dùng tab Thủ công.');
+ if(['www.facebook.com','facebook.com','m.facebook.com'].includes(host)&&/^\/[\w.-]+(?:\/(reels|videos))?$/.test(path)&&!['reel','watch','groups','pages','login','profile.php','share','share.php','home.php','settings','marketplace'].includes(path.split('/')[1].toLowerCase()))return {provider:'facebook',url:'https://www.facebook.com'+path+'/'};
+ throw Error('Dán link trang Facebook, mục Reels/Video hoặc hồ sơ TikTok. Link bài riêng dùng tab Thủ công.');
 }
 export function dateBoundary(value,end=false){if(!value)return null;if(/^\d{4}-\d{2}-\d{2}$/.test(value))return Date.parse(value+(end?'T23:59:59.999':'T00:00:00')+'+07:00');const n=Date.parse(value);return Number.isFinite(n)?n:NaN;}
 export function videoInRange(video,from,to){const t=Date.parse(video.publishedAt);return Number.isFinite(t)&&(!from||t>=dateBoundary(from))&&(!to||t<=dateBoundary(to,true));}

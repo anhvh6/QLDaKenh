@@ -105,9 +105,13 @@ Hai URL mẫu:
 - https://www.facebook.com/phuong.tran.53181/reels/
 - https://www.tiktok.com/@faceyoga.megaphuong
 
-Bộ quét thử yt-dlp, sau đó đọc payload công khai/nhúng. Facebook đối chiếu chủ video với hồ sơ nguồn; TikTok bỏ video riêng tư và video thuộc người khác. Không suy ngày đăng từ ID. Nguồn chỉ trả một phần được ghi **Đã lấy một phần**, không ghi quét toàn bộ. Không vượt đăng nhập/CAPTCHA. Không yêu cầu tài khoản của người khác cấp OAuth.
+Từ bản sửa 15/10/2026, nhận cả link trang Facebook gốc (ví dụ `https://www.facebook.com/phuong.tran.53181`) và `/reels/`; hai dạng cùng đọc kho Reels công khai của trang. Facebook đọc payload khởi tạo, xác minh chủ video, tìm truy vấn phân trang trong tài nguyên JavaScript do trang công khai cung cấp rồi đọc nối tiếp bằng cursor. Không cố định mã truy vấn theo một bản Facebook. Đọc toàn bộ JSON/NDJSON, ghép caption và ngày đăng từ các phần dữ liệu bổ sung. Không thực thi JavaScript tải từ nguồn.
 
-Đọc công khai không bảo đảm trả toàn bộ lịch sử, video mới nhất hoặc luôn truy cập được từ VPS. Theo dõi định kỳ chỉ phát hiện những video nền tảng thực sự trả về. Trong nghiệm thu trực tiếp, Facebook trả 10 video có ngày; TikTok creator embed trả 12 video, lần kiểm tra cuối đối chiếu được ngày của 2 video; những lần gọi khác có thể trả rỗng/lỗi TLS, 10 video chưa đủ metadata ngày nên không được tự xếp lịch. Vì vậy chưa thể nghiệm thu đồng bộ đầy đủ hai nguồn bên ngoài; giao diện hiển thị lỗi/giới hạn thay vì báo thành công giả.
+TikTok xác minh mã định danh công khai của tác giả qua trang/khung nhúng, sau đó đọc từng trang danh sách video từ creator API bằng bộ tham số của phiên bản yt-dlp đã ghim. Giữ định danh thiết bị công khai nhất quán trong cùng lượt quét, kiểm tra tác giả, ngày đăng và cursor để phát hiện trang bị lặp. Đây là nguồn của người khác, không yêu cầu OAuth của chủ nguồn.
+
+Mỗi lượt xử lý một trang, lưu cursor và metadata phân trang vào `copy_sources`, tiếp tục qua worker cho tới khi nguồn trả dấu kết thúc rõ ràng. Nút **Tiếp tục quét** giữ vị trí sau lỗi; kết quả đã đọc không bị xóa. Lỗi HTTP tạm thời được thử lại có giới hạn; trang rỗng, sai tác giả, lặp cursor hoặc thiếu dấu kết thúc không được ghi quét đầy đủ. Nút quét lại sau khi hoàn thành và mỗi chu kỳ theo dõi mới bắt đầu từ đầu để nhận video mới. Không suy ngày đăng từ ID và không vượt đăng nhập/CAPTCHA.
+
+Nghiệm thu đọc trực tiếp trên VPS ngày 15/10: Facebook đã đọc tới cuối kho Reels sau 35 lượt phân trang; TikTok đọc tới cuối sau 43 trang, thu được 571 video riêng biệt, đủ ngày đăng cho cả 571 video. Số lượng là dữ liệu công khai nền tảng trả trong lần kiểm tra, không bao gồm nội dung bị ẩn/riêng tư/xóa và có thể thay đổi. Khoảng ngày của người dùng vẫn áp dụng khi hiển thị/lập lịch.
 
 ### Lưu trữ và khôi phục
 
@@ -124,3 +128,9 @@ Ma trận gồm: hai dạng URL, GMT+7/ngày biên, nguồn trả một phần/l
 Kết quả kiểm thử 14/10/2026: 430/430 kiểm thử hồi quy đạt, kiểm tra cú pháp đạt; 11 nhóm thao tác giao diện Edge headless đạt, không có lỗi JavaScript. Ảnh desktop/mobile và báo cáo JSON nằm trong `test-results/`. Kết quả công khai thực tế như giới hạn nêu trên, chưa thực hiện đăng bài thử lên tài khoản thật.
 
 Bản dự phòng trước triển khai trên VPS: `/root/backups/copy-automation-20261014/` gồm lịch sử code Git, bản sao SQLite bằng backup API, encryption.key, cấu hình và gói tệp dữ liệu. Trước khi hạ về code cũ cần tạm dừng tất cả kế hoạch Sao chép và hủy publication Sao chép chưa gửi, vì worker cũ không hiểu trạng thái kế hoạch mới. Ưu tiên khôi phục code, giữ database hiện tại để không mất tin nhắn mới. Chỉ khôi phục toàn bộ database/tệp từ bản dự phòng khi đã xác nhận chấp nhận quay dữ liệu về thời điểm sao lưu. Bản dự phòng tại máy: `test-results/before-copy-automation-20261014.bundle` và `.patch` (patch giữ cả thay đổi cục bộ trước triển khai).
+
+### Kiểm thử bản sửa phân trang 15/10/2026
+
+434/434 kiểm thử hồi quy đạt; chạy tuần tự với `TEST_API_PORT=4519` vì cổng mặc định 4399 đang có tiến trình kiểm thử cũ. Bộ integration cho phép cấu hình cổng qua biến này. 42 kiểm thử chuyên biệt nguồn/lịch và 11 nhóm giao diện Sao chép đạt; kiểm tra cú pháp JavaScript đạt. Bao gồm ba URL mẫu, xác minh chủ video, phản hồi GraphQL nhiều dòng, cursor nối tiếp/kết thúc/lặp, lỗi giữa lượt quét, dừng khi request đang chạy và giữ dữ liệu khi thử lại. Kiểm thử trực tiếp chỉ đọc nguồn, không đăng thử lên kênh thật.
+
+Bản dự phòng trước sửa: `/root/backups/source-pagination-20261015/` gồm Git bundle, SQLite snapshot và encryption.key. Khi cần hoàn tác code dùng phiên bản `3013757`, giữ database hiện hành để không mất dữ liệu mới; bản sửa không yêu cầu migration Supabase. Bản dự phòng đầy đủ tệp dữ liệu trước nâng cấp vẫn ở `/root/backups/copy-automation-20261014/`.
