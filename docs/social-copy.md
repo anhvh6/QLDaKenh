@@ -111,7 +111,7 @@ TikTok xác minh mã định danh công khai của tác giả qua trang/khung nh
 
 Mỗi lượt xử lý một trang, lưu cursor và metadata phân trang vào `copy_sources`, tiếp tục qua worker cho tới khi nguồn trả dấu kết thúc rõ ràng. Nút **Tiếp tục quét** giữ vị trí sau lỗi; kết quả đã đọc không bị xóa. Lỗi HTTP tạm thời được thử lại có giới hạn; trang rỗng, sai tác giả, lặp cursor hoặc thiếu dấu kết thúc không được ghi quét đầy đủ. Nút quét lại sau khi hoàn thành và mỗi chu kỳ theo dõi mới bắt đầu từ đầu để nhận video mới. Không suy ngày đăng từ ID và không vượt đăng nhập/CAPTCHA.
 
-Nghiệm thu đọc trực tiếp trên VPS ngày 15/10: Facebook đã đọc tới cuối kho Reels sau 35 lượt phân trang; TikTok đọc tới cuối sau 43 trang, thu được 571 video riêng biệt, đủ ngày đăng cho cả 571 video. Số lượng là dữ liệu công khai nền tảng trả trong lần kiểm tra, không bao gồm nội dung bị ẩn/riêng tư/xóa và có thể thay đổi. Khoảng ngày của người dùng vẫn áp dụng khi hiển thị/lập lịch.
+Nghiệm thu đọc trực tiếp trên VPS ngày 15/10: Facebook đã đọc tới cuối kho Reels sau 35 lượt phân trang, thu được 360 video riêng biệt, đủ ngày đăng; TikTok đọc tới cuối sau 43 trang, thu được 571 video riêng biệt, đủ ngày đăng cho cả 571 video. Số lượng là dữ liệu công khai nền tảng trả trong lần kiểm tra, không bao gồm nội dung bị ẩn/riêng tư/xóa và có thể thay đổi. Khoảng ngày của người dùng vẫn áp dụng khi hiển thị/lập lịch.
 
 ### Lưu trữ và khôi phục
 
@@ -134,3 +134,5 @@ Bản dự phòng trước triển khai trên VPS: `/root/backups/copy-automatio
 434/434 kiểm thử hồi quy đạt; chạy tuần tự với `TEST_API_PORT=4519` vì cổng mặc định 4399 đang có tiến trình kiểm thử cũ. Bộ integration cho phép cấu hình cổng qua biến này. 42 kiểm thử chuyên biệt nguồn/lịch và 11 nhóm giao diện Sao chép đạt; kiểm tra cú pháp JavaScript đạt. Bao gồm ba URL mẫu, xác minh chủ video, phản hồi GraphQL nhiều dòng, cursor nối tiếp/kết thúc/lặp, lỗi giữa lượt quét, dừng khi request đang chạy và giữ dữ liệu khi thử lại. Kiểm thử trực tiếp chỉ đọc nguồn, không đăng thử lên kênh thật.
 
 Bản dự phòng trước sửa: `/root/backups/source-pagination-20261015/` gồm Git bundle, SQLite snapshot và encryption.key. Khi cần hoàn tác code dùng phiên bản `3013757`, giữ database hiện hành để không mất dữ liệu mới; bản sửa không yêu cầu migration Supabase. Bản dự phòng đầy đủ tệp dữ liệu trước nâng cấp vẫn ở `/root/backups/copy-automation-20261014/`.
+
+Xác nhận sau triển khai `7945856`: hai nguồn đã lưu trong dữ liệu thật đều `complete`, không có lỗi; Facebook 360/360 video có ngày, TikTok 571/571 video có ngày. Link Facebook trang gốc thử riêng trả 20 video ở lượt đầu và cursor trang tiếp theo. 69/69 kiểm thử chuyên biệt trên Linux VPS đạt; health công khai HTTP 200, hai module giao diện trả về trùng SHA-256 với bản triển khai.
