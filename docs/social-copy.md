@@ -152,3 +152,15 @@ Vùng quản lý chọn chiến dịch và kế hoạch, mặc định kế ho�
 Nghiệm thu: 440 kiểm thử hồi quy, 14 nhóm kiểm thử Edge headless, ảnh desktop và 390px mobile trong test-results/copy-automation-*.png và copy-layout-form-*.png. Kịch bản có 23 video, phân trang 10/10/3, chọn toàn bộ qua trang, tạo nhanh chiến dịch, dropdown all/none/partial, ngày giờ, thêm giờ, xem trước không ghi lịch, tạo kế hoạch, bổ sung 20 vào 3 video không trùng, sửa, pause/reload/resume/cancel, bộ lọc và cấu hình Video mới. Kiểm thử tạo lịch/đăng dùng dữ liệu riêng và kênh demo, không đăng thử lên tài khoản thật.
 
 Dự phòng VPS: /root/backups/copy-layout-20261015/ gồm Git bundle, SQLite backup, encryption.key và cấu hình hiện có. Phiên bản trước thay đổi giao diện: 3036d42. Không có migration Supabase.
+
+### Sửa giờ đăng gần, chọn kết quả và nhãn task — 15/10/2026
+
+Bỏ khoảng đệm 30 phút khi tìm khung giờ đăng: chỉ lấy giờ tương lai sau thời điểm hiện tại và không trước ngày bắt đầu. Ca kiểm thử bắt đầu 15:42 15/10/2026 với các giờ 15:45, 15:46 phải ra cùng ngày 15/10. Mốc T−30 chỉ quyết định lúc chuẩn bị Drive; lịch tạo sát giờ được tải ngay. Nếu không chuẩn bị kịp thì vẫn báo lỗi và không tự đăng muộn. Khung giờ đã thất bại vẫn được giữ chỗ cho video đó; không tự lấy video khác đăng vào cùng khung giờ, trừ thao tác xếp lại lịch của người dùng.
+
+Chính sách slotPolicy=2 lưu trên kế hoạch mới/sửa. Khi khởi động bản sửa, các kế hoạch cũ được đánh dấu phiên bản mới; chỉ lịch tương lai chưa có content, chưa có job tải và chưa có publication được trả về pending để tính lại theo giờ gần nhất. Không thay đổi tác vụ đã tải/đang gửi hay bài đã xuất bản. Cần bản sao SQLite trước khởi động nếu muốn quay lại chính xác các mốc lịch cũ.
+
+Bổ sung nút thu gọn/mở rộng cạnh tiêu đề quét và Video đã quét, cùng icon chuyển trang đồng bộ với phân trang cuối bảng. Bảng kết quả nhấn giữ/Space để chọn, checkbox đầu bảng chọn/bỏ tất cả các kết quả phù hợp qua nhiều trang và có trạng thái chọn một phần. Nhập bốn chữ số giờ, ví dụ 1545 hoặc 0930, tự thành 15:45 hoặc 09:30, hỗ trợ cả gõ lẫn dán.
+
+Thẻ yêu cầu xử lý dùng một hàng Logo + Tên khách hàng + chữ nhỏ “- tên người giao”; bỏ dòng Người giao riêng và nhãn Người tạo task. Tin nhắn đang có nhắc việc hiển thị chữ nhỏ không nền “- tên người được giao”, gồm các nhân viên còn task mở của tin đó. Backend cung cấp tên người nhận trong phạm vi hội thoại được phép đọc. Khi task được xử lý, nhãn biến mất; tên người nhận là một phần khóa đối chiếu DOM để không bị giữ tên cũ khi phân công thay đổi.
+
+Kiểm thử: 448 kiểm thử hồi quy; 16 nhóm giao diện Sao chép và 5 nhóm thẻ task/hội thoại trên Edge, PC và 390px mobile. Có trường hợp lịch sát 3 phút tải ngay, chuyển chính sách lịch cũ chỉ với tác vụ chưa chạy, bốn chữ số giờ, thu gọn/mở rộng, phân trang đầu/cuối, nhấn giữ kết quả, chọn tất cả qua trang, tên người giao/người nhận và gỡ nhãn sau hoàn tất. Không đăng thử lên các kênh thật. Bản dự phòng: /root/backups/schedule-task-followup-20261015/.
