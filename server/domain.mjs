@@ -1,4 +1,4 @@
-import {copyPlanBlock} from './copy-plan-guard.mjs';
+import {copyPlanBlock,copyPlanHandoffReady} from './copy-plan-guard.mjs';
 import {commentReplyTarget} from './comment-context.mjs';
 import { assertPublicationPreflight } from './publish-preflight.mjs';
 import { validateGroupMentions } from './group-mentions.mjs';
@@ -72,7 +72,7 @@ export function schedule(user, id, input, { prepared = false } = {}) {
   permission(user, 'content'); const c = get('contents', id); if (!c) fail('Không tìm thấy nội dung.', 404); if (input.version !== c.version) fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.', 409);
   assertPublicationPreflight(user, c, input, { prepared });
   const channels = c.channels || []; if (!channels.length) fail('Chọn ít nhất một kênh.'); if (!String(c.caption||'').trim()&&!['video','image'].includes(c.type)) fail('Nhập nội dung bài đăng.');
-  const scheduleAt = input.immediate ? now() : input.scheduleAt; if (!Number.isFinite(Date.parse(scheduleAt))) fail('Chọn lịch đăng hợp lệ.'); if (!input.immediate && Date.parse(scheduleAt) < Date.now() + (prepared ? 0 : 10 * 60000)) fail(prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
+  const scheduleAt = input.immediate ? now() : input.scheduleAt; if (!Number.isFinite(Date.parse(scheduleAt))) fail('Chọn lịch đăng hợp lệ.'); if (!input.immediate && Date.parse(scheduleAt) < Date.now() + (prepared ? 0 : 10 * 60000) && !(prepared&&copyPlanHandoffReady(c,scheduleAt))) fail(prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
   const active = all('publications').filter(p => p.contentId === id && ['scheduled', 'dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status));
   if (active.some(p => p.status !== 'scheduled')) fail('Một đích đang được xử lý hoặc chờ đối soát; chưa thể thay đổi lịch.');
   // schedule() only reuses publications still in `active`; a channel that already finished publishing would

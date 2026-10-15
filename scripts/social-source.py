@@ -48,7 +48,7 @@ def page_rows(text, req):
     for node in nodes:
             if provider=='tiktok':
                 key=str(node.get('id') or node.get('aweme_id') or '')
-                if not re.fullmatch(r'\d{15,22}',key) or not (node.get('video') or node.get('videoInfo') or node.get('playAddr')) or node.get('privateItem'):
+                if not re.fullmatch(r'\d{15,22}',key) or not (node.get('video') or node.get('videoInfo') or node.get('playAddr')) or node.get('privateItem') or node.get('imagePost') or node.get('imagePostInfo'):
                     continue
                 author=node.get('authorUniqueId') or (node.get('author') or {}).get('uniqueId') if isinstance(node.get('author') or {},dict) else node.get('authorUniqueId')
                 if not author or req['url'].rsplit('@',1)[-1].strip('/').lower()!=str(author).lower():
@@ -259,7 +259,7 @@ def tiktok_page(req):
             raise ValueError('TikTok chưa trả danh sách phân trang hợp lệ.')
         batch=page_rows(json.dumps(data),req)
         # Reject recommendations/foreign authors rather than silently importing them.
-        if data['itemList'] and not batch:raise ValueError('Không xác minh được tác giả của trang video TikTok.')
+        if data['itemList'] and not batch and not all(str((n.get('author') or {}).get('uniqueId') or n.get('authorUniqueId') or '').lower()==username.lower() for n in data['itemList']):raise ValueError('Không xác minh được tác giả của trang video TikTok.')
         more=data['hasMorePrevious'];dates=[int(v.get('createTime') or 0)*1000 for v in data['itemList']]
         next_cursor=min(dates) if dates and all(dates) else cursor-7*86400000
         ids=sorted(batch)

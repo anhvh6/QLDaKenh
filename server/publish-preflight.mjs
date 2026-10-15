@@ -1,6 +1,7 @@
 import { all, get } from './store.mjs';
 import { providers } from './connectors.mjs';
 import { assertChannel } from './taophacdo.mjs';
+import {copyPlanHandoffReady} from './copy-plan-guard.mjs';
 
 // Read-only: validate every destination before any copy download or publication is queued.
 export function publicationPreflight(user, content, input = {}, { prepared = false, sourceMedia = null, checkHistory = true } = {}) {
@@ -9,7 +10,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
   const channels = content.channels || [];
   if (!channels.length) add(null, 'Chọn ít nhất một kênh.');
   if (!String(content.caption || '').trim()&&!['video','image'].includes(content.type)) add(null, 'Nhập nội dung bài đăng.');
-  if (!input.immediate && (!Number.isFinite(Date.parse(input.scheduleAt)) || Date.parse(input.scheduleAt) < Date.now() + (prepared ? 0 : 600000))) add(null, prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
+  if (!input.immediate && (!Number.isFinite(Date.parse(input.scheduleAt)) || Date.parse(input.scheduleAt) < Date.now() + (prepared ? 0 : 600000)) && !(prepared&&copyPlanHandoffReady(content,input.scheduleAt))) add(null, prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
   const source = content.sourceCopyId && !content.copyReady ? get('copy_posts', content.sourceCopyId) : null;
   const media = sourceMedia || (source ? source.media || [] : (content.assets || []).map(id => get('assets', id)).filter(a => a && a.active !== false));
   const publications = checkHistory ? all('publications').filter(p => p.contentId === content.id) : [];

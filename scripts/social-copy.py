@@ -92,13 +92,44 @@ def caption(meta):
             return value
     return ''
 
+def tiktok_payload(payload, video_id):
+    item = payload.get('itemInfos') or {}
+    if str(item.get('id')) != video_id:
+        return None
+    text = item.get('text') or ''
+    base = {'title': (text or 'Bài TikTok')[:200], 'caption': text,
+            'author': (payload.get('authorInfos') or {}).get('nickName', ''),
+            'externalId': video_id, 'engine': 'gallery'}
+    images = (payload.get('imagePostInfo') or {}).get('displayImages') or []
+    if images:
+        media = []
+        for image in images:
+            direct = next((u for u in image.get('urlList', []) if isinstance(u, str) and u.startswith('https://')), None)
+            if not direct:
+                raise ValueError('TikTok chưa cung cấp đủ ảnh của bài viết.')
+            media.append({'type': 'image', 'url': direct, 'ext': 'jpg', 'width': image.get('width'), 'height': image.get('height')})
+        return {**base, 'media': media, 'mediaType': 'image'}
+    video = item.get('video') or {}
+    direct = next((u for u in video.get('urls', []) if isinstance(u, str) and u.startswith('https://')), None)
+    if not direct:
+        return None
+    meta = video.get('videoMeta') or {}
+    return {**base, 'mediaType': 'video', 'media': [{'type': 'video', 'url': direct, 'ext': 'mp4',
+            'poster': next(iter(item.get('coversOrigin') or item.get('covers') or []), None),
+            'width': meta.get('width'), 'height': meta.get('height')}]}
+
 def tiktok_embed(url):
     match = re.search(r'/video/(\d+)', urlparse(url).path)
     if not match:
         return None
     from curl_cffi import requests
     video_id = match[1]
-    response = requests.get('https://www.tiktok.com/embed/v2/' + video_id, impersonate='chrome', timeout=25)
+    for attempt in range(3):
+        response = requests.get('https://www.tiktok.com/embed/v2/' + video_id, impersonate='chrome', timeout=12)
+        if response.status_code == 200 or response.status_code not in (429, 500, 502, 503, 504):
+            break
+        if attempt < 2:
+            time.sleep(1)
     if response.status_code != 200:
         return None
     for script in re.findall(r'<script[^>]*>(.*?)</script>', response.text, re.S):
@@ -106,23 +137,13 @@ def tiktok_embed(url):
             data = json.loads(script)
         except ValueError:
             continue
+        if not isinstance(data, dict):
+            continue
         node = data.get('source', {}).get('data', {}).get('/embed/v2/' + video_id, {})
         payload = node.get('videoData') or {}
-        item = payload.get('itemInfos') or {}
-        if str(item.get('id')) != video_id or payload.get('imagePostInfo'):
-            continue
-        video = item.get('video') or {}
-        urls = video.get('urls') or []
-        direct = next((u for u in urls if isinstance(u, str) and u.startswith('https://')), None)
-        if not direct:
-            continue
-        text = item.get('text') or ''
-        meta = video.get('videoMeta') or {}
-        return {'title': (text or 'Bài TikTok')[:200], 'caption': text,
-                'author': (payload.get('authorInfos') or {}).get('nickName', ''), 'externalId': video_id,
-                'media': [{'type': 'video', 'url': direct, 'ext': 'mp4',
-                           'poster': next(iter(item.get('coversOrigin') or item.get('covers') or []), None),
-                           'width': meta.get('width'), 'height': meta.get('height')}], 'engine': 'gallery'}
+        result = tiktok_payload(payload, video_id)
+        if result:
+            return result
     return None
 
 def extract(url, target=None):
@@ -163,7 +184,7 @@ def extract(url, target=None):
     import yt_dlp
     opts = {'quiet': True, 'no_warnings': True, 'noprogress': True, 'noplaylist': True, 'socket_timeout': 25,
             'retries': 1, 'extractor_retries': 1, 'format': 'bv*[vcodec!=none]+ba/b[vcodec!=none]', 'merge_output_format': 'mp4',
-            'allowed_extractors': ['default', '-generic'], 'playlistend': 100,
+            'allowed_extractors': ['default', '-generic'], 'playlistend': 100, 'ignore_no_formats_error': True,
             'impersonate': __import__('yt_dlp.networking.impersonate', fromlist=['ImpersonateTarget']).ImpersonateTarget(client='chrome')}
     if target:
         opts['outtmpl'] = str(Path(target) / '%(autonumber)03d-%(id)s.%(ext)s')
@@ -171,7 +192,7 @@ def extract(url, target=None):
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=bool(target))
         entries = list(info.get('entries') or [info])
-        if any(e.get('vcodec') == 'none' for e in entries):
+        if any(e.get('vcodec') == 'none' or not e.get('url') and not any(f.get('vcodec') != 'none' for f in e.get('formats', [])) for e in entries):
             raise ValueError('Nền tảng chỉ cung cấp âm thanh, chưa có video để Reup. Xem trước lại hoặc thử sau.')
         if len(entries) > 100:
             raise ValueError('Bài có quá 100 media.')
