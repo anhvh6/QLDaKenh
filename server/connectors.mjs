@@ -19,8 +19,9 @@ export const providers = {
   reddit: { label: 'Reddit', publish: false, formats: [], hint: 'Chế độ hỗ trợ. Cần quyền ứng dụng và thỏa thuận phù hợp để tích hợp API.' }
 };
 export async function remote(url, options = {}) {
-  let res; try { res = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) }); } catch { throw Object.assign(new Error('Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: true }); }
-  const raw = await res.text(); let data; try { data = JSON.parse(raw); } catch { data = { message: raw.slice(0, 300) }; }
+  const readOnly=(!options.method||options.method==='GET');
+  let res,raw; try { res = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
+  let data; try { data = JSON.parse(raw); } catch { data = { message: raw.slice(0, 300) }; }
   const providerError = data.error && (typeof data.error === 'object' ? data.error.code && !['ok', 0, '0'].includes(data.error.code) : data.error !== 0);
   if (!res.ok || providerError) {
     const error = data.error && typeof data.error === 'object' ? data.error : {};
@@ -33,7 +34,7 @@ export async function remote(url, options = {}) {
           ? 'Threads từ chối quyền API. Kiểm tra quyền của thao tác trong Meta App Dashboard và kết nối lại Threads (đọc bình luận: threads_read_replies; quản lý trả lời: threads_manage_replies; xóa bài: threads_delete).'
           : rawMessage;
     const details = [message, error.code != null ? `code ${error.code}` : '', error.error_subcode != null ? `subcode ${error.error_subcode}` : '', error.error_user_msg || '', error.fbtrace_id ? `trace ${error.fbtrace_id}` : ''].filter(Boolean);
-    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, providerCode: error.code, providerSubcode: error.error_subcode });
+    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, providerCode: error.code, providerSubcode: error.error_subcode, retryable:readOnly&&(res.status===429||res.status>=500||error.is_transient===true) });
   }
   return data;
 }
@@ -98,7 +99,7 @@ export async function testConnection(c) {
   throw new Error('Kênh này hiện dùng hỗ trợ đăng.');
 }
 export function validateThreadsText(value){const count=Array.from(String(value||'')).length;if(count>500)throw new Error(`Threads giới hạn nội dung ở 500 ký tự; bài này có ${count} ký tự. Rút gọn caption cho riêng kênh Threads rồi đăng lại.`);}
-async function createMediaContainer(url,options){try{const r=await remote(url,options);if(!r.id)throw new Error('Nền tảng chưa trả mã chuẩn bị bài; bài chưa được xuất bản.');return r;}catch(error){if(error.unknown)throw Object.assign(new Error('Không nhận được mã chuẩn bị bài từ nền tảng. Bài chưa được xuất bản; hãy thử lại.'),{unknown:false});throw error;}}
+async function createMediaContainer(url,options){for(let attempt=0;attempt<3;attempt++){try{const r=await remote(url,options);if(!r.id)throw new Error('Nền tảng chưa trả mã chuẩn bị bài; bài chưa được xuất bản.');return r;}catch(error){const transient=error.unknown||error.providerStatus===429||error.providerStatus>=500;if(transient&&attempt<2)continue;if(error.unknown)throw Object.assign(new Error('Không nhận được mã chuẩn bị bài từ nền tảng sau 3 lần thử. Bài chưa được xuất bản; hãy thử lại.'),{unknown:false});throw error;}}}
 export async function publish(c, p) {
   const s = secret(c.id); if (!s.token) throw new Error('Chưa cấu hình token.'); const id = encodeURIComponent(c.accountId || ''); let r;
   if (c.provider === 'youtube') return publishYouTube(c, p);

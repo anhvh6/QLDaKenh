@@ -24,9 +24,9 @@ test('platform filter uses OR only across successful publication destinations an
  const html=renderJobsTable(rows,{selecting:true,selected:new Set(['a'])});assert.doesNotMatch(html,/>Link bài viết</);assert.match(html,/data-copy-select="a"[^>]+checked/);assert.match(html,/aria-label="Facebook"/);
 });
 
-test('selection is hidden normally; platform filtering excludes source-only, failed and unpublished rows',()=>{
+test('selection is hidden normally; platform filtering retains a successful channel despite another channel failing',()=>{
  const rows=[{id:'source',createdAt:'1',provider:'facebook',status:'done'},{id:'ok',createdAt:'2',status:'done',reupPlatforms:['facebook']},{id:'bad',createdAt:'3',status:'done',reupPlatforms:['facebook'],reupError:'Failed on another channel'},{id:'publishing',createdAt:'4',status:'done',reupPublishing:true}];
- assert.doesNotMatch(renderJobsTable(rows),/type="checkbox"/);assert.match(renderJobsTable(rows,{selecting:true}),/>Hủy</);assert.deepEqual(filterCopyJobs(rows,{platforms:['facebook']}).map(j=>j.id),['ok']);assert.equal(filterCopyJobs(rows,{platforms:[]}).length,0);assert.equal(filterCopyJobs(rows,{filter:'error'})[0].id,'bad');assert.equal(filterCopyJobs(rows,{filter:'publishing'})[0].id,'publishing');
+ assert.doesNotMatch(renderJobsTable(rows),/type="checkbox"/);assert.match(renderJobsTable(rows,{selecting:true}),/>Hủy</);assert.deepEqual(filterCopyJobs(rows,{platforms:['facebook']}).map(j=>j.id),['bad','ok']);assert.equal(filterCopyJobs(rows,{platforms:[]}).length,0);assert.equal(filterCopyJobs(rows,{filter:'error'})[0].id,'bad');assert.equal(filterCopyJobs(rows,{filter:'publishing'})[0].id,'publishing');
 });
 
 test('connected platform picker checks every platform with select-all and offers no disconnected platforms',async()=>{

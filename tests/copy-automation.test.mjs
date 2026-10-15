@@ -107,3 +107,11 @@ test('one invalid ready item reports its real error without blocking another rea
 test('photo slideshow is a permanent video-plan validation error, not three format retries',async()=>{
  const {p}=fixture();reserveSlots(p);const i=all('copy_plan_items').find(i=>i.planId===p.id&&i.state==='scheduled');let calls=0;const deps={...tickDeps,extract:async()=>{calls++;return {media:[{type:'image',url:'https://example.com/1.jpg'}]};}};await automationTick(Date.parse(i.scheduleAt)-1800000,deps);await automationTick(Date.parse(i.scheduleAt)-1700000,deps);assert.equal(calls,1);assert.equal(get('copy_plan_items',i.id).state,'failed');assert.match(get('copy_plan_items',i.id).error,/album ảnh/);assert.equal(get('copy_plan_items',i.id).attempts,1);
 });
+
+test('result search uses the edited content caption and source overrides instead of stale scan text',()=>{
+ const {p,videos}=fixture(),i=all('copy_plan_items').find(i=>i.planId===p.id&&i.videoId===videos[0].id);
+ put('copy_videos',{...videos[0],overrideCaption:'New source caption'});
+ assert.equal(automationState(u).items.find(x=>x.id===i.id).caption,'New source caption');
+ const c=put('contents',{caption:'Actual prepared caption',title:'Actual title'});put('copy_plan_items',{...i,contentId:c.id});
+ const rows=automationState(u).items;assert.equal(rows.find(x=>x.id===i.id).caption,'Actual prepared caption');assert.equal(filterPlanRows(rows,{search:'prepared caption'}).some(x=>x.id===i.id),true);
+});

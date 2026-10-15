@@ -16,5 +16,24 @@ export function dailySlots(plan,from,to){
  return out.sort();
 }
 export function filterPlanRows(rows,{search='',status='all',platforms=[],scope='all',sortKey='scheduleAt',direction='asc'}={},time=Date.now()){
- const q=search.toLocaleLowerCase('vi');return rows.filter(r=>(!q||[r.caption,r.title,r.url].join(' ').toLocaleLowerCase('vi').includes(q))&&(scope==='all'||['published','failed','unknown'].includes(r.state)||Date.parse(r.scheduleAt)>=time&&Date.parse(r.scheduleAt)<=time+86400000)&&(status==='all'||(status==='scheduled24'?['scheduled','preparing','ready'].includes(r.state)&&Date.parse(r.scheduleAt)>=time&&Date.parse(r.scheduleAt)<=time+86400000:r.state===status))&&(!platforms.length||(r.targets||[]).some(t=>platforms.includes(t.provider)))).sort((a,b)=>(direction==='asc'?1:-1)*String(a[sortKey==='createdAt'?'downloadedAt':sortKey]||'').localeCompare(String(b[sortKey==='createdAt'?'downloadedAt':sortKey]||''),'vi'));
+ const q=search.trim().toLocaleLowerCase('vi'),bad=t=>['failed','blocked','unknown'].includes(t.status),live=t=>t.success||['published','demo_published','manually_confirmed'].includes(t.status);
+ return rows.filter(r=>{
+  const targets=r.targets||[],selected=platforms.length?targets.filter(t=>platforms.includes(t.provider)):targets;
+  if(platforms.length&&!selected.length)return false;
+  if(q&&![r.caption,r.title,r.url].join(' ').toLocaleLowerCase('vi').includes(q))return false;
+  const at=Date.parse(r.scheduleAt),within=Number.isFinite(at)&&at>=time&&at<=time+86400000;
+  if(scope!=='all'&&['pending','removed'].includes(r.state))return false;
+  if(scope!=='all'&&!['published','failed','unknown','publishing'].includes(r.state)&&!selected.some(t=>live(t)||bad(t)||['dispatching','processing'].includes(t.status))&&(!Number.isFinite(at)||at>time+86400000||['pending','removed'].includes(r.state)))return false;
+  if(status==='all')return true;
+  if(status==='failed')return selected.some(bad)||!platforms.length&&['failed','unknown'].includes(r.state);
+  if(status==='unknown')return selected.some(t=>t.status==='unknown')||!platforms.length&&r.state==='unknown';
+  if(status==='published')return selected.some(live)||!targets.length&&r.state==='published';
+  if(status==='publishing')return selected.some(t=>['dispatching','processing'].includes(t.status))||!targets.some(t=>t.publicationId)&&r.state==='publishing';
+  if(status==='scheduled24')return within&&(['scheduled','preparing','ready'].includes(r.state)||selected.some(t=>t.status==='scheduled'));
+  return r.state===status;
+ }).sort((a,b)=>{
+  const key=sortKey==='createdAt'?'downloadedAt':sortKey,value=r=>key==='state'?(itemStates[r.state]||r.state):r[key],x=value(a),y=value(b);
+  if(!x||!y)return x?-1:y?1:String(a.id||'').localeCompare(String(b.id||''));
+  return (direction==='asc'?1:-1)*(String(x).localeCompare(String(y),'vi')||String(a.id||'').localeCompare(String(b.id||'')));
+ });
 }

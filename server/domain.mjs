@@ -233,13 +233,13 @@ export async function tick() {
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }
       if (ch.status !== 'connected') { put('publications', { ...p, status: 'blocked', error: 'Kênh chưa được kiểm tra kết nối.' }); continue; }
       put('publications', { ...p, status: 'dispatching', attempts: p.attempts + 1 });
-      try { const r = await publish(ch, p); put('publications', { ...get('publications', p.id), ...r, status: r.processing ? 'processing' : 'published', publishedAt: r.processing ? null : now(), error: '' }); }
+      try { const r = await publish(ch, p); put('publications', { ...get('publications', p.id), ...r, status: r.processing ? 'processing' : 'published', ...(r.processing?{processingStartedAt:now(),nextCheckAt:''}:{}), publishedAt: r.processing ? null : now(), error: '' }); }
       catch (e) { put('publications', { ...get('publications', p.id), status: e.unknown ? 'unknown' : 'failed', error: e.message }); notification('Cần xử lý bài đăng', `${ch.name}: ${e.message}`, 'calendar'); }
     }
-    for (const p of all('publications').filter(x => x.status === 'processing' && (x.containerId || x.carouselPending)).slice(0, 5)) {
-      if (Date.now() - Date.parse(p.updatedAt) > 30 * 60000) { put('publications', { ...p, status: 'unknown', error: 'Xử lý quá lâu. Đối soát trên nền tảng gốc.' }); continue; }
+    for (const p of all('publications').filter(x => x.status === 'processing' && (x.containerId || x.carouselPending) && (!x.nextCheckAt||Date.parse(x.nextCheckAt)<=Date.now())).slice(0, 5)) {
+      if (Date.now() - Date.parse(p.processingStartedAt||p.updatedAt) > 30 * 60000) { put('publications', { ...p, status: 'unknown', error: 'Xử lý quá lâu. Đối soát trên nền tảng gốc.' }); continue; }
       const ch = get('connections', p.connectionId); if (!ch || ch.status !== 'connected') continue;
-      try { const r = await continuePublish(ch, p); if (r) put('publications', { ...p, ...r, status: r.processing ? 'processing' : 'published', publishedAt: r.processing ? null : now() }); } catch (e) { put('publications', { ...p, status: e.unknown ? 'unknown' : 'failed', error: e.message }); notification('Cần xử lý bài đăng', `${ch.name}: ${e.message}`, 'content', {contentId:p.contentId}); }
+      try { const r = await continuePublish(ch, p); if (r) put('publications', { ...p, ...r, status: r.processing ? 'processing' : 'published', processingStartedAt:p.processingStartedAt||p.updatedAt, nextCheckAt:'', statusReadFailures:0, error:'', publishedAt: r.processing ? null : now() }); else put('publications',{...p,processingStartedAt:p.processingStartedAt||p.updatedAt,nextCheckAt:new Date(Date.now()+15000).toISOString(),error:''}); } catch (e) { if(e.retryable){const failures=(p.statusReadFailures||0)+1;put('publications',{...p,processingStartedAt:p.processingStartedAt||p.updatedAt,statusReadFailures:failures,nextCheckAt:new Date(Date.now()+Math.min(60000,failures*15000)).toISOString(),error:e.message});continue;}put('publications', { ...p, status: e.unknown ? 'unknown' : 'failed', error: e.message }); notification('Cần xử lý bài đăng', `${ch.name}: ${e.message}`, 'content', {contentId:p.contentId}); }
     }
   } finally { ticking = false; }
 }
