@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import {mkd
 process.env.DATA_DIR=mkdtempSync(join(tmpdir(),'hub-pos-test-'));process.env.PLAN_REMOTE_CATALOG='0';
 const {put,get,all,secret,db}=await import('../server/store.mjs');
 const {posRoute,posState,posTick,applyPosRow,receivePosWebhook,recoverPosJobs}=await import('../server/pancake-pos.mjs');
-const {pancakeRequest,pancakePages}=await import('../server/pancake-api.mjs');
+const {pancakeRequest,pancakePages,pancakeReadBack}=await import('../server/pancake-api.mjs');
 const {fields,hash}=await import('../server/pancake-model.mjs');
 const owner={id:'owner',role:'owner'},apiKey='QA-PRIVATE-PANCAKE-KEY-NEVER-EXPOSE';
 const remote={products:[],customers:[],orders:[]},calls=[];
@@ -32,6 +32,7 @@ test('API credentials are restricted to official host and are redacted from fail
  await assert.rejects(pancakeRequest(apiKey,'/shops/10/orders',{method:'POST',fetcher:async()=>{throw Error('timeout');}}),e=>e.unknown===true);
 });
 test('pagination uses provider total pages and never silently truncates short pages',async()=>{const seen=[];const n=await pancakePages(async(path,{query})=>({data:[{id:query.page_number}],total_pages:3}),'/shops/10/customers',{},rows=>seen.push(...rows));assert.equal(n,3);assert.equal(seen.length,3);await assert.rejects(pancakePages(async()=>({success:true}),'/shops/10/orders'),/chưa trả danh sách/);});
+test('delayed POS indexing retries only reads and surfaces stable provider error codes',async()=>{let reads=0;const delays=[];const found=await pancakeReadBack(async()=>++reads<3?null:{id:'created'}, {wait:async n=>delays.push(n)});assert.equal(found.id,'created');assert.equal(reads,3);assert.deepEqual(delays,[750,1500]);await assert.rejects(pancakeRequest(apiKey,'/shops/10/customers',{method:'POST',fetcher:async()=>({ok:true,status:200,json:async()=>({success:false,error:'missing_create_type',message_code:123})})}),e=>e.message.includes('missing_create_type')&&e.message.includes('123')&&e.diagnostics.httpStatus===200);});
 test('Pancake connect, import, outgoing updates, conflict handling and restart recovery',async t=>{
  let account;
  await t.test('owner connects a shop and warehouse; state never exposes API credentials',async()=>{await assert.rejects(posRoute('/api/pos/discover','POST',{apiKey},{role:'support'},new URL('http://localhost'),request),{status:403});const d=await route('/api/pos/discover','POST',{apiKey});assert.equal(d.shops[0].id,'10');assert.ok(!JSON.stringify(d).includes(apiKey));});

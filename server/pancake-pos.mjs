@@ -1,7 +1,7 @@
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {db,all,get,put,remove,saveSecret,secret,transaction,audit,now,uid} from './store.mjs';
 import {inbound,changeSequence,phoneExpression} from './pancake-storage.mjs';
-import {pancakeRequest,pancakePages} from './pancake-api.mjs';
+import {pancakeRequest,pancakePages,pancakeReadBack} from './pancake-api.mjs';
 import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount} from './pancake-model.mjs';
 
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
@@ -131,14 +131,14 @@ async function push(a,j,request){
   const result=await r(path,{method,body});
   acknowledged=true;
   // Some POS create endpoints acknowledge success without returning an ID. Always read back.
-  let saved=link?await remoteCurrent(a,j.kind,link,r):await locate(a,j.kind,current,r);
+  let saved=await pancakeReadBack(()=>link?remoteCurrent(a,j.kind,link,r):locate(a,j.kind,current,r));
   if(!saved)throw Object.assign(Error('POS đã nhận yêu cầu nhưng chưa đối chiếu được bản ghi. Không tự gửi tạo lại.'),{unknown:true});
   if(!link&&j.kind==='customers'&&local.email){await r(root(a)+'/customers/'+encodeURIComponent(remoteId('customers',saved)),{method:'PUT',body:{customer:{...saved,emails:[local.email]}}});saved=rowsIn(await r(root(a)+'/customers/'+encodeURIComponent(remoteId('customers',saved))));}
   if(j.inventory&&j.kind==='products'){const sid=remoteId('products',saved);await r(root(a)+'/variations/'+encodeURIComponent(sid)+'/update_quantity',{method:'POST',body:{variations_warehouses:[{warehouse_id:a.warehouseId,remain_quantity:j.inventory.quantity}]}});saved=await remoteCurrent(a,'products',{remoteId:sid},r);if(!saved||trackedStock(a,saved)!==j.inventory.quantity)throw Object.assign(Error('Tồn kho đọc lại từ POS chưa khớp số lượng đã gửi. Cần đối soát.'),{unknown:true});}
   const remoteFields=comparable(a,j.kind,saved,current);saveLink(a,j.kind,current.id,saved,{localHash:hash(local),remoteHash:hash(remoteFields),syncedAt:now()});
   if(hash(remoteFields)!==hash(local)){put('pos_jobs',{...j,state:'conflict',error:'POS đã nhận nhưng dữ liệu đọc lại chưa khớp. Kiểm tra và chọn bên cần giữ.',remoteTarget:remoteFields});return;}
   put('pos_jobs',{...j,state:'done',force:false,inventory:null,error:'',syncedAt:now(),localVersion:version});
- }catch(error){if(acknowledged)error.unknown=true;const attempts=get('pos_jobs',j.id)?.attempts||1;put('pos_jobs',{...get('pos_jobs',j.id),state:error.unknown?'unknown':error.status===409?'conflict':error.retryable&&attempts<5?'queued':'failed',retryAt:Date.now()+Math.min(300000,5000*2**attempts),error:error.message});throw error;}
+ }catch(error){if(acknowledged)error.unknown=true;const attempts=get('pos_jobs',j.id)?.attempts||1;put('pos_jobs',{...get('pos_jobs',j.id),state:error.unknown?'unknown':error.status===409?'conflict':error.retryable&&attempts<5?'queued':'failed',retryAt:Date.now()+Math.min(300000,5000*2**attempts),error:error.message,diagnostics:error.diagnostics});throw error;}
 }
 
 function capture(a){
@@ -157,7 +157,7 @@ export async function posTick(request){
   try{
    // Outgoing changes have priority; a webhook also marks forcePull to refresh promptly.
    const queued=all('pos_jobs').filter(j=>j.accountId===a.id&&j.state==='queued'&&(!j.retryAt||j.retryAt<=Date.now())).reverse().slice(0,20);
-   for(const j of queued){if(!active(account(a.id)))break;try{await push(a,j,request);}catch(e){const saved=get('pos_jobs',j.id);if(saved?.state==='queued'&&!(saved.retryAt>Date.now())){const attempts=(saved.attempts||0)+1;put('pos_jobs',{...saved,attempts,state:e.status===409?'conflict':e.retryable&&attempts<5?'queued':'failed',retryAt:Date.now()+Math.min(300000,5000*2**attempts),error:e.message});}if(e.status===401)setAccount(a,{status:'authentication_error',lastError:e.message});}}
+   for(const j of queued){if(!active(account(a.id)))break;try{await push(a,j,request);}catch(e){const saved=get('pos_jobs',j.id);if(saved?.state==='queued'&&!(saved.retryAt>Date.now())){const attempts=(saved.attempts||0)+1;put('pos_jobs',{...saved,attempts,state:e.status===409?'conflict':e.retryable&&attempts<5?'queued':'failed',retryAt:Date.now()+Math.min(300000,5000*2**attempts),error:e.message,diagnostics:e.diagnostics});}if(e.status===401)setAccount(a,{status:'authentication_error',lastError:e.message});}}
    if(!active(account(a.id)))continue;
    if((!a.nextPullAt||Date.now()>=a.nextPullAt)&&(a.forcePull||!a.lastPullAt||Date.now()-Date.parse(a.lastPullAt)>=30000))await pull(account(a.id),request);
    for(const error of all('pos_errors').filter(e=>e.accountId===a.id&&e.state==='open').slice(0,20)){const row=get('pos_remote',error.id)?.data;if(row)try{await applyPosRow(a,error.kind,row);put('pos_errors',{...error,state:'resolved'});}catch{}}

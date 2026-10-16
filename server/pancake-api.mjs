@@ -6,9 +6,15 @@ export async function pancakeRequest(apiKey,path,{method='GET',query={},body,fet
  let response,data;
  try{response=await fetcher(url,{method,headers:{'Content-Type':'application/json'},...(body!==undefined?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(25000)});data=await response.json();}
  catch{throw Object.assign(Error('Chưa nhận được kết quả từ Pancake POS. Đang chờ đối soát trước khi gửi lại.'),{unknown:method!=='GET',retryable:true});}
- if(!response.ok||data?.success===false){const message=String(data?.message||data?.error?.message||'Pancake POS từ chối yêu cầu.').split(apiKey).join('[ẩn API key]').replace(/api_key=[^&\s]+/gi,'api_key=[ẩn]').slice(0,400);throw Object.assign(Error(message),{status:response.status===401||response.status===403?401:422,unknown:method!=='GET'&&response.status>=500,retryable:response.status===429||response.status>=500});}
+ if(!response.ok||data?.success===false){const code=data?.message_code??data?.error_code;const message=(String(data?.message||data?.error?.message||(typeof data?.error==='string'?data.error:'')||'Pancake POS từ chối yêu cầu.')+(code!==undefined?' (mã '+String(code)+')':'')).split(apiKey).join('[ẩn API key]').replace(/api_key=[^&\s]+/gi,'api_key=[ẩn]').slice(0,400);throw Object.assign(Error(message),{status:response.status===401||response.status===403?401:422,unknown:method!=='GET'&&response.status>=500,retryable:response.status===429||response.status>=500,diagnostics:{httpStatus:response.status,code,endpoint:path}});}
  if(!data||typeof data!=='object')throw Object.assign(Error('Kết quả Pancake POS không hợp lệ.'),{unknown:method!=='GET'});
  return data;
+}
+// POS can acknowledge creation before its search index exposes the new record.
+// Only repeat the read; never repeat a create because its read-back is delayed.
+export async function pancakeReadBack(find,{wait=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
+ for(const delay of [0,750,1500,3000]){if(delay)await wait(delay);try{const row=await find();if(row)return row;}catch(error){if(!error.retryable||delay===3000)throw error;}}
+ return null;
 }
 export async function pancakePages(request,path,query={},consume=()=>{}){
  let page=1,total=0;
