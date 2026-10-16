@@ -3,7 +3,7 @@ export const communicationProviders={zalo_personal:'Zalo cá nhân',facebook:'Fa
 export const dayKey=time=>new Date(Number(time)+7*3600000).toISOString().slice(0,10);
 const dayNumber=value=>Date.parse(String(value).slice(0,10)+'T00:00:00Z')/86400000;
 export function scheduledOccurrence(c,time){
- if(c.mode!=='automatic'||time<Date.parse(c.startAt)||c.endAt&&time>Date.parse(c.endAt))return null;
+ if(c.newSendImmediately||c.mode!=='automatic'||time<Date.parse(c.startAt)||c.endAt&&time>Date.parse(c.endAt))return null;
  const startDay=dayKey(Date.parse(c.startAt)),today=dayKey(time),elapsed=dayNumber(today)-dayNumber(startDay),step=c.repeat==='once'?0:c.intervalDays;
  if(elapsed<0||c.repeat==='once'&&elapsed!==0||step&&elapsed%step!==0)return null;
  const at=Date.parse(today+'T'+c.sendTime+':00+07:00');if(at<Date.parse(c.startAt)||c.endAt&&at>Date.parse(c.endAt)||time<at||time-at>=30*60000)return null;

@@ -271,4 +271,4 @@ recoverAutomation();setInterval(()=>void automationTick().catch(e=>console.error
 
 recoverPosJobs();setInterval(()=>void posTick().catch(e=>console.error('POS worker:',e.message)),1000).unref();
 
-recoverCommunication();setInterval(()=>void communicationTick().catch(e=>console.error('Communication worker:',e.message)),5000).unref();
+recoverCommunication();setInterval(()=>void communicationTick().catch(e=>console.error('Communication worker:',e.message)),1000).unref();

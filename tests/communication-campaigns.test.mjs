@@ -44,3 +44,23 @@ test('new customer only receives one campaign occurrence across cycles',async()=
  const conv=person('first-contact','NEW');put('messages',{id:'first-contact-message',conversationId:conv.id,direction:'incoming',createdAt:'2026-10-16T01:00:00Z'});
  const c=await route(base,'POST',config({stages:['NEW'],newNonFriendOnly:true}),owner);put('communication_campaigns',{...c,newSince:'2026-10-15T00:00:00Z'});let count=0;await tick(at,async()=>{count++;return{id:'greeting',status:'demo'};});await tick(at+2*86400000,async()=>{count++;return{id:'duplicate'};});assert.equal(count,1);
 });
+test('instant first-contact campaigns reply in the source conversation without clock settings or duplicate/history sends',async()=>{
+ for(const c of all('communication_campaigns'))put('communication_campaigns',{...c,status:'paused'});
+ for(const j of all('communication_jobs').filter(j=>j.status==='queued'))put('communication_jobs',{...j,status:'cancelled'});
+ const c=await route(base,'POST',config({newSendImmediately:true,stages:['NEW'],sendTime:undefined,intervalDays:undefined,startAt:new Date(Date.now()-60000).toISOString(),blocks:[{text:'Welcome',assetIds:[]},{text:'Second',assetIds:[]}]}),owner);
+ assert.equal(c.mode,'automatic');assert.equal(c.sendTime,'');assert.equal(scheduledOccurrence(c,Date.now()),null);
+ const v=person('instant-first','NEW');const m=put('messages',{id:'instant-incoming',conversationId:v.id,direction:'incoming',createdAt:new Date(Date.now()+1).toISOString()});
+ const imported=person('instant-history','NEW');put('messages',{id:'instant-history-message',conversationId:imported.id,direction:'incoming',history:true,createdAt:new Date(Date.now()+1).toISOString()});
+ let sent=[];const send=async(u,id,input)=>{sent.push({id,text:input.text});return{id:'instant-sent-'+sent.length,status:'demo'};};
+ await tick(Date.now()+20,send);await tick(Date.now()+40,send);put('messages',{...get('messages',m.id)});await tick(Date.now()+60,send);
+ assert.deepEqual(sent,[{id:v.id,text:'Welcome'},{id:v.id,text:'Second'}]);assert.equal(all('communication_runs').filter(r=>r.campaignId===c.id).length,1);
+ await assert.rejects(route(base+'/'+c.id+'/run','POST',{version:c.version,requestId:'instant-manual-12345678'},owner),/không gửi hàng loạt/);
+ await assert.rejects(route(base,'POST',config({newSendImmediately:true,stages:['NEW','CONSULTED']}),owner),/chỉ áp dụng/);
+});
+test('inactive channel selections are rejected and resuming instant mode does not reply to messages received while paused',async()=>{
+ await assert.rejects(route(base,'POST',config({connectionIds:['off']}),owner),/Kênh/);
+ for(const c of all('communication_campaigns'))put('communication_campaigns',{...c,status:'paused'});
+ const c=await route(base,'POST',config({newSendImmediately:true,status:'paused',stages:['NEW'],startAt:new Date(Date.now()-60000).toISOString()}),owner);
+ const v=person('during-pause','NEW');put('messages',{id:'during-pause-message',conversationId:v.id,direction:'incoming',createdAt:new Date().toISOString(),pushReceivedAt:new Date(Date.now()-10000).toISOString()});
+ await route(base+'/'+c.id,'PATCH',{...c,status:'active'},owner);let calls=0;await tick(Date.now()+100,async()=>{calls++;return{id:'should-not-send'};});assert.equal(calls,0);
+});
