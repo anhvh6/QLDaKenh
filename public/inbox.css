@@ -3457,6 +3457,25 @@ body:has(.inbox-page #reply-form) .care-update-pill {
     overflow: auto
 }
 
+.learner-common-groups { margin: 18px 0 }
+.learner-common-groups summary { cursor: pointer; font-weight: 700; padding: 8px 0 }
+.learner-common-groups[open] summary { margin-bottom: 8px }
+.learner-pending-orders { margin: 12px 0 20px; display: grid; gap: 12px }
+.learner-pending-orders h4 { margin: 0 }
+.learner-pending-orders h4 small { font-weight: 400 }
+.learner-order-card { border: 1px solid var(--border, #dce4df); border-radius: 12px; background: var(--surface, #fff); overflow: hidden; font-size: 13px; overflow-wrap: anywhere }
+.learner-order-card header { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 10px 14px; background: #edf4ef; color: #245b48 }
+.learner-order-status { padding: 7px 14px; color: #a85a06; background: #fff8e9; font-weight: 600 }
+.learner-order-contact { display: grid; gap: 6px; padding: 12px 14px 6px }
+.learner-order-card ul { margin: 4px 14px 10px; padding-left: 16px }
+.learner-order-amount { display: flex; justify-content: space-between; gap: 8px; padding: 0 14px 10px }
+.learner-order-card dl { margin: 0 14px; padding: 8px 0; border-top: 1px dashed #dce4df }
+.learner-order-card dl > div { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 1.2fr); gap: 8px; padding: 4px 0 }
+.learner-order-card dt { color: #718079 }
+.learner-order-card dd { margin: 0; text-align: right; white-space: pre-line }
+.learner-order-tracking { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px }
+.learner-order-tracking .btn { color: #fff; background: #087f84; border: 0; max-width: 100%; overflow-wrap: anywhere; white-space: normal }
+
 .learner-relation {
     display: flex;
     align-items: center;
