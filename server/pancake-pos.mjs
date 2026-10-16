@@ -2,7 +2,7 @@ import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {db,all,get,put,remove,saveSecret,secret,transaction,audit,now,uid} from './store.mjs';
 import {inbound,changeSequence,phoneExpression} from './pancake-storage.mjs';
 import {pancakeRequest,pancakePages,pancakeReadBack} from './pancake-api.mjs';
-import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount,customerAddresses,orderCode,writableProduct} from './pancake-model.mjs';
+import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount,customerAddresses,orderCode,writableProduct,orderAddress} from './pancake-model.mjs';
 import {permission} from './domain.mjs';
 import {assertCustomer} from './taophacdo.mjs';
 
@@ -35,7 +35,7 @@ function rowsIn(data){const row=data?.data??data;return Array.isArray(row)?row[0
 function comparable(a,kind,row,current){
  if(kind==='products')return fields(kind,fromProduct({...row,weight:row.weight??row.product?.weight??current?.weight}));
  if(kind==='customers')return fields(kind,fromCustomer(row));
- return fields(kind,{...current,receiverName:row.shipping_address?.full_name||row.bill_full_name||'',phone:row.shipping_address?.phone_number||row.bill_phone_number||'',email:row.bill_email||'',address:row.shipping_address?.full_address||'',items:(row.items||[]).map(i=>({productId:findRemote(a,'products',i.variation_id)?.localId||'unmapped:'+i.variation_id,quantity:i.quantity,price:i.variation_info?.retail_price||0})),discount:row.total_discount||0,shippingFee:row.shipping_fee||0,paid:paidAmount(row),status:localStatus(row.status),note:row.note||'',posTracking:row.partner?.extend_code||row.partner?.order_number_vtp||'',posCarrier:row.partner?.partner_name||''});
+ return fields(kind,{...current,receiverName:row.shipping_address?.full_name||row.bill_full_name||'',phone:row.shipping_address?.phone_number||row.bill_phone_number||'',email:row.bill_email||'',address:orderAddress(row),items:(row.items||[]).map(i=>({productId:findRemote(a,'products',i.variation_id)?.localId||'unmapped:'+i.variation_id,quantity:i.quantity,price:i.variation_info?.retail_price||0})),discount:row.total_discount||0,shippingFee:row.shipping_fee||0,paid:paidAmount(row),status:localStatus(row.status),note:row.note||'',posTracking:row.partner?.extend_code||row.partner?.order_number_vtp||'',posCarrier:row.partner?.partner_name||''});
 }
 
 // Inbound values only touch mapped fields. Learner plans, chat identity and permissions stay local.
@@ -57,10 +57,10 @@ export async function applyPosRow(a,kind,row,{force=false}={}){
   let customer=findRemote(a,'customers',row.customer?.customer_id||row.customer?.id),c=customer?get('customers',customer.localId):null;
   if(!c){const matched=matches('customers',normalizePhone(row.bill_phone_number||row.shipping_address?.phone_number));if(matched.length===1)c=matched[0];}
   if(!c)c=get('customers','pos-customer:'+a.id+':'+rid);
-  if(!c){c=inbound(()=>put('customers',{id:'pos-customer:'+a.id+':'+rid,name:row.bill_full_name||'Khách đơn POS '+rid,phone:normalizePhone(row.bill_phone_number),email:row.bill_email||'',address:row.shipping_address?.full_address||'',tags:[],createdBy:a.ownerId,posSourceAccountId:a.id}));}
+  if(!c){c=inbound(()=>put('customers',{id:'pos-customer:'+a.id+':'+rid,name:row.bill_full_name||'Khách đơn POS '+rid,phone:normalizePhone(row.bill_phone_number),email:row.bill_email||'',address:orderAddress(row),tags:[],createdBy:a.ownerId,posSourceAccountId:a.id}));}
   const status=localStatus(row.status);if(!status)fail('Chưa hỗ trợ trạng thái POS '+row.status+'.',422);
   const subtotal=items.reduce((sum,i)=>sum+i.price*i.quantity,0),total=Math.max(0,subtotal-Number(row.total_discount||0)+Number(row.shipping_fee||0)),paid=Math.max(0,Number(row.cash||0)+Number(row.transfer_money||0)+['charged_by_card','charged_by_momo','charged_by_vnpay','charged_by_qrpay','charged_by_fundiin','charged_by_kredivo'].reduce((n,k)=>n+Number(row[k]||0),0));
-  mapped={customerId:c.id,receiverName:row.shipping_address?.full_name||row.bill_full_name||c.name,phone:normalizePhone(row.shipping_address?.phone_number||row.bill_phone_number),email:row.bill_email||'',address:row.shipping_address?.full_address||'',items,subtotal,discount:Number(row.total_discount||0),shippingFee:Number(row.shipping_fee||0),total,paid,status,paymentStatus:paid>=total?'paid':paid?'partial':'unpaid',requiresShipping:!row.received_at_shop,note:row.note||'',posTracking:row.partner?.extend_code||row.partner?.order_number_vtp||'',posCarrier:row.partner?.partner_name||''};
+  mapped={customerId:c.id,receiverName:row.shipping_address?.full_name||row.bill_full_name||c.name,phone:normalizePhone(row.shipping_address?.phone_number||row.bill_phone_number),email:row.bill_email||'',address:orderAddress(row),items,subtotal,discount:Number(row.total_discount||0),shippingFee:Number(row.shipping_fee||0),total,paid,status,paymentStatus:paid>=total?'paid':paid?'partial':'unpaid',requiresShipping:!row.received_at_shop,note:row.note||'',posTracking:row.partner?.extend_code||row.partner?.order_number_vtp||'',posCarrier:row.partner?.partner_name||''};
   if(!link){const matches=all('orders').filter(o=>orderCode(row)&&o.code===orderCode(row)&&!linkFor(a,kind,o.id));if(matches.length>1)fail('Mã đơn trùng; cần đối soát.',409);current=matches[0]||null;}
  }
  snapshot(a,kind,row);
@@ -197,7 +197,7 @@ export async function posRoute(path,method,input,user,url,request=pancakeRequest
    if(!existing||['failed','skipped'].includes(existing.state))job(a,'orders',o.id);
   }
   const j=get('pos_jobs',linkId(a,'orders',o.id)),link=linkFor(a,'orders',o.id),r=link?.remote;
-  return {orderId:o.id,code:o.code,accountId:a.id,shopName:a.shopName||a.name,state:j?.state||'queued',error:j?.error||'',syncedAt:j?.syncedAt||link?.syncedAt||null,remote:r?{id:remoteId('orders',r),code:orderCode(r),status:r.status,warehouseId:r.warehouse_id,receiver:r.shipping_address?.full_name||r.bill_full_name,phone:r.shipping_address?.phone_number||r.bill_phone_number,address:r.shipping_address?.full_address,email:r.bill_email,items:r.items,total:Number(r.total_price??o.total),paid:paidAmount(r),shippingFee:Number(r.shipping_fee||0),tracking:r.partner?.extend_code||r.partner?.order_number_vtp||'',carrier:r.partner?.partner_name||'',updatedAt:r.updated_at}:null};
+  return {orderId:o.id,code:o.code,accountId:a.id,shopName:a.shopName||a.name,state:j?.state||'queued',error:j?.error||'',syncedAt:j?.syncedAt||link?.syncedAt||null,remote:r?{id:remoteId('orders',r),code:orderCode(r),status:r.status,warehouseId:r.warehouse_id,receiver:r.shipping_address?.full_name||r.bill_full_name,phone:r.shipping_address?.phone_number||r.bill_phone_number,address:orderAddress(r),email:r.bill_email,items:r.items,total:Number(r.total_price??o.total),paid:paidAmount(r),shippingFee:Number(r.shipping_fee||0),tracking:r.partner?.extend_code||r.partner?.order_number_vtp||'',carrier:r.partner?.partner_name||'',updatedAt:r.updated_at}:null};
  }
  owner(user);
  if(path==='/api/pos/state'&&method==='GET')return posState(user);

@@ -12,6 +12,7 @@ export function fields(kind,row){
 }
 export function fromProduct(v){const product=v.product||{};return {name:[product.name||v.name||v.display_id,...(v.fields||[]).map(f=>f.value)].filter(Boolean).join(' · '),sku:String(v.custom_id||v.display_id||v.barcode||v.id),price:Number(v.retail_price||0),cost:Number(v.last_imported_price||v.average_imported_price||0),weight:Math.max(1,Number(v.weight||product.weight||500)),active:v.is_hidden!==true&&v.is_removed!==true&&product.is_published!==false,productType:product.type==='service'?'service':'physical',images:v.images||[]};}
 export function customerAddresses(c){return c.shop_customer_addresses||c.shop_customer_address||[];}
+export function orderAddress(row){const a=row?.shipping_address||{};return String(a.address||a.full_address||a.new_full_address||'').trim();}
 export const orderCode=row=>String(row.custom_id||row.id||'');
 // Send only writable OpenAPI fields; GET responses include server-only fields and nulls.
 export function writableProduct(product){
@@ -23,5 +24,5 @@ export function writableProduct(product){
 export function fromCustomer(c){const address=customerAddresses(c)[0];return {name:c.name||'Khách hàng POS',phone:normalizePhone(c.phone_numbers?.[0]),email:c.emails?.[0]||'',address:String(address?.full_address||address?.address||'').replace(/^[,\s]+|[,\s]+$/g,'')};}
 export function orderBody(order,customer,items,account,shipment){
  const status=posStatus(order.status);if(status===undefined)throw Error('Trạng thái đơn hiện tại chưa có ánh xạ sang POS.');
- return {shop_id:Number(account.shopId),custom_id:order.code||order.id,status,bill_full_name:order.receiverName||customer?.name,bill_phone_number:order.phone||customer?.phone,bill_email:order.email||customer?.email||'',warehouse_id:account.warehouseId,items,total_discount:Number(order.discount||0),shipping_fee:Number(order.shippingFee||0),is_free_shipping:order.freeShipping===true,note:order.note||'',cash:Number(order.paid||0),shipping_address:{full_name:order.receiverName||customer?.name,phone_number:order.phone||customer?.phone,full_address:order.address||customer?.address||''},...(shipment?.tracking?{partner:{extend_code:shipment.tracking}}:{})};
+ return {shop_id:Number(account.shopId),custom_id:order.code||order.id,status,bill_full_name:order.receiverName||customer?.name,bill_phone_number:order.phone||customer?.phone,bill_email:order.email||customer?.email||'',warehouse_id:account.warehouseId,items,total_discount:Number(order.discount||0),shipping_fee:Number(order.shippingFee||0),is_free_shipping:order.freeShipping===true,note:order.note||'',cash:Number(order.paid||0),shipping_address:{full_name:order.receiverName||customer?.name,phone_number:order.phone||customer?.phone,address:order.address||customer?.address||'',full_address:order.address||customer?.address||''},...(shipment?.tracking?{partner:{extend_code:shipment.tracking}}:{})};
 }

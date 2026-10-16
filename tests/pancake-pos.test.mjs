@@ -3,7 +3,7 @@ process.env.DATA_DIR=mkdtempSync(join(tmpdir(),'hub-pos-test-'));process.env.PLA
 const {put,get,all,secret,db}=await import('../server/store.mjs');
 const {posRoute,posState,posTick,applyPosRow,receivePosWebhook,recoverPosJobs,posCustomerEligible}=await import('../server/pancake-pos.mjs');
 const {pancakeRequest,pancakePages,pancakeReadBack}=await import('../server/pancake-api.mjs');
-const {fields,hash,fromCustomer,writableProduct}=await import('../server/pancake-model.mjs');
+const {fields,hash,fromCustomer,writableProduct,orderAddress,orderBody}=await import('../server/pancake-model.mjs');
 const owner={id:'owner',role:'owner'},apiKey='QA-PRIVATE-PANCAKE-KEY-NEVER-EXPOSE';
 const remote={products:[],customers:[],orders:[]},calls=[];
 const copy=v=>structuredClone(v);
@@ -19,7 +19,7 @@ async function request(key,path,options={}){
  if(path.endsWith('/update_quantity')){const p=remote.products.find(p=>p.id===path.split('/').at(-2));p.variations_warehouses=copy(body.variations_warehouses);return {success:true};}
  for(const kind of ['customers','orders']){
   if(path.endsWith('/'+kind)&&method==='GET')return {success:true,total_pages:1,data:copy(remote[kind].filter(p=>!query.search||(kind==='customers'?(p.phone_numbers||[]).includes(query.search):p.custom_id===query.search)))};
-  if(path.endsWith('/'+kind)&&method==='POST'){if(kind==='customers')assert.equal(body.createType,'force');const row=kind==='customers'?{id:'sc-'+remote.customers.length,customer_id:'c-'+remote.customers.length,name:body.name,phone_numbers:[body.phoneNumber],emails:[],shop_customer_address:body.shop_customer_address}:copy(body);row.id??=remote[kind].length+1;row.updated_at=new Date().toISOString();remote[kind].push(row);return kind==='customers'?{success:true,data:copy(row)}:{success:true};}
+  if(path.endsWith('/'+kind)&&method==='POST'){if(kind==='customers')assert.equal(body.createType,'force');const row=kind==='customers'?{id:'sc-'+remote.customers.length,customer_id:'c-'+remote.customers.length,name:body.name,phone_numbers:[body.phoneNumber],emails:[],shop_customer_address:body.shop_customer_address}:copy(body);if(kind==='orders'){assert.equal(body.shipping_address.address,body.shipping_address.full_address);row.shipping_address={...row.shipping_address,full_address:'',address:row.shipping_address.address};}row.id??=remote[kind].length+1;row.updated_at=new Date().toISOString();remote[kind].push(row);return kind==='customers'?{success:true,data:copy(row)}:{success:true};}
   if(path.includes('/'+kind+'/')){const id=path.split('/').at(-1),row=remote[kind].find(r=>String(kind==='customers'?r.customer_id:r.id)===id);if(method==='GET')return {data:copy(row)};if(method==='PUT'){Object.assign(row,kind==='customers'?body.customer:body,{updated_at:new Date().toISOString()});return {success:true,data:copy(row)};}}
  }
  throw Error('Unexpected POS request '+method+' '+path);
@@ -93,4 +93,8 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   await assert.rejects(posRoute('/api/pos/orders/'+selected.id+'/dispatch','GET',{}, {id:'viewer',role:'viewer'},new URL('http://localhost'),request),{status:403});
  });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
+});
+
+test('order address writes the provider input field and reads address aliases without hiding a real difference',()=>{
+ const body=orderBody({status:'draft',code:'QA',address:'01 ngõ 191 Khương Thượng'}, {name:'QA',phone:'0901234567'},[],{shopId:'10',warehouseId:'w'});assert.equal(body.shipping_address.address,'01 ngõ 191 Khương Thượng');assert.equal(orderAddress({shipping_address:{address:body.shipping_address.address,full_address:''}}),body.shipping_address.address);assert.equal(orderAddress({shipping_address:{full_address:'Legacy'}}),'Legacy');assert.equal(orderAddress({shipping_address:{new_full_address:'New'}}),'New');assert.notEqual(orderAddress({shipping_address:{address:'Different address'}}),body.shipping_address.address);
 });
