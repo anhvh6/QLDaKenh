@@ -1,3 +1,4 @@
+import {orderWorkspaceState,saveOrderWorkspace,orderPOSFields} from './order-workspace.mjs';
 import {orderRoutingState,saveOrderRouting} from './order-routing.mjs';
 import {createSystemMonitor} from './system-metrics.mjs';
 import {posRoute,posState,posTick,recoverPosJobs,receivePosWebhook} from './pancake-pos.mjs';
@@ -68,6 +69,8 @@ function checkOrigin(req) { if (req.headers['sec-fetch-site'] === 'cross-site') 
 const generic = /^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req, res, url, user, input) {
   const path = url.pathname; const method = req.method;
+  if(path==='/api/orders/workspace'&&method==='GET')return orderWorkspaceState(user);
+  if(path==='/api/orders/workspace'&&method==='PUT')return saveOrderWorkspace(user,input);
   const pos=await posRoute(path,method,input,user,url);if(pos!==undefined)return pos;
   const comments=await commentsRoute(path,method,input,user);if(comments!==undefined)return comments;
   const automation=await automationRoute(path,method,input,user);if(automation!==undefined)return automation;
@@ -118,7 +121,7 @@ async function dispatch(req, res, url, user, input) {
     state.studentCareSettings = get('settings', 'student-care') || { version: 0, stages: {} };
     state.settings = get('settings', 'general') || { id: 'general', name: 'Mộc Workspace', timezone: 'Asia/Ho_Chi_Minh' };
     if (user.role !== 'owner') state.connections = state.connections.map(({ accountId, apiVersion, ...c }) => c);
-    state.orderRouting=orderRoutingState();state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
+    state.orderWorkspace=orderWorkspaceState(user);state.orders=orderPOSFields(state.orders);state.orderRouting=orderRoutingState();state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
     state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; return stateCache.set(cacheKey, revision, scopeCareChats(care.scopeState(state, user), user));
   }
   if(path==='/api/order-routing'&&method==='POST')return saveOrderRouting(user,input);
