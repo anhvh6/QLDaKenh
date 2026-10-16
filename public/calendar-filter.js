@@ -7,3 +7,7 @@ export function calendarType(item){
  return null;
 }
 export const calendarMatches=(item,selected)=>selected.includes(calendarType(item));
+export function ownCalendarAppointment(reminder,userId){
+ const ids=reminder.assigneeIds?.length?reminder.assigneeIds:reminder.assignee?[reminder.assignee]:[reminder.actor];
+ return ids.includes(userId);
+}
