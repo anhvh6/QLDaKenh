@@ -1,4 +1,5 @@
 import {publishPlan} from './plan-publish.mjs';
+import {saveRegistration} from './learner-registration.mjs';
 import { all,get,put,transaction,audit,now,secret,saveSecret,getSupabaseHeaders,SUPABASE_URL,SUPABASE_KEY } from './store.mjs';
 import { fail,required } from './domain.mjs';
 
@@ -72,3 +73,4 @@ export async function readPlanSources(){
 
 export async function readPublishedPlan(id){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;return (await remote(await config(),'/rest/v1/customers?select=*&customer_id=eq.'+encodeURIComponent(id)+'&limit=1'))[0]||null;}
 export async function publishStudyPlan(customer,tasks,options){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;return publishPlan(async(path,init)=>remote(await config(),path,init),customer,tasks,options);}
+export async function saveLearnerRegistration(id,data,options){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;const c=await config();return saveRegistration((path,init)=>remote(c,path,init),id,data,options);}
