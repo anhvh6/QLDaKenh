@@ -6,6 +6,12 @@ import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus
 
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const kinds=['products','customers','orders'];
+export function posCustomerEligible(customer){
+ if(!customer||customer.deletedAt||customer.mergedInto)return false;
+ if(fields('customers',customer).phone&&String(customer.address||'').trim())return true;
+ return !!db.prepare("SELECT id FROM records WHERE kind='orders' AND json_extract(data,'$.customerId')=? AND json_extract(data,'$.deletedAt') IS NULL AND coalesce(json_extract(data,'$.status'),'draft') NOT IN ('cancelled','deleted') LIMIT 1").get(customer.id);
+}
+function skipCustomer(j){return put('pos_jobs',{...j,state:'skipped',error:'',retryAt:0,skipReason:'Chờ đủ số điện thoại và địa chỉ, hoặc có lệnh tạo đơn hàng.',diagnostics:null});}
 const keyFor=id=>'pancake:'+id;
 const root=a=>'/shops/'+encodeURIComponent(a.shopId);
 const linkId=(a,kind,id)=>a.id+':'+kind+':'+id;
@@ -19,7 +25,7 @@ function account(id){const a=get('pos_accounts',id);if(!a)fail('Không tìm th�
 function active(a){return a.active&&a.status==='connected';}
 function setAccount(a,patch){return put('pos_accounts',{...account(a.id),...patch});}
 function saveLink(a,kind,localId,row,patch={}){return put('pos_links',{...linkFor(a,kind,localId),id:linkId(a,kind,localId),accountId:a.id,kind,localId,remoteId:remoteId(kind,row),remote:row,...patch});}
-function job(a,kind,id,patch={}){const current=get(kind,id);if(!current)return;const existing=get('pos_jobs',linkId(a,kind,id));return put('pos_jobs',{...existing,id:linkId(a,kind,id),accountId:a.id,kind,localId:id,state:'queued',attempts:0,error:'',force:false,inventory:null,retryAt:0,target:fields(kind,current),...patch});}
+function job(a,kind,id,patch={}){const current=get(kind,id);if(!current)return;const existing=get('pos_jobs',linkId(a,kind,id));const value={...existing,id:linkId(a,kind,id),accountId:a.id,kind,localId:id,state:'queued',attempts:0,error:'',skipReason:'',force:false,inventory:null,retryAt:0,target:fields(kind,current),...patch};return kind==='customers'&&!posCustomerEligible(current)&&!['unknown','conflict','sending'].includes(value.state)?skipCustomer(value):put('pos_jobs',value);}
 function trackedStock(a,v){const w=(v.variations_warehouses||[]).find(w=>String(w.warehouse_id)===a.warehouseId);return Number(w?.remain_quantity??0);}
 function snapshot(a,kind,row){const id=linkId(a,kind,remoteId(kind,row));if(hash(get('pos_remote',id)?.data)!==hash(row))put('pos_remote',{id,accountId:a.id,kind,data:row});}
 function rowsIn(data){const row=data?.data??data;return Array.isArray(row)?row[0]:row;}
@@ -98,6 +104,7 @@ async function remoteCurrent(a,kind,link,r){
 
 async function push(a,j,request){
  const r=reqFor(a,request),current=get(j.kind,j.localId);if(!current)return put('pos_jobs',{...j,state:'skipped',error:'Dữ liệu nội bộ không còn.'});
+ if(j.kind==='customers'&&!posCustomerEligible(current))return skipCustomer(j);
  let link=linkFor(a,j.kind,j.localId),remote=link?await remoteCurrent(a,j.kind,link,r):await locate(a,j.kind,current,r);
  if(remote&&!link){await applyPosRow(a,j.kind,remote);link=linkFor(a,j.kind,current.id);if(!link)fail('Bản ghi POS đã liên kết với hồ sơ khác. Cần đối soát.',409);if(get('pos_jobs',j.id)?.state==='conflict'&&!j.force)fail('Bản ghi đã tồn tại ở POS với thông tin khác. Chọn bên cần giữ.',409);}
  if(link&&!remote)fail('Không tìm thấy bản ghi đã liên kết trên POS. Không tự tạo lại để tránh trùng.',409);
@@ -122,7 +129,8 @@ async function push(a,j,request){
  }else{
   if(!a.warehouseId)fail('Chọn kho POS trước khi đồng bộ đơn.',422);
   const c=get('customers',current.customerId);if(!c)fail('Đơn thiếu khách hàng.',422);
-  if(!linkFor(a,'customers',c.id)){await push(a,{id:linkId(a,'customers',c.id),accountId:a.id,kind:'customers',localId:c.id,state:'queued'},request);}
+  const customerLink=linkFor(a,'customers',c.id),customerJob=get('pos_jobs',linkId(a,'customers',c.id));
+  if(!customerLink||customerLink.localHash!==hash(fields('customers',c))){if(['unknown','conflict','sending'].includes(customerJob?.state))fail('Khách hàng của đơn đang chờ đối soát POS.',409);await push(a,{id:linkId(a,'customers',c.id),accountId:a.id,kind:'customers',localId:c.id,state:'queued'},request);}
   const items=[];for(const i of current.items||[]){let p=linkFor(a,'products',i.productId);if(!p){await push(a,{id:linkId(a,'products',i.productId),accountId:a.id,kind:'products',localId:i.productId,state:'queued'},request);p=linkFor(a,'products',i.productId);}if(!p)fail('Chưa liên kết được sản phẩm của đơn.',422);items.push({product_id:p.remote.product_id,variation_id:p.remoteId,quantity:i.quantity,variation_info:{name:i.name,retail_price:i.price},discount_each_product:0});}
   const shipment=all('shipments').find(s=>s.orderId===current.id&&s.status!=='cancelled');body=orderBody(current,c,items,a,shipment);if(link){const other=Number(remote.transfer_money||0)+['charged_by_card','charged_by_momo','charged_by_vnpay','charged_by_qrpay','charged_by_fundiin','charged_by_kredivo'].reduce((n,k)=>n+Number(remote[k]||0),0);if(current.paid<other)fail('Khoản hoàn tiền liên quan thanh toán POS. Đối soát thanh toán trên POS trước.',409);body.cash=current.paid-other;if(body.partner)body.partner={...remote.partner,...body.partner};}path=root(a)+'/orders'+(link?'/'+encodeURIComponent(link.remoteId):'');
  }
@@ -153,7 +161,9 @@ export function recoverPosJobs(){for(const j of all('pos_jobs').filter(j=>j.stat
 export async function posTick(request){
  if(running)return;running=true;
  try{for(const draft of all('pos_setup_drafts').filter(d=>d.expiresAt<Date.now()))transaction(()=>{db.prepare('DELETE FROM secrets WHERE id=?').run(draft.id);remove('pos_setup_drafts',draft.id);});for(const original of all('pos_accounts').filter(active)){
-  let a=account(original.id);capture(a);a=account(a.id);
+  let a=account(original.id);
+  for(const j of all('pos_jobs').filter(j=>j.accountId===a.id&&j.kind==='customers'&&['queued','failed'].includes(j.state)))if(!posCustomerEligible(get('customers',j.localId)))skipCustomer(j);
+  capture(a);a=account(a.id);
   try{
    // Outgoing changes have priority; a webhook also marks forcePull to refresh promptly.
    const queued=all('pos_jobs').filter(j=>j.accountId===a.id&&j.state==='queued'&&(!j.retryAt||j.retryAt<=Date.now())).reverse().slice(0,20);
