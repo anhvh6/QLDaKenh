@@ -1,0 +1,22 @@
+import {createRequire} from 'node:module';import {spawn} from 'node:child_process';import {mkdirSync,mkdtempSync,writeFileSync} from 'node:fs';import {join,resolve} from 'node:path';import {pathToFileURL} from 'node:url';import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url),{chromium}=require('C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+mkdirSync('test-data',{recursive:true});mkdirSync('test-results',{recursive:true});
+const dir=mkdtempSync(join(resolve('test-data'),'pancake-ui-')),mock=join(dir,'mock.mjs'),base='http://127.0.0.1:4458';
+writeFileSync(mock,`const original=globalThis.fetch;globalThis.fetch=async(url,options={})=>{const u=new URL(url);if(u.origin==='https://pos.pages.fm'){let result;if(u.pathname==='/api/v1/shops')result={success:true,shops:[{id:10,name:'Shop kiểm thử POS'}]};else if(u.pathname.endsWith('/warehouses'))result={data:[{id:'warehouse-1',name:'Kho chính',allow_create_order:true}]};else if(options.method==='PUT')result={success:true};else result={success:true,data:[],total_pages:0};return new Response(JSON.stringify(result),{status:200});}return original(url,options);};`);
+const child=spawn(process.execPath,['--import',pathToFileURL(mock).href,'server/index.mjs'],{env:{...process.env,PORT:'4458',DATA_DIR:dir,PLAN_REMOTE_CATALOG:'0'},stdio:'pipe',windowsHide:true});let browser,page;
+try{
+ for(let n=0;n<100;n++){try{await fetch(base+'/api/health');break;}catch{await new Promise(r=>setTimeout(r,100));}}
+ browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000}});
+ await context.request.post(base+'/api/setup',{data:{name:'Owner QA',email:'pos-ui@example.test',password:'PancakeUI2026!',demo:false}});page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(base+'/#settings');await page.getByRole('button',{name:'Pancake POS',exact:true}).click();await page.getByRole('button',{name:'Kết nối POS',exact:true}).click();
+ await page.getByLabel('API key',{exact:true}).fill('QA-POS-PRIVATE-KEY-123456789');assert.equal(await page.getByLabel('API key',{exact:true}).getAttribute('type'),'password');
+ await page.getByRole('button',{name:'Kiểm tra & chọn shop',exact:true}).click();await page.locator('#pos-warehouse option[value="warehouse-1"]').waitFor({state:'attached'});
+ assert.equal(await page.locator('#pos-shop').inputValue(),'10');await page.getByRole('button',{name:'Kết nối & bắt đầu đồng bộ',exact:true}).click();await page.getByText('Shop kiểm thử POS · Shop 10',{exact:false}).waitFor();
+ const state=await (await context.request.get(base+'/api/state')).json();assert.equal(state.pancakePOS.accounts.length,1);assert.ok(!JSON.stringify(state).includes('QA-POS-PRIVATE-KEY'));
+ await page.getByRole('button',{name:'Bật webhook tức thì',exact:true}).click();await page.getByText('Thao tác này đặt địa chỉ nhận sự kiện',{exact:false}).waitFor();await page.getByRole('button',{name:'Xác nhận',exact:true}).click();await page.getByText('Đã cấu hình, chờ sự kiện',{exact:false}).waitFor();
+ await page.screenshot({path:'test-results/pancake-pos-desktop.png',fullPage:true});
+ await page.getByRole('button',{name:'Tạm dừng',exact:true}).click();await page.getByRole('button',{name:'Tiếp tục',exact:true}).waitFor();await page.getByRole('button',{name:'Tiếp tục',exact:true}).click();await page.getByRole('button',{name:'Tạm dừng',exact:true}).waitFor();
+ await page.setViewportSize({width:390,height:844});await page.waitForTimeout(500);await page.screenshot({path:'test-results/pancake-pos-mobile.png',fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.getByRole('button',{name:'Ngắt kết nối',exact:true}).click();await page.getByRole('button',{name:'Xác nhận',exact:true}).click();await page.getByText('Đã ngắt',{exact:true}).waitFor();assert.deepEqual(errors,[]);
+ console.log('PASS: real local HTTP/UI flow; API key → shop → warehouse → connect, webhook setup, pause/resume, disconnect, secret protection, desktop/mobile. Pancake API mocked.');
+}catch(error){await page?.screenshot({path:'test-results/pancake-pos-failure.png',fullPage:true});throw error;}finally{await browser?.close();child.kill();}

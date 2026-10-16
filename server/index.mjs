@@ -1,3 +1,4 @@
+import {posRoute,posState,posTick,recoverPosJobs,receivePosWebhook} from './pancake-pos.mjs';
 import {automationRoute,automationTick,recoverAutomation} from './copy-automation.mjs';
 import {commentsRoute,commentsTick} from './comments.mjs';
 import { ingestFacebookEvents, facebookChatTick } from './facebook-chat.mjs';
@@ -65,6 +66,7 @@ function checkOrigin(req) { if (req.headers['sec-fetch-site'] === 'cross-site') 
 const generic = /^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req, res, url, user, input) {
   const path = url.pathname; const method = req.method;
+  const pos=await posRoute(path,method,input,user,url);if(pos!==undefined)return pos;
   const comments=await commentsRoute(path,method,input,user);if(comments!==undefined)return comments;
   const automation=await automationRoute(path,method,input,user);if(automation!==undefined)return automation;
   const copy = await copyRoute(path, method, input, user, url); if (copy !== undefined) return copy;
@@ -114,7 +116,7 @@ async function dispatch(req, res, url, user, input) {
     state.studentCareSettings = get('settings', 'student-care') || { version: 0, stages: {} };
     state.settings = get('settings', 'general') || { id: 'general', name: 'Mộc Workspace', timezone: 'Asia/Ho_Chi_Minh' };
     if (user.role !== 'owner') state.connections = state.connections.map(({ accountId, apiVersion, ...c }) => c);
-    state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
+    state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
     state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; return stateCache.set(cacheKey, revision, scopeCareChats(care.scopeState(state, user), user));
   }
   if (path === '/api/logout' && method === 'POST') { db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id, user.csrf); res.setHeader('Set-Cookie', 'hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'); return { ok: true }; }
@@ -197,6 +199,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }
     const publicCopyRoute = path.match(/^\/api\/copy\/public-media\/([\w-]+)$/); if (publicCopyRoute && ['GET', 'HEAD'].includes(req.method)) return serveFile(req, res, publicCopyMedia(publicCopyRoute[1], url.searchParams.get('expires'), url.searchParams.get('token')), false);
     const carrierHook = path.match(/^\/api\/shipping\/webhooks\/viettelpost\/([^/]+)$/); if (carrierHook) { if (req.method !== 'POST') domain.fail('Chỉ chấp nhận POST.', 405); const payload = await body(req, 256000); const result = receiveVtpWebhook(carrierHook[1], req.headers, payload.value); json(res, result); if (!all('carrier_orders').some(o => o.accountId === carrierHook[1] && o.tracking === String(payload.value.DATA.ORDER_NUMBER)) && !all('shipments').some(s => s.accountId === carrierHook[1] && s.tracking === String(payload.value.DATA.ORDER_NUMBER))) void importVtpOrder(carrierHook[1], String(payload.value.DATA.ORDER_NUMBER)).catch(() => { }); return; }
+    const posHook=path.match(/^\/api\/pos\/webhooks\/([^/]+)$/);if(posHook){if(req.method!=='POST')domain.fail('Chỉ chấp nhận POST.',405);return json(res,receivePosWebhook(posHook[1],req.headers,(await body(req,256000)).value));}
     if (path.startsWith('/api/webhooks/')) return await webhook(req, res, url);
     if (path === '/api/events' && req.method === 'GET') { if (!user) domain.fail('Vui lòng đăng nhập.', 401); res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' }); let revision = stateRevision(), lastHeartbeat = Date.now(); res.write('event: ready\ndata: {}\n\n'); const timer = setInterval(() => { if (Date.now() - lastHeartbeat >= 15000) { if (!userFor(req)) { clearInterval(timer); res.end(); return; } lastHeartbeat = Date.now(); res.write(': keepalive\n\n'); } const next = stateRevision(); if (next !== revision) { if (!userFor(req)) { clearInterval(timer); res.end(); return; } revision = next; res.write('event: changed\ndata: {}\n\n'); } }, 250); req.on('close', () => clearInterval(timer)); return; }
     if (path === '/api/bootstrap') { const setup = !db.prepare('SELECT id FROM users LIMIT 1').get(); return json(res, { setup, user }); }
@@ -252,3 +255,5 @@ recoverCustomerReminders();setInterval(() => void customerReminderTick().catch(e
 void commentsTick().catch(e=>console.error('Comments:',e.message));setInterval(()=>void commentsTick().catch(e=>console.error('Comments:',e.message)),20000).unref();
 
 recoverAutomation();setInterval(()=>void automationTick().catch(e=>console.error('Copy automation:',e.message)),5000).unref();
+
+recoverPosJobs();setInterval(()=>void posTick().catch(e=>console.error('POS worker:',e.message)),1000).unref();
