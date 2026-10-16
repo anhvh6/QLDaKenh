@@ -1,3 +1,4 @@
+import {communicationRoute,communicationTick,recoverCommunication} from './communication-campaigns.mjs';
 import {orderEditorRoute} from './order-editor.mjs';
 import {orderWorkspaceState,saveOrderWorkspace,orderPOSFields} from './order-workspace.mjs';
 import {orderRoutingState,saveOrderRouting} from './order-routing.mjs';
@@ -70,6 +71,7 @@ function checkOrigin(req) { if (req.headers['sec-fetch-site'] === 'cross-site') 
 const generic = /^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req, res, url, user, input) {
   const path = url.pathname; const method = req.method;
+  const communication=await communicationRoute(path,method,input,user);if(communication!==undefined)return communication;
   const editedOrder=orderEditorRoute(path,method,input,user);if(editedOrder!==undefined)return editedOrder;
   if(path==='/api/orders/workspace'&&method==='GET')return orderWorkspaceState(user);
   if(path==='/api/orders/workspace'&&method==='PUT')return saveOrderWorkspace(user,input);
@@ -268,3 +270,5 @@ void commentsTick().catch(e=>console.error('Comments:',e.message));setInterval((
 recoverAutomation();setInterval(()=>void automationTick().catch(e=>console.error('Copy automation:',e.message)),5000).unref();
 
 recoverPosJobs();setInterval(()=>void posTick().catch(e=>console.error('POS worker:',e.message)),1000).unref();
+
+recoverCommunication();setInterval(()=>void communicationTick().catch(e=>console.error('Communication worker:',e.message)),5000).unref();
