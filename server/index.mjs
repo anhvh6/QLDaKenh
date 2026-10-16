@@ -1,3 +1,4 @@
+import {orderEditorRoute} from './order-editor.mjs';
 import {orderWorkspaceState,saveOrderWorkspace,orderPOSFields} from './order-workspace.mjs';
 import {orderRoutingState,saveOrderRouting} from './order-routing.mjs';
 import {createSystemMonitor} from './system-metrics.mjs';
@@ -69,6 +70,7 @@ function checkOrigin(req) { if (req.headers['sec-fetch-site'] === 'cross-site') 
 const generic = /^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req, res, url, user, input) {
   const path = url.pathname; const method = req.method;
+  const editedOrder=orderEditorRoute(path,method,input,user);if(editedOrder!==undefined)return editedOrder;
   if(path==='/api/orders/workspace'&&method==='GET')return orderWorkspaceState(user);
   if(path==='/api/orders/workspace'&&method==='PUT')return saveOrderWorkspace(user,input);
   const pos=await posRoute(path,method,input,user,url);if(pos!==undefined)return pos;

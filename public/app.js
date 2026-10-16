@@ -581,7 +581,7 @@ initCare({ get state() { return S; }, api, refresh, refreshInbox, refreshBackgro
 initStudentCareSettings({ get state() { return S; }, api, refresh, toast, modal, closeModal });
 initCopy({ get state() { return S; }, api, refresh, render, modal, closeModal, toast, openContent: id => contentModal(id) });
 initProductsManagement({ get state() { return S; }, render });
-initShipping({ get state() { return S; }, route: () => route, api, refresh, render, modal, closeModal, toast });
+initShipping({ get state() { return S; }, route: () => route, api, refresh, render, modal, closeModal, toast, openConversation:id=>{selectedConversation=id;route='inbox';location.hash='inbox';render();} });
 const loadInbox = initInbox({ get state() { return S; }, route: () => route, api, refresh, refreshLiveInbox, removeConversations, render, modal, closeModal, toast, openConversation: id => { selectedConversation = id; route = 'inbox'; location.hash = 'inbox'; render(); } });
 
 initMedia({ get state() { return S; }, api, refresh, render, modal, closeModal, toast, newPost: id => { contentModal(); draftAssets = [id]; syncContentType(find('assets', id)); $('#upload-list').innerHTML = assetPreviews(); $('#preview-media').innerHTML = thumb({ assets: draftAssets }, 'card-cover'); }, attachChat: (c, id) => { selectedConversation = c; route = 'inbox'; location.hash = 'inbox'; attachLibraryMedia(c, id); render(); } });

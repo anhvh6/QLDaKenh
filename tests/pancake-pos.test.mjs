@@ -92,6 +92,20 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   const job=all('pos_jobs').find(j=>j.localId===selected.id&&j.kind==='orders');put('pos_jobs',{...job,state:'unknown',error:'Lost acknowledgement'});await route('/api/pos/orders/'+selected.id+'/dispatch','POST');assert.equal(get('pos_jobs',job.id).state,'unknown');
   await assert.rejects(posRoute('/api/pos/orders/'+selected.id+'/dispatch','GET',{}, {id:'viewer',role:'viewer'},new URL('http://localhost'),request),{status:403});
  });
+ await t.test('automatic empty chat drafts stay local until products are reviewed',async()=>{
+  const draft=put('orders',{...order,id:'chat-empty',code:'CHAT-EMPTY',status:'draft',items:[],awaitingProducts:true,fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});await posTick(request);assert.equal(remote.orders.some(r=>r.custom_id===draft.code),false);await assert.rejects(route('/api/pos/orders/'+draft.id+'/dispatch','POST'),/Thêm sản phẩm/);
+ });
+ await t.test('print-note-only edits queue and read back without changing the established business hash schema',async()=>{
+  let draft=put('orders',{...order,id:'print-only',code:'PRINT-ONLY',status:'draft',posTracking:'',printNote:'',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});await route('/api/pos/orders/'+draft.id+'/dispatch','POST');await posTick(request);assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');
+  draft=put('orders',{...get('orders',draft.id),printNote:'QA ghi chú in mới'});await route('/api/pos/orders/'+draft.id+'/dispatch','POST');await posTick(request);assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');assert.equal(remote.orders.find(r=>r.custom_id===draft.code).note_print,draft.printNote);
+  const raw=remote.orders.find(r=>r.custom_id===draft.code),link=all('pos_links').find(l=>l.kind==='orders'&&l.localId===draft.id);raw.note_print='POS note to preserve';put('pos_links',{...link,remote:copy(raw)});const legacy={...get('orders',draft.id),note:'Edit other field'};delete legacy.printNote;put('orders',legacy);await posTick(request);assert.equal(remote.orders.find(r=>r.custom_id===draft.code).note_print,'POS note to preserve');
+ });
+ await t.test('POS auto-carrier acknowledgement is adopted without a false conflict; fee-only updates still sync',async()=>{
+  const draft=put('orders',{...order,id:'auto-carrier',code:'AUTO-CARRIER',status:'confirmed',posTracking:'',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});await route('/api/pos/orders/'+draft.id+'/dispatch','POST');
+  await posTick(async(key,path,options={})=>{const r=await request(key,path,options);if(options.method==='POST'&&path.endsWith('/orders')&&options.body.custom_id===draft.code){const row=remote.orders.find(r=>r.custom_id===draft.code);row.status=9;row.partner={extend_code:'PKE-AUTO-QA',partner_name:'VTP',partner_status:'received',total_fee:23519};}return r;});
+  assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');assert.equal(get('orders',draft.id).posTracking,'PKE-AUTO-QA');const ship=all('shipments').find(s=>s.orderId===draft.id);assert.equal(ship.fee,23519);assert.equal(ship.status,'pickup_pending');
+  const r=remote.orders.find(r=>r.custom_id===draft.code);r.partner.total_fee=25000;r.partner.partner_status='out_for_delivery';await applyPosRow(account,'orders',copy(r));assert.equal(get('shipments',ship.id).fee,25000);assert.equal(get('shipments',ship.id).status,'in_transit');const version=get('shipments',ship.id).version;await applyPosRow(account,'orders',copy(r));assert.equal(get('shipments',ship.id).version,version);
+ });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
 });
 
