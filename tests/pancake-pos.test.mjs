@@ -3,7 +3,7 @@ process.env.DATA_DIR=mkdtempSync(join(tmpdir(),'hub-pos-test-'));process.env.PLA
 const {put,get,all,secret,db}=await import('../server/store.mjs');
 const {posRoute,posState,posTick,applyPosRow,receivePosWebhook,recoverPosJobs}=await import('../server/pancake-pos.mjs');
 const {pancakeRequest,pancakePages,pancakeReadBack}=await import('../server/pancake-api.mjs');
-const {fields,hash}=await import('../server/pancake-model.mjs');
+const {fields,hash,fromCustomer}=await import('../server/pancake-model.mjs');
 const owner={id:'owner',role:'owner'},apiKey='QA-PRIVATE-PANCAKE-KEY-NEVER-EXPOSE';
 const remote={products:[],customers:[],orders:[]},calls=[];
 const copy=v=>structuredClone(v);
@@ -19,12 +19,17 @@ async function request(key,path,options={}){
  if(path.endsWith('/update_quantity')){const p=remote.products.find(p=>p.id===path.split('/').at(-2));p.variations_warehouses=copy(body.variations_warehouses);return {success:true};}
  for(const kind of ['customers','orders']){
   if(path.endsWith('/'+kind)&&method==='GET')return {success:true,total_pages:1,data:copy(remote[kind].filter(p=>!query.search||(kind==='customers'?(p.phone_numbers||[]).includes(query.search):p.custom_id===query.search)))};
-  if(path.endsWith('/'+kind)&&method==='POST'){const row=kind==='customers'?{id:'sc-'+remote.customers.length,customer_id:'c-'+remote.customers.length,name:body.name,phone_numbers:[body.phoneNumber],emails:[],shop_customer_address:body.shop_customer_address}:copy(body);row.id??=remote[kind].length+1;row.updated_at=new Date().toISOString();remote[kind].push(row);return kind==='customers'?{success:true,data:copy(row)}:{success:true};}
+  if(path.endsWith('/'+kind)&&method==='POST'){if(kind==='customers')assert.equal(body.createType,'force');const row=kind==='customers'?{id:'sc-'+remote.customers.length,customer_id:'c-'+remote.customers.length,name:body.name,phone_numbers:[body.phoneNumber],emails:[],shop_customer_address:body.shop_customer_address}:copy(body);row.id??=remote[kind].length+1;row.updated_at=new Date().toISOString();remote[kind].push(row);return kind==='customers'?{success:true,data:copy(row)}:{success:true};}
   if(path.includes('/'+kind+'/')){const id=path.split('/').at(-1),row=remote[kind].find(r=>String(kind==='customers'?r.customer_id:r.id)===id);if(method==='GET')return {data:copy(row)};if(method==='PUT'){Object.assign(row,kind==='customers'?body.customer:body,{updated_at:new Date().toISOString()});return {success:true,data:copy(row)};}}
  }
  throw Error('Unexpected POS request '+method+' '+path);
 }
 const route=(path,method='GET',body={})=>posRoute(path,method,body,owner,new URL('http://localhost'+path),request);
+test('live POS customer address aliases and empty generated address are normalized',()=>{
+ assert.equal(fromCustomer({shop_customer_addresses:[{full_address:'123 Duong A, Quan B'}]}).address,'123 Duong A, Quan B');
+ assert.equal(fromCustomer({shop_customer_addresses:[{full_address:', '}]}).address,'');
+ assert.equal(fromCustomer({shop_customer_address:[{address:'123 Duong A'}]}).address,'123 Duong A');
+});
 test('API credentials are restricted to official host and are redacted from failures',async()=>{
  await assert.rejects(pancakeRequest(apiKey,'https://evil.test'),/không hợp lệ/);
  const result=await pancakeRequest(apiKey,'/shops',{fetcher:async(url,options)=>{assert.equal(url.origin,'https://pos.pages.fm');assert.equal(url.searchParams.get('api_key'),apiKey);assert.equal(options.redirect,'error');return {ok:true,json:async()=>({success:true,shops:[]})};}});assert.equal(result.success,true);

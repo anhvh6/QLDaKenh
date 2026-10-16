@@ -2,7 +2,7 @@ import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {db,all,get,put,remove,saveSecret,secret,transaction,audit,now,uid} from './store.mjs';
 import {inbound,changeSequence,phoneExpression} from './pancake-storage.mjs';
 import {pancakeRequest,pancakePages,pancakeReadBack} from './pancake-api.mjs';
-import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount} from './pancake-model.mjs';
+import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount,customerAddresses} from './pancake-model.mjs';
 
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const kinds=['products','customers','orders'];
@@ -109,7 +109,7 @@ async function push(a,j,request){
  let body,path,method=link?'PUT':'POST';
  if(j.kind==='customers'){
   if(!local.phone)fail('Khách hàng chưa có số điện thoại. Bổ sung SĐT để tạo trên POS.',422);
-  body=link?{customer:{name:local.name,phone_numbers:[local.phone,...(remote.phone_numbers||[]).slice(1)],emails:[...(local.email?[local.email]:[]),...(remote.emails||[]).slice(1)],shop_customer_address:[{...(remote.shop_customer_address?.[0]||{}),full_name:local.name,phone_number:local.phone,full_address:local.address},...(remote.shop_customer_address||[]).slice(1)]}}:{name:local.name,phoneNumber:local.phone,shop_customer_address:[{full_name:local.name,phone_number:local.phone,full_address:local.address}]};
+  body=link?{customer:{name:local.name,phone_numbers:[local.phone,...(remote.phone_numbers||[]).slice(1)],emails:[...(local.email?[local.email]:[]),...(remote.emails||[]).slice(1)],shop_customer_address:[{...(customerAddresses(remote)[0]||{}),full_name:local.name,phone_number:local.phone,full_address:local.address},...customerAddresses(remote).slice(1)]}}:{name:local.name,phoneNumber:local.phone,createType:'force',shop_customer_address:[{full_name:local.name,phone_number:local.phone,full_address:local.address}]};
   path=root(a)+'/customers'+(link?'/'+encodeURIComponent(link.remoteId):'');
  }else if(j.kind==='products'){
   if(!local.sku)fail('Sản phẩm chưa có SKU.',422);
