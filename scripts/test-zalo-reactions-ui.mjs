@@ -1,0 +1,16 @@
+import {createRequire} from 'node:module';import {spawn,execFileSync} from 'node:child_process';import {mkdirSync,mkdtempSync} from 'node:fs';import {join,resolve} from 'node:path';import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url),{chromium}=require('C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+mkdirSync('test-data',{recursive:true});mkdirSync('test-results',{recursive:true});const dir=mkdtempSync(join(resolve('test-data'),'zalo-reaction-ui-')),base='http://127.0.0.1:4460',env={...process.env,PORT:'4460',DATA_DIR:dir,PLAN_REMOTE_CATALOG:'0'};
+const run=code=>execFileSync(process.execPath,['--input-type=module','-e',code],{env,windowsHide:true});
+const server=spawn(process.execPath,['server/index.mjs'],{env,stdio:'pipe',windowsHide:true});let browser,page;
+try{
+ for(let n=0;n<100;n++){try{await fetch(base+'/api/health');break;}catch{await new Promise(r=>setTimeout(r,100));}}
+ browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000}});
+ await context.request.post(base+'/api/setup',{data:{name:'Reaction QA',email:'reaction-ui@example.test',password:'ReactionUI2026!',demo:false}});
+ run(`const {put}=await import('./server/store.mjs');const {ingestMessage}=await import('./server/zalo.mjs');put('connections',{id:'z',name:'Zalo QA',provider:'zalo_personal',mode:'demo',status:'connected'});ingestMessage('z',{threadId:'customer',type:0,isSelf:true,data:{msgId:'qa-message',cliMsgId:'qa-client',uidFrom:'self',content:'Tin nhân viên để kiểm thử cảm xúc',ts:String(Date.now())}});`);
+ page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/#inbox');await page.locator('.conversation-item').first().click();const button=page.locator('.message-reaction-selector > button').first();await button.waitFor({state:'attached'});
+ const react=(icon,sequence)=>run(`const {ingestZaloReaction}=await import('./server/zalo-reactions.mjs');ingestZaloReaction('z',{threadId:'customer',isGroup:false,isSelf:false,data:{uidFrom:'customer',actionId:'${sequence}',ts:String(1792190000000+${sequence}),content:{rIcon:${JSON.stringify(icon)},rMsg:[{gMsgID:'qa-message',cMsgID:'qa-client'}]}}});`);
+ react('/-heart',1);await page.waitForFunction(()=>document.querySelector('.message-reaction-selector > button')?.textContent==='❤️');
+ await page.screenshot({path:'test-results/zalo-customer-heart.png',fullPage:true});react('/-strong',2);await page.waitForFunction(()=>document.querySelector('.message-reaction-selector > button')?.textContent==='👍');react('',3);await page.waitForFunction(()=>document.querySelector('.message-reaction-selector > button')?.textContent==='♡');assert.deepEqual(errors,[]);
+ console.log('PASS: real local inbox receives heart → like → removal through backend ingestion and live polling without reload. No live Zalo messages sent.');
+}catch(e){await page?.screenshot({path:'test-results/zalo-reaction-ui-failure.png',fullPage:true});throw e;}finally{await browser?.close();server.kill();}

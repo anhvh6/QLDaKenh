@@ -1,4 +1,5 @@
 import {contactCardDetails,contactPhone} from './zalo-contact-card.mjs';
+import {ingestZaloReaction,flushZaloReactions} from './zalo-reactions.mjs';
 import {normalizeZaloPins} from './zalo-pins.mjs';
 import {changeNativePin} from './zalo-native-pins.mjs';
 import {createVerifiedZaloGroup} from './zalo-group-create.mjs';
@@ -48,7 +49,7 @@ export function ingestMessage(id,message,{history=false}={}){
  return transaction(()=>{
   const conv=conversation(id,thread,type,type===ThreadType.Group?`Nhóm Zalo ${thread}`:message.isSelf?undefined:data.dName);if(type===ThreadType.User&&!message.isSelf&&data.dName){const customer=get('customers',conv.customerId);if(customer&&!customer.nameEditedLocally&&customer.name!==data.dName)put('customers',{...customer,name:String(data.dName)});}
   const rows=db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND (json_extract(data,'$.externalId')=? OR EXISTS (SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) WHERE json_extract(value,'$.id')=?))").all(conv.id,externalId,externalId);
-  if(rows.length){const previous=get('messages',rows[0].id);if(previous.recalledAt)return false;const patch={...(!previous.externalClientId&&previous.externalId===externalId&&data.cliMsgId?{externalClientId:String(data.cliMsgId)}:{}),...(previous.externalMessages?.some(m=>m.id===externalId&&!m.clientId)&&data.cliMsgId?{externalMessages:previous.externalMessages.map(m=>m.id===externalId?{...m,clientId:String(data.cliMsgId)}:m)}:{}),...(content.contactCard&&!previous.contactCard||content.sticker&&!previous.sticker?content:{})};if(Object.keys(patch).length)put('messages',{...previous,...patch});return false;}
+  if(rows.length){const previous=get('messages',rows[0].id);if(previous.recalledAt)return false;const patch={...(!previous.externalClientId&&previous.externalId===externalId&&data.cliMsgId?{externalClientId:String(data.cliMsgId)}:{}),...(previous.externalMessages?.some(m=>m.id===externalId&&!m.clientId)&&data.cliMsgId?{externalMessages:previous.externalMessages.map(m=>m.id===externalId?{...m,clientId:String(data.cliMsgId)}:m)}:{}),...(content.contactCard&&!previous.contactCard||content.sticker&&!previous.sticker?content:{})};if(Object.keys(patch).length)put('messages',{...previous,...patch});flushZaloReactions(id,conv,get('messages',previous.id));return false;}
   // The self echo may arrive before sendMessage resolves; match only the pending send in this conversation.
   const pending=message.isSelf&&!history?db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.direction')='outgoing' AND json_extract(data,'$.status')='sending' AND json_extract(data,'$.text')=?").all(conv.id,text):[];
   const album=content.albumId?db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.albumId')=? AND json_extract(data,'$.senderId')=? AND json_extract(data,'$.direction')=?").get(conv.id,content.albumId,String(data.uidFrom||''),message.isSelf?'outgoing':'incoming'):null;
@@ -57,6 +58,7 @@ export function ingestMessage(id,message,{history=false}={}){
   const quoteSource=Object.fromEntries(['mentions','content','msgType','propertyExt','uidFrom','msgId','cliMsgId','ts','ttl'].map(k=>[k,data[k]]));
   const msg=put('messages',{...previous,conversationId:conv.id,direction:message.isSelf?'outgoing':'incoming',text,externalId,externalClientId:String(data.cliMsgId||''),senderId:String(data.uidFrom||''),senderName:String(data.dName||get('zalo_profiles',id+':'+String(data.uidFrom||''))?.name||''),messageType:data.msgType||'text',mentions:Array.isArray(data.mentions)?data.mentions.map(({uid,pos,len})=>({uid:String(uid),pos:Number(pos),len:Number(len)})):[],...content,quoteSource,status:message.isSelf?'sent':'received',createdAt:at,sentAt:at,history,...(!history&&!message.isSelf&&!previous?{pushReceivedAt:now()}:{}),...albumPatch});
   const latest=Date.parse(at)>=Date.parse(conv.lastAt||0);
+  flushZaloReactions(id,conv,msg);
   put('conversations',{...conv,...(latest?{lastMessage:text,lastAt:at}:{}),...(!history&&!message.isSelf?{deletedAt:null,archived:conv.deletedAt?false:conv.archived,unread:true,status:'open',lastInboundAt:at,waitingSince:conv.waitingSince||at}:{}),...(message.isSelf&&!history&&latest?{waitingSince:null,slaAlerted:false}:{})});
   db.prepare('INSERT OR IGNORE INTO events(id,source,received_at,payload) VALUES(?,?,?,?)').run(`zalo:${id}:${type}:${thread}:${externalId}`,id,now(),JSON.stringify({messageId:msg.id,history}));
   if(!history&&!message.isSelf&&!album){runWorkflows('message_received',msg);captureLead(get('conversations',conv.id),msg);}
@@ -111,6 +113,9 @@ export function setupListener(id,api,{autoSync=true}={}){
  const pinEvent=event=>{if(!live())return;const data=event.data||{},thread=String(data.conversationId||data.groupId||event.threadId||'');if(!thread)return;const row=db.prepare("SELECT data FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=?").get(id,thread);if(row)void refreshZaloPins(JSON.parse(row.data),true);};
  api.listener.on('friend_event',event=>{if([10,11].includes(event.type))pinEvent(event);});
  api.listener.on('group_event',event=>{if(/pin|board/i.test(event.type||''))pinEvent(event);});
+ const reactionEvent=event=>{if(!live())return;try{ingestZaloReaction(id,event);}catch{state(id,{listenerError:'Không lưu được cảm xúc Zalo; hãy đồng bộ lại.'});}};
+ api.listener.on('reaction',reactionEvent);
+ api.listener.on('old_reactions',batch=>{if(Array.isArray(batch))for(const event of batch)reactionEvent(event);});
  api.listener.on('message',m=>{if(!live())return;try{ingestMessage(id,m);if(!m.isSelf)queueProfile(id,api,String(m.data?.uidFrom||m.threadId||''));if(/sticker/i.test(m.data?.msgType||''))queueStickerHydration(id,api);}catch{state(id,{listenerError:'Không lưu được tin Zalo; hãy đồng bộ lại.'});}});
  api.listener.on('old_messages',batch=>{if(!live())return;try{for(const m of batch)ingestMessage(id,m,{history:true});if(batch.some(m=>/sticker/i.test(m.data?.msgType||'')))queueStickerHydration(id,api);}catch{r.historyError='Không lưu được một phần lịch sử Zalo.';syncState(id,{status:'failed',error:r.historyError});}});
  api.listener.on('connected',()=>{if(live())state(id,{status:'connected',mode:'api',listenerState:'waiting_key',verifiedAt:now(),listenerError:''});});
