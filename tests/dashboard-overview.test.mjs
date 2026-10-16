@@ -1,5 +1,10 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';
 import {learnerCycleSummary} from '../public/learner-cycle-model.js';import {cpuPercent,metricLevel,metricLimits,createSystemMonitor} from '../server/system-metrics.mjs';
+import {readOverviewSource} from '../public/dashboard-overview.js';
+test('overview reads the existing management API with projections and complete pagination, without credentials or personal fields',async()=>{
+ const calls=[];const out=await readOverviewSource(async path=>{calls.push(path);const u=new URL('http://test'+path);assert.ok(u.pathname.startsWith('/proxy/supabase/rest/v1/'));assert.ok(!/api_key|token|sdt|customer_name|email/.test(u.searchParams.get('select')));if(u.pathname.endsWith('/products'))return [];const count=Number(u.searchParams.get('offset'))===0?500:1;return Array.from({length:count},(_,i)=>({customer_id:String(i),status:'ACTIVE',created_at:'2020-01-01'}));});assert.equal(out.stats.total,501);assert.equal(calls.filter(p=>p.includes('/customers?')).length,2);
+ await assert.rejects(readOverviewSource(async()=>({error:'unavailable'})),/danh sách/);
+});
 test('learner cycle boundaries use Vietnam time and preserve dashboard groups, daily opens and product costs',()=>{
  const at=Date.parse('2026-10-16T03:00:00Z'),customers=[
  {customer_id:'new',created_at:'2026-10-16T03:00:00Z',video_date:'',gia_tien:100,is_deposit:true,deposit_amount:20,san_pham:[{id_sp:'P',so_luong:2,don_gia:50}],raw_backup:{video_open_dates:['2026-10-16']}},
