@@ -2,7 +2,7 @@ import { all, get, put, db, now, transaction } from './store.mjs';
 import { remote } from './connectors.mjs';
 import { secret } from './store.mjs';
 import { runWorkflows } from './domain.mjs';
-import { captureLead } from './taophacdo.mjs';
+import { observeCareMessage } from './taophacdo.mjs';
 
 const running = new Set();
 const liveJobs=new Map();
@@ -47,7 +47,7 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
   const msg = put('messages', { conversationId: conv.id, direction: outgoing ? 'outgoing' : 'incoming', text, attachments, sticker, externalId: String(item.id), status: outgoing ? 'sent' : 'received', senderType: outgoing ? 'channel' : 'customer', createdAt, history });
   const latest = !conv.lastAt || createdAt >= conv.lastAt;
   put('conversations', { ...conv, deletedAt: null, archived: conv.deletedAt ? false : conv.archived, ...(latest ? { lastAt: createdAt, lastMessage: text || (sticker?'Sticker':attachments[0]?.name||'Tin nhắn'), unread: !outgoing && (history ? !!unread : true) } : {}), ...(!outgoing && (!conv.lastInboundAt || createdAt > conv.lastInboundAt) ? { lastInboundAt: createdAt, waitingSince: latest ? conv.waitingSince || createdAt : conv.waitingSince } : {}), ...(outgoing && latest ? { waitingSince: null } : {}) });
-  if (!history && !outgoing) { runWorkflows('message_received', msg); captureLead(get('conversations', conv.id), msg); }
+  if (!history && !outgoing) { runWorkflows('message_received', msg); observeCareMessage(get('conversations', conv.id), msg); }
   return msg;
  });
 }

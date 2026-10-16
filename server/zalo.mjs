@@ -10,7 +10,7 @@ import {imageSizeFromFile} from 'image-size/fromFile';
 import {stat} from 'node:fs/promises';
 import { db, put, get, all, now, transaction, saveSecret, secret } from './store.mjs';
 import { runWorkflows } from './domain.mjs';
-import { captureLead } from './taophacdo.mjs';
+import { observeCareMessage } from './taophacdo.mjs';
 
 const instances=new Map(), logins=new Map(), jobs=new Map();
 const pinPolls=new Map();
@@ -61,7 +61,7 @@ export function ingestMessage(id,message,{history=false}={}){
   flushZaloReactions(id,conv,msg);
   put('conversations',{...conv,...(latest?{lastMessage:text,lastAt:at}:{}),...(!history&&!message.isSelf?{deletedAt:null,archived:conv.deletedAt?false:conv.archived,unread:true,status:'open',lastInboundAt:at,waitingSince:conv.waitingSince||at}:{}),...(message.isSelf&&!history&&latest?{waitingSince:null,slaAlerted:false}:{})});
   db.prepare('INSERT OR IGNORE INTO events(id,source,received_at,payload) VALUES(?,?,?,?)').run(`zalo:${id}:${type}:${thread}:${externalId}`,id,now(),JSON.stringify({messageId:msg.id,history}));
-  if(!history&&!message.isSelf&&!album){runWorkflows('message_received',msg);captureLead(get('conversations',conv.id),msg);}
+  if(!history&&!message.isSelf&&!album){runWorkflows('message_received',msg);observeCareMessage(get('conversations',conv.id),msg);}
   return true;
  });
 }
