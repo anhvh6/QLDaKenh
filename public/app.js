@@ -1,3 +1,4 @@
+import {pageDataKey} from './page-data-key.js';
 import {learnerOverviewHTML,systemOverviewHTML,initDashboardOverview,enhanceDashboard} from './dashboard-overview.js';
 import {calendarTypes,calendarMatches,ownCalendarAppointment,calendarChannelMatches} from './calendar-filter.js';
 let calendarSelection=['appointment'],calendarChannels=null;
@@ -59,7 +60,7 @@ const removedConversations = new Set();
 function adoptState(next) { if (removedConversations.size) { next.conversations = next.conversations.filter(c => !removedConversations.has(c.id)); next.messages = next.messages.filter(m => !removedConversations.has(m.conversationId)); } return next; }
 async function loadState() { const previous = S, userId = S?.user?.id; const next = await api('/state' + (previous?.snapshotRevision ? '?since=' + encodeURIComponent(previous.snapshotRevision) : '')); if (next.unchanged) { if (S?.user?.id !== userId) throw Error('Phiên đăng nhập đã thay đổi.'); return S; } return adoptState(next); }
 async function refresh(renderNow = true) { stateLoads++; try { S = await loadState(); updateChatNotifications(S.notifications || []); $('#care-updates')?.remove(); if (renderNow) render(); stateFailures = 0; stateRetryAfter = 0; } catch (err) { stateFailures++; stateRetryAfter = Date.now() + Math.min(120000, 15000 * 2 ** Math.min(stateFailures, 3)); throw err; } finally { stateLoads--; } }
-async function refreshBackground() { if (stateLoads || Date.now() < stateRetryAfter || document.hidden) return; return refresh(); }
+async function refreshBackground() { if (stateLoads || Date.now() < stateRetryAfter || document.hidden) return; const previous=S; await refresh(false); if(previous!==S&&pageDataKey(route,previous)!==pageDataKey(route,S))render(); }
 let updatingInbox = false, inboxRefreshPending = false, inboxRefreshTimer, inboxPaintDeferred = false;
 let liveInboxLoading = false, liveInboxDeferred = false; const liveInboxRevisions = new Map();
 function removeConversations(ids) {
@@ -571,7 +572,7 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeModal(); if (event.key === 'Tab' && $('.modal')) { const focusables = $$('.modal button:not(:disabled),.modal input:not([type=hidden]),.modal select,.modal textarea,.modal a[href]').filter(el => el.offsetParent !== null); const first = focusables[0], last = focusables.at(-1); if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
   if (event.key === 'Enter' && event.target.id === 'global-search') { event.preventDefault(); const q = event.target.value; route = 'content'; location.hash = 'content'; setTimeout(() => { query = q; render(); }, 30); }
 });
-setInterval(async () => { if (!S?.conversations || stateLoads || Date.now() < stateRetryAfter || document.hidden || document.body.dataset.mediaUploading || $('.modal') || document.activeElement?.matches('input,textarea,select') || ['inbox', 'phacdo'].includes(route)) return; try { await refresh(); } catch { } }, 15000);
+setInterval(async () => { if (!S?.conversations || stateLoads || Date.now() < stateRetryAfter || document.hidden || document.body.dataset.mediaUploading || $('.modal') || document.activeElement?.matches('input,textarea,select') || ['inbox', 'phacdo'].includes(route)) return; try { await refreshBackground(); } catch { } }, 15000);
 initPlans({ get state() { return S; }, api, refresh, render, modal, closeModal, toast, navigate, openConversation: id => { selectedConversation = id; route = 'inbox'; location.hash = 'inbox'; render(); } });
 initDeviceNotifications({ getS: () => S, api, toast, openSettings: () => { closeModal(); filter = 'notifications'; route = 'settings'; history.replaceState(null, '', '#settings'); document.body.classList.remove('menu-open'); render(); } });
 initQuickReplies({ get state() { return S; }, api, refresh, render, modal, closeModal, toast });
