@@ -1,3 +1,5 @@
+import {createSystemMonitor} from './system-metrics.mjs';
+import {dashboardLearnerSummary,assertDashboardAdmin} from './dashboard-summary.mjs';
 import {posRoute,posState,posTick,recoverPosJobs,receivePosWebhook} from './pancake-pos.mjs';
 import {automationRoute,automationTick,recoverAutomation} from './copy-automation.mjs';
 import {commentsRoute,commentsTick} from './comments.mjs';
@@ -119,6 +121,8 @@ async function dispatch(req, res, url, user, input) {
     state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
     state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; return stateCache.set(cacheKey, revision, scopeCareChats(care.scopeState(state, user), user));
   }
+  if(path==='/api/dashboard/learners'&&method==='GET')return dashboardLearnerSummary(user);
+  if(path==='/api/system/metrics'&&method==='GET'){assertDashboardAdmin(user);return systemMonitor.snapshot();}
   if (path === '/api/logout' && method === 'POST') { db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id, user.csrf); res.setHeader('Set-Cookie', 'hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'); return { ok: true }; }
   if (path.startsWith('/api/proxy/supabase/')) {
     const targetUrl = 'https://aqtnzvqyljweppklblni.supabase.co' + req.url.substring('/api/proxy/supabase'.length);
@@ -189,7 +193,9 @@ async function webhook(req, res, url) {
     }
   }); for (const c of channels) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
 }
+const systemMonitor=createSystemMonitor();
 const server = http.createServer(async (req, res) => {
+  systemMonitor.request(req,res);
   try {
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);

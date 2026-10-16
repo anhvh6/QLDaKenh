@@ -1,0 +1,21 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';
+import {learnerCycleSummary} from '../public/learner-cycle-model.js';import {cpuPercent,metricLevel,metricLimits,createSystemMonitor} from '../server/system-metrics.mjs';
+test('learner cycle boundaries use Vietnam time and preserve dashboard groups, daily opens and product costs',()=>{
+ const at=Date.parse('2026-10-16T03:00:00Z'),customers=[
+ {customer_id:'new',created_at:'2026-10-16T03:00:00Z',video_date:'',gia_tien:100,is_deposit:true,deposit_amount:20,san_pham:[{id_sp:'P',so_luong:2,don_gia:50}],raw_backup:{video_open_dates:['2026-10-16']}},
+ {created_at:'2026-09-01',start_date:'2026-10-01',end_date:'2026-11-01',video_date:'2026-01-01'},
+ {created_at:'2026-09-01',start_date:'2026-10-01',end_date:'2026-10-21',video_date:'2026-01-01'},
+ {created_at:'2026-10-15',is_consultation:true},
+ {created_at:'2026-10-15',video_date:''},
+ {created_at:'2026-10-16',status:'DELETED',gia_tien:1000},
+ {created_at:'2026-09-01',video_date:'',raw_backup:JSON.stringify({last_video_open_time:'2026-10-15T18:00:00Z'})}];
+ const s=learnerCycleSummary(customers,[{id_sp:'P',gia_nhap:10}],at);assert.equal(s.from,'2026-10-15');assert.equal(s.to,'2026-11-14');assert.deepEqual(s.stats,{new:1,noPlan:1,consultation:1,deposit:1,active:1,expiring:1,total:6,opened:2,profit:100});
+ assert.equal(learnerCycleSummary([],[],Date.parse('2026-10-14T03:00Z')).from,'2026-09-15');assert.equal(learnerCycleSummary([],[],Date.parse('2026-12-31T18:00Z')).to,'2027-01-14');
+});
+test('system thresholds are explicit and unknown values never report healthy',()=>{
+ assert.equal(cpuPercent({idle:100,total:200},{idle:150,total:300}),50);assert.equal(cpuPercent({idle:1,total:1},{idle:1,total:1}),null);
+ assert.equal(metricLevel(null,metricLimits.cpu),'unknown');assert.equal(metricLevel(69,metricLimits.cpu),'healthy');assert.equal(metricLevel(70,metricLimits.cpu),'warning');assert.equal(metricLevel(90,metricLimits.cpu),'danger');
+});
+test('system monitor samples real resources, bounds history and counts requests only once on close and finish',async()=>{
+ const monitor=createSystemMonitor({directory:process.cwd(),interval:100000,capacity:2});try{await new Promise(r=>setTimeout(r,30));const response=new EventEmitter();response.statusCode=500;monitor.request({url:'/api/test'},response);response.emit('finish');response.emit('close');await monitor.sample();await monitor.sample();const data=monitor.snapshot();assert.ok(data.history.length<=2);assert.equal(data.current.errors,100);assert.equal(data.current.active,0);assert.ok(data.current.memory>=0&&data.current.memory<=100);assert.ok(data.current.disk>=0&&data.current.disk<=100);assert.ok(data.current.latency>=0);}finally{monitor.close();}
+});
