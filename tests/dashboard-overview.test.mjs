@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';
 import {learnerCycleSummary} from '../public/learner-cycle-model.js';import {cpuPercent,metricLevel,metricLimits,createSystemMonitor} from '../server/system-metrics.mjs';
-import {readOverviewSource} from '../public/dashboard-overview.js';
+import {readOverviewSource,metricChart} from '../public/dashboard-overview.js';
 test('overview reads the existing management API with projections and complete pagination, without credentials or personal fields',async()=>{
  const calls=[];const out=await readOverviewSource(async path=>{calls.push(path);const u=new URL('http://test'+path);assert.ok(u.pathname.startsWith('/proxy/supabase/rest/v1/'));assert.ok(!/api_key|token|sdt|customer_name|email/.test(u.searchParams.get('select')));if(u.pathname.endsWith('/products'))return [];const count=Number(u.searchParams.get('offset'))===0?500:1;return Array.from({length:count},(_,i)=>({customer_id:String(i),status:'ACTIVE',created_at:'2020-01-01'}));});assert.equal(out.stats.total,501);assert.equal(calls.filter(p=>p.includes('/customers?')).length,2);
  await assert.rejects(readOverviewSource(async()=>({error:'unavailable'})),/danh sách/);
@@ -23,4 +23,20 @@ test('system thresholds are explicit and unknown values never report healthy',()
 });
 test('system monitor samples real resources, bounds history and counts requests only once on close and finish',async()=>{
  const monitor=createSystemMonitor({directory:process.cwd(),interval:100000,capacity:2});try{await new Promise(r=>setTimeout(r,30));const response=new EventEmitter();response.statusCode=500;monitor.request({url:'/api/test'},response);response.emit('finish');response.emit('close');await monitor.sample();await monitor.sample();const data=monitor.snapshot();assert.ok(data.history.length<=2);assert.equal(data.current.errors,100);assert.equal(data.current.active,0);assert.ok(data.current.memory>=0&&data.current.memory<=100);assert.ok(data.current.disk>=0&&data.current.disk<=100);assert.ok(data.current.latency>=0);}finally{monitor.close();}
+});
+test('long-lived notification streams cannot inflate p95; real slow responses remain visible and expire after a minute',async()=>{
+ let time=1000000,tick=0;const reports=[],monitor=createSystemMonitor({directory:process.cwd(),interval:100000,now:()=>time,monotonic:()=>tick,onSlowSample:r=>reports.push(r)});
+ try{await new Promise(r=>setTimeout(r,30));
+  const response=new EventEmitter();response.statusCode=200;response.writableFinished=true;
+  monitor.request({url:'/api/events?token=DO-NOT-LOG'},response);tick=3600000;response.emit('finish');response.emit('close');
+  const fast=new EventEmitter();fast.statusCode=200;fast.writableFinished=true;monitor.request({url:'/api/state'},fast);tick+=12;fast.emit('finish');fast.emit('close');
+  await monitor.sample();assert.equal(monitor.snapshot().current.latency,12);assert.equal(monitor.snapshot().current.requestCount,1);assert.equal(monitor.snapshot().current.active,0);
+  const slow=new EventEmitter();slow.statusCode=200;slow.writableFinished=true;monitor.request({url:'/api/proxy/supabase/rest/v1/customers?token=DO-NOT-LOG'},slow);tick+=1974.6;slow.emit('finish');
+  await monitor.sample();let current=monitor.snapshot().current;assert.ok(Math.abs(current.latency-1974.6)<.001);assert.equal(current.slowGroups[0].name,'Kết nối QL Phác đồ');assert.equal(reports.length,1);assert.ok(!JSON.stringify(reports).includes('DO-NOT-LOG'));
+  await monitor.sample();assert.equal(reports.length,1);time+=61000;await monitor.sample();current=monitor.snapshot().current;assert.equal(current.latency,null);assert.deepEqual(current.slowGroups,[]);
+ }finally{monitor.close();}
+});
+test('HTTP chart keeps threshold labels separate even after a very large outlier',()=>{
+ const html=metricChart('latency',{history:[{latency:3600000},{latency:1974.6}],current:{latency:1974.6}},metricLimits.latency);
+ assert.ok(html.includes('Phản hồi chậm'));assert.ok(html.includes('Cảnh báo ≥ 500 ms'));assert.ok(html.includes('Mức cao ≥ 1500 ms'));assert.ok(!html.includes('<text'));
 });

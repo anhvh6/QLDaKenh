@@ -191,7 +191,7 @@ async function webhook(req, res, url) {
     }
   }); for (const c of channels) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
 }
-const systemMonitor=createSystemMonitor();
+const systemMonitor=createSystemMonitor({onSlowSample:sample=>console.warn('[http-performance]',JSON.stringify(sample))});
 const server = http.createServer(async (req, res) => {
   systemMonitor.request(req,res);
   try {
