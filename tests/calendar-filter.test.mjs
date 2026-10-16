@@ -1,5 +1,10 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {calendarMatches,calendarTypes} from '../public/calendar-filter.js';
 import {ownCalendarAppointment} from '../public/calendar-filter.js';
+import {calendarChannelMatches} from '../public/calendar-filter.js';
+test('calendar channel selection supports all, none and multiple destinations',()=>{
+ assert.equal(calendarChannelMatches(['a'],null),true);assert.equal(calendarChannelMatches(['a'],[]),false);
+ assert.equal(calendarChannelMatches(['a','b'],['b']),true);assert.equal(calendarChannelMatches(['a'],['b']),false);assert.equal(calendarChannelMatches(['a'],['a','b']),true);
+});
 test('appointment color follows assigned staff including multiple recipients and legacy appointments',()=>{
  assert.equal(ownCalendarAppointment({assigneeIds:['a','b'],actor:'c'},'b'),true);
  assert.equal(ownCalendarAppointment({assigneeIds:['a','b'],actor:'c'},'c'),false);
