@@ -8,6 +8,31 @@ const owner={id:'owner',role:'owner'};db.prepare('INSERT INTO users(id,email,nam
 put('connections',{id:'z',provider:'zalo_personal',mode:'api'});put('customers',{id:'p',name:'QA'});
 const c=put('conversations',{id:'c',connectionId:'z',customerId:'p',externalUserId:'123',threadType:0});
 const {progressFor}=await import('../public/learner-progress.js');const {progressState}=await import('../server/consultation-review.mjs');const {reminderPopup}=await import('../public/chat-tools.js');
+const {finishMentionTasks}=await import('../server/staff-tasks.mjs');
+const {chatRoute}=await import('../server/chat.mjs');
+const {activeAppointmentTask}=await import('../public/reminder-model.js');
+
+test('multi-recipient appointments create isolated call tasks and one alert per recipient; replies do not close call tasks',async()=>{
+ db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run('manager','manager@qa.test','Manager','manager','qa');
+ const due=Date.now()+7200000,r=await createChatReminder(owner,c,{title:'Call QA',dueAt:new Date(due).toISOString(),assigneeIds:['owner','manager','manager'],customerReminder:true,reminderMinutes:17,reminderText:'Nhắc khách QA'});
+ assert.deepEqual(r.assigneeIds,['owner','manager']);const tasks=all('staff_handoffs').filter(t=>t.reminderId===r.id);assert.equal(tasks.length,2);
+ for(const id of r.assigneeIds)assert.equal(get('notifications','chat-reminder:created:'+r.id+':'+id).recipientId,id);
+ finishMentionTasks(owner,c.id,'reply-qa');assert.ok(tasks.every(t=>get('staff_handoffs',t.id).status==='open'));
+ let sent=0;await customerReminderTick(due-17*60000,async()=>{sent++;return{id:'qa-customer-reminder'};});await customerReminderTick(due-17*60000+1,async()=>{sent++;});assert.equal(sent,1);
+ for(const id of r.assigneeIds){const n=get('notifications','chat-reminder:advance:'+r.id+':'+id);assert.equal(n.title,'Sắp đến giờ call cho khách');assert.match(n.body,/QA.*Giờ call/);}
+ assert.equal(activeAppointmentTask(tasks[0],due-1),true);assert.equal(activeAppointmentTask(tasks[0],due),false);reminderTick(due);assert.ok(tasks.every(t=>get('staff_handoffs',t.id).status==='resolved'));
+});
+test('invalid or unauthorized recipient rejects the entire appointment before saving tasks or notifications',async()=>{
+ const input={title:'Invalid staff QA',dueAt:new Date(Date.now()+7200000).toISOString()},before=[all('chat_reminders').length,all('staff_handoffs').length,all('notifications').length];
+ db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run('no-channel','scope@qa.test','Support','support','qa');
+ for(const assigneeIds of [[],['owner','missing'],['owner','no-channel'],'owner'])await assert.rejects(createChatReminder(owner,c,{...input,assigneeIds}));
+ assert.deepEqual([all('chat_reminders').length,all('staff_handoffs').length,all('notifications').length],before);
+});
+test('cancelling an appointment closes every assigned call task and prevents automatic customer messages',async()=>{
+ const due=Date.now()+10800000,r=await createChatReminder(owner,c,{title:'Cancel QA',dueAt:new Date(due).toISOString(),assigneeIds:['owner','manager'],customerReminder:true,reminderMinutes:15,reminderText:'Never send'});
+ await chatRoute('/api/chat/reminders/'+r.id,'PATCH',{status:'cancelled',version:r.version},owner,new URL('http://localhost'));
+ assert.ok(all('staff_handoffs').filter(t=>t.reminderId===r.id).every(t=>t.status==='resolved'));await customerReminderTick(due,async()=>{throw Error('Must not send cancelled reminder');});assert.equal(get('chat_reminders',r.id).customerReminderStatus,'pending');
+});
 
 test('creates native reminder once and durable system notification once',async()=>{
  const due=Date.now()+60000;let calls=0;const r=await createChatReminder(owner,c,{title:'Nhắc tư vấn',dueAt:new Date(due).toISOString(),platform:true},async(id,thread,type,title,time)=>{calls++;assert.equal(thread,'123');assert.equal(time,due);return{id:'native'};});
@@ -17,7 +42,7 @@ test('platform failure keeps internal reminder; unsupported channel never invoke
  const input={title:'Nhắc QA',dueAt:new Date(Date.now()+120000).toISOString(),platform:true};const r=await createChatReminder(owner,c,input,async()=>{throw Error('offline');});assert.equal(r.platformStatus,'failed');assert.equal(r.status,'pending');
  put('connections',{id:'other',provider:'facebook',mode:'api'});const other=put('conversations',{id:'other-c',connectionId:'other',customerId:'p'});const x=await createChatReminder(owner,other,input,async()=>{throw Error('must not call');});assert.equal(x.platformStatus,'unsupported');
  await assert.rejects(createChatReminder(owner,c,{...input,assignee:'missing'}));await assert.rejects(createChatReminder(owner,c,{...input,dueAt:'invalid'}));
- put('chat_reminders',{...r,status:'cancelled'});assert.equal(reminderTick(Date.now()+200000),1);assert.equal(all('notifications').length,2);
+ put('chat_reminders',{...r,status:'cancelled'});assert.equal(reminderTick(Date.now()+200000),1);assert.equal(all('notifications').filter(n=>n.id==='chat-reminder:'+x.id||n.id==='chat-reminder:'+r.id).length,1);
 });
 
 test('opaque Zalo errors preserve code and empty success is not reported as created',async()=>{

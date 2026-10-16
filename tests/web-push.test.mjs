@@ -10,6 +10,12 @@ const user={id:'push-owner',role:'owner'},staff={id:'push-staff',role:'support'}
 for(const u of [user,staff,outsider]){db.prepare('INSERT INTO users VALUES(?,?,?,?,?,1)').run(u.id,u.id+'@test.invalid',u.id,u.role,'unused');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(u.id,u.id,'unused',Date.now()+3600000);}
 put('connections',{id:'push-channel',status:'connected'});put('team_members',{userId:staff.id,teamId:'push-team'});put('channel_teams',{teamId:'push-team',connectionId:'push-channel'});put('conversations',{id:'push-chat',connectionId:'push-channel',title:'Private customer'});
 const sub={endpoint:'https://fcm.googleapis.com/fcm/send/test-only',keys:{p256dh:'A'.repeat(87),auth:'B'.repeat(22)}},prefs={messages:true,reminders:true,handoffs:true,sound:true};
+test('appointment pushes show call details only to the recipient and respect preview privacy without a duplicate task push',()=>{
+ const n={id:'chat-reminder:advance:qa',reminderId:'qa',recipientId:staff.id,conversationId:'push-chat',title:'Sắp đến giờ call cho khách',body:'Khách QA · Giờ call: 15:30'};
+ assert.equal(eventFor('notifications',n,staff,prefs).body,n.body);assert.equal(eventFor('notifications',n,user,prefs),null);
+ assert.ok(!eventFor('notifications',n,staff,{...prefs,preview:false}).body.includes('Khách QA'));
+ assert.equal(eventFor('staff_handoffs',{...n,taskType:'appointment',assignedStaffId:staff.id,status:'open'},staff,prefs),null);
+});
 test('subscription validation rejects private networks, credentials, lookalike domains and invalid keys',()=>{
  assert.equal(validSubscription(sub),true);
  for(const endpoint of ['http://fcm.googleapis.com/path','https://127.0.0.1/','https://fcm.googleapis.com.evil.invalid/','https://user@fcm.googleapis.com/','https://fcm.googleapis.com:444/'])assert.equal(validSubscription({...sub,endpoint}),false);

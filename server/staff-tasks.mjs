@@ -2,7 +2,7 @@ import {all,put,now,audit} from './store.mjs';
 // Completion follows a successful staff reply, never an AI reply or internal note.
 export function finishMentionTasks(user,conversationId,messageId){
  if(user.botId)return;
- for(const task of all('staff_handoffs').filter(h=>h.taskType!=='consultation-review'&&h.conversationId===conversationId&&(h.assignedStaffId===user.id||h.source!=='mention'&&['owner','manager'].includes(user.role))&&!['resolved','done','completed','cancelled'].includes(h.status))){
+ for(const task of all('staff_handoffs').filter(h=>h.taskType!=='consultation-review'&&h.taskType!=='appointment'&&h.conversationId===conversationId&&(h.assignedStaffId===user.id||h.source!=='mention'&&['owner','manager'].includes(user.role))&&!['resolved','done','completed','cancelled'].includes(h.status))){
   put('staff_handoffs',{...task,status:'resolved',resolvedBy:user.id,resolvedAt:now(),completedAt:now(),resolvedMessageId:messageId},task.version);
   audit(user.id,'mention_task_resolved',task.id,{messageId});
  }

@@ -1,10 +1,11 @@
+import {reminderRecipients,activeAppointmentTask} from '../public/reminder-model.js';
 import { syncFacebookChat, syncFacebookConversation } from './facebook-chat.mjs';
 import {createHash} from 'node:crypto';
 import {studentOverview} from '../public/student-overview.js';
 import {linkPreview} from './chat-link-preview.mjs';
 import {consultationRoute} from './consultation-review.mjs';
 import {readContactCard,refreshZaloPins,changeZaloPin} from './zalo.mjs';
-import {createChatReminder} from './chat-reminders.mjs';
+import {createChatReminder,closeReminderTasks} from './chat-reminders.mjs';
 import {sendContactCard} from './zalo.mjs';
 import {purgeChats,purgePreview} from './customer-purge.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
@@ -26,7 +27,7 @@ export function chatConversation(user,id){
 export function patchChat(user,id,input){
  const c=chatConversation(user,id);if(input.version!==c.version)fail('Hội thoại đã thay đổi. Hãy tải lại.',409);
  const next={...c};
- if(input.dismissCareTask===true){const tasks=[...all('staff_handoffs').filter(t=>t.conversationId===c.id&&t.assignedStaffId===user.id),...all('chat_reminders').filter(t=>t.conversationId===c.id&&t.assignee===user.id)];if(tasks.some(t=>!['done','resolved','completed','cancelled'].includes(t.status)&&!t.completedAt))fail('Hãy hoàn thành nhắc việc trước khi ẩn hội thoại.');next.careTaskDismissed={...c.careTaskDismissed,[user.id]:now()};}
+ if(input.dismissCareTask===true){const tasks=[...all('staff_handoffs').filter(t=>t.conversationId===c.id&&t.assignedStaffId===user.id&&activeAppointmentTask(t)),...all('chat_reminders').filter(t=>t.conversationId===c.id&&reminderRecipients(t).includes(user.id)&&Date.parse(t.dueAt)>Date.now())];if(tasks.some(t=>!['done','resolved','completed','cancelled'].includes(t.status)&&!t.completedAt))fail('Hãy hoàn thành nhắc việc trước khi ẩn hội thoại.');next.careTaskDismissed={...c.careTaskDismissed,[user.id]:now()};}
  for(const key of ['pinned','archived','unread'])if(input[key]!==undefined){if(typeof input[key]!=='boolean')fail('Giá trị không hợp lệ.');next[key]=input[key];}
  if(input.status!==undefined){if(!['open','pending','resolved'].includes(input.status))fail('Trạng thái không hợp lệ.');next.status=input.status;}
  if(input.tags!==undefined){if(!Array.isArray(input.tags)||input.tags.length>30||input.tags.some(t=>typeof t!=='string'||t.length>40))fail('Nhãn không hợp lệ.');next.tags=[...new Set(input.tags)];}
@@ -198,7 +199,7 @@ export async function chatRoute(path,method,input,user,url){
   const r=get('chat_reminders',match[1]);if(!r)fail('Không tìm thấy nhắc hẹn.',404);chatConversation(user,r.conversationId);
   if(input.version!==r.version)fail('Nhắc hẹn đã thay đổi. Hãy tải lại.',409);
   if(!['done','cancelled'].includes(input.status))fail('Trạng thái không hợp lệ.');
-  const result=put('chat_reminders',{...r,status:input.status,completedAt:now()},input.version);audit(user.id,'chat_reminder_updated',r.id);return result;
+  const result=put('chat_reminders',{...r,status:input.status,completedAt:now()},input.version);closeReminderTasks(r.id);audit(user.id,'chat_reminder_updated',r.id);return result;
  }
  match=path.match(/^\/api\/chat\/messages\/([^/]+)$/);
  if(match&&method==='PATCH'){

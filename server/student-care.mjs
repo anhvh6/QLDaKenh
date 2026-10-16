@@ -4,6 +4,7 @@ import {fail,permission} from './domain.mjs';
 import {learnerStages} from '../public/learner-progress.js';
 import {carePolicy,canReadCare,receivesCare,visibleCare,careTaskAccess} from '../public/student-care.js';
 import {studyPlanStatus} from './plan-access.mjs';
+import {reminderRecipients} from '../public/reminder-model.js';
 
 export function studentCareState(){
  const facts=new Map(all('learner_source_facts').map(f=>[f.id,f]));
@@ -41,6 +42,7 @@ export function validateCareStaff(input){
 export function filterCareNotifications(rows,user,source=studentCareState(),policies=new Map()){
  const conversations=new Map(source.conversations.map(c=>[c.id,c])),access=new Map();
  return rows.filter(n=>{if(n.recipientId&&n.recipientId!==user.id)return false;if(!n.conversationId)return true;
+  if(n.reminderId){const r=(source.chat_reminders||[]).find(r=>r.id===n.reminderId);const c=conversations.get(n.conversationId);if(c&&!c.deletedAt&&r?.conversationId===c.id&&reminderRecipients(r).includes(user.id))return true;}
   if(!access.has(n.conversationId)){const c=conversations.get(n.conversationId);access.set(n.conversationId,!!c&&!c.deletedAt&&canReadCare(source,c,user)&&receivesCare(source,c,user,policies.get(c.id)||carePolicy(source,c)));}
   return access.get(n.conversationId);
  });

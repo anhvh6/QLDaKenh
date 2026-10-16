@@ -1,3 +1,4 @@
+import {reminderRecipients,activeAppointmentTask} from './reminder-model.js';
 import {learnerStages,progressFor} from './learner-progress.js';
 import {groupLearner} from './group-learner.js';
 import {nameStatuses} from './chat-names.js';
@@ -13,7 +14,7 @@ export function carePolicy(state,c){
  return {stage,configured:true,manual:Object.keys(c.carePermissions||{}).length>0,inheritedPermissions,staffPermissions,notifyStaffIds:[...ids].filter(id=>staffPermissions[id].receive&&!staffPermissions[id].mute),readStaffIds:[...ids].filter(id=>staffPermissions[id].receive)};
 }
 export function careTaskAccess(state,c,user){
- const tasks=[...(state.staff_handoffs||state.staffHandoffs||[]).filter(t=>t.conversationId===c.id&&t.assignedStaffId===user.id),...(state.chat_reminders||[]).filter(t=>t.conversationId===c.id&&t.assignee===user.id)];
+ const tasks=[...(state.staff_handoffs||state.staffHandoffs||[]).filter(t=>t.conversationId===c.id&&t.assignedStaffId===user.id&&activeAppointmentTask(t)),...(state.chat_reminders||[]).filter(t=>t.conversationId===c.id&&reminderRecipients(t).includes(user.id)&&Date.parse(t.dueAt)>Date.now())];
  const closed=t=>['done','resolved','completed','cancelled'].includes(t.status)||!!t.completedAt;
  const acknowledged=c.careTaskDismissed?.[user.id]||'';
  const live=tasks.filter(t=>!closed(t)||String(t.completedAt||t.updatedAt||t.createdAt)>acknowledged);

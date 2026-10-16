@@ -42,6 +42,7 @@ export function eventFor(kind,r,user,p){
   if(!p.messages||r.direction!=='incoming'||r.deletedAt||r.history===true)return null;
   try{permission(user,'inbox');}catch{return null;}
  }else if(kind==='staff_handoffs'){
+  if(r.taskType==='appointment')return null; // Appointment notifications already target each selected recipient.
   if(!p.handoffs||r.assignedStaffId!==user.id||['done','resolved','completed','cancelled'].includes(r.status)||r.completedAt)return null;
  }else return null;
  const c=r.conversationId?get('conversations',r.conversationId):null;
@@ -49,6 +50,7 @@ export function eventFor(kind,r,user,p){
  if(c){const state=studentCareState();if(!channelConnected(get('connections',c.connectionId))||!canReadCare(state,c,user)||kind==='messages'&&!receivesCare(state,c,user))return null;}
  const type=kind==='messages'?'message':kind==='staff_handoffs'?'handoff':r.id.startsWith('chat-reminder:')?'reminder':'notification';
  let title={message:'Có tin nhắn mới',handoff:'Yêu cầu nhân viên xử lý',reminder:'Đến giờ nhắc hẹn',notification:'Có thông báo mới'}[type],body='Mở MeGa Phương để xem nội dung.';
+ if(kind==='notifications'&&r.reminderId&&p.preview!==false){title=String(r.title||title).slice(0,100);body=String(r.body||body).slice(0,350);}
  if(type==='message'&&p.preview!==false){const name=(c?.customerId?get('customers',c.customerId)?.name:null)||c?.title||'Khách hàng';title=(c?.threadType===1?(r.senderName||'Thành viên')+' · '+(c.title||'Nhóm'):name).slice(0,100);body=String(r.contactCard?'Đã gửi danh thiếp':r.sticker?'Đã gửi sticker':r.text||((r.attachments||[]).length?'Đã gửi tệp hoặc hình ảnh':'Bạn có tin nhắn mới.')).slice(0,350);}
  return {title,body,url:type==='handoff'?'/#handoffs':c?'/?conversation='+encodeURIComponent(c.id)+'#'+(c.kind==='comment'?'comments':'inbox'):'/#inbox',tag:c?'hub-chat-'+c.id:'hub-'+type};
 }
