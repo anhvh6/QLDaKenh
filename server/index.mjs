@@ -1,3 +1,4 @@
+import {orderRoutingState,saveOrderRouting} from './order-routing.mjs';
 import {createSystemMonitor} from './system-metrics.mjs';
 import {posRoute,posState,posTick,recoverPosJobs,receivePosWebhook} from './pancake-pos.mjs';
 import {automationRoute,automationTick,recoverAutomation} from './copy-automation.mjs';
@@ -117,9 +118,10 @@ async function dispatch(req, res, url, user, input) {
     state.studentCareSettings = get('settings', 'student-care') || { version: 0, stages: {} };
     state.settings = get('settings', 'general') || { id: 'general', name: 'Mộc Workspace', timezone: 'Asia/Ho_Chi_Minh' };
     if (user.role !== 'owner') state.connections = state.connections.map(({ accountId, apiVersion, ...c }) => c);
-    state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
+    state.orderRouting=orderRoutingState();state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
     state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; return stateCache.set(cacheKey, revision, scopeCareChats(care.scopeState(state, user), user));
   }
+  if(path==='/api/order-routing'&&method==='POST')return saveOrderRouting(user,input);
   if(path==='/api/system/metrics'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được xem chỉ số hệ thống.',403);return systemMonitor.snapshot();}
   if (path === '/api/logout' && method === 'POST') { db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id, user.csrf); res.setHeader('Set-Cookie', 'hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'); return { ok: true }; }
   if (path.startsWith('/api/proxy/supabase/')) {

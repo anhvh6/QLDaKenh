@@ -3,9 +3,12 @@ import {db,all,get,put,remove,saveSecret,secret,transaction,audit,now,uid} from 
 import {inbound,changeSequence,phoneExpression} from './pancake-storage.mjs';
 import {pancakeRequest,pancakePages,pancakeReadBack} from './pancake-api.mjs';
 import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount,customerAddresses,orderCode,writableProduct} from './pancake-model.mjs';
+import {permission} from './domain.mjs';
+import {assertCustomer} from './taophacdo.mjs';
 
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const kinds=['products','customers','orders'];
+const acceptsOrder=(a,o)=>!o.fulfillmentTarget||o.fulfillmentTarget==='pos:'+a.id&&o.posDispatchRequested===true;
 export function posCustomerEligible(customer){
  if(!customer||customer.deletedAt||customer.mergedInto)return false;
  if(fields('customers',customer).phone&&String(customer.address||'').trim())return true;
@@ -104,6 +107,7 @@ async function remoteCurrent(a,kind,link,r){
 
 async function push(a,j,request){
  const r=reqFor(a,request),current=get(j.kind,j.localId);if(!current)return put('pos_jobs',{...j,state:'skipped',error:'Dữ liệu nội bộ không còn.'});
+ if(j.kind==='orders'&&!acceptsOrder(a,current))return put('pos_jobs',{...j,state:'skipped',error:'',skipReason:'Đơn chọn nơi xử lý khác hoặc chưa yêu cầu gửi POS.'});
  if(j.kind==='customers'&&!posCustomerEligible(current))return skipCustomer(j);
  let link=linkFor(a,j.kind,j.localId),remote=link?await remoteCurrent(a,j.kind,link,r):await locate(a,j.kind,current,r);
  if(remote&&!link){await applyPosRow(a,j.kind,remote);link=linkFor(a,j.kind,current.id);if(!link)fail('Bản ghi POS đã liên kết với hồ sơ khác. Cần đối soát.',409);if(get('pos_jobs',j.id)?.state==='conflict'&&!j.force)fail('Bản ghi đã tồn tại ở POS với thông tin khác. Chọn bên cần giữ.',409);}
@@ -151,7 +155,7 @@ async function push(a,j,request){
 
 function capture(a){
  const changes=db.prepare('SELECT seq,kind,record_id FROM pos_change_log WHERE seq>? ORDER BY seq LIMIT 1000').all(a.changeCursor||0);
- for(const change of changes){let kind=change.kind,id=change.record_id,inventory=null;if(kind==='stock'){const stock=get('stock',id);if(stock?.type!=='adjustment')continue;id=stock.productId;kind='products';const p=get('products',id);if(p)inventory={quantity:Math.max(0,Number(p.stock||0)-Number(p.reserved||0))};}if(kind==='shipments'){const s=get('shipments',id);id=s?.orderId;kind='orders';const o=id?get('orders',id):null;if(o&&s?.tracking&&(o.posTracking!==s.tracking||o.posCarrier!==s.carrier))inbound(()=>put('orders',{...o,posTracking:s.tracking,posCarrier:s.carrier}));}const row=id?get(kind,id):null;if(!row)continue;if(row.posSourceAccountId&&row.posSourceAccountId!==a.id)continue;if(!a.pushLocal&&row.posSourceAccountId!==a.id&&!linkFor(a,kind,id))continue;
+ for(const change of changes){let kind=change.kind,id=change.record_id,inventory=null;if(kind==='stock'){const stock=get('stock',id);if(stock?.type!=='adjustment')continue;id=stock.productId;kind='products';const p=get('products',id);if(p)inventory={quantity:Math.max(0,Number(p.stock||0)-Number(p.reserved||0))};}if(kind==='shipments'){const s=get('shipments',id);id=s?.orderId;kind='orders';const o=id?get('orders',id):null;if(o&&s?.tracking&&(o.posTracking!==s.tracking||o.posCarrier!==s.carrier))inbound(()=>put('orders',{...o,posTracking:s.tracking,posCarrier:s.carrier}));}const row=id?get(kind,id):null;if(!row)continue;if(kind==='orders'&&!acceptsOrder(a,row))continue;if(row.posSourceAccountId&&row.posSourceAccountId!==a.id)continue;if(!a.pushLocal&&row.posSourceAccountId!==a.id&&!linkFor(a,kind,id))continue;
   const existing=get('pos_jobs',linkId(a,kind,id)),link=linkFor(a,kind,id);if(['sending','unknown','conflict'].includes(existing?.state))continue;if(link?.localHash!==hash(fields(kind,row))||inventory)job(a,kind,id,{...(inventory?{inventory}:{})});
  }
  if(changes.length)setAccount(a,{changeCursor:changes.at(-1).seq});
@@ -171,7 +175,7 @@ export async function posTick(request){
    if(!active(account(a.id)))continue;
    if((!a.nextPullAt||Date.now()>=a.nextPullAt)&&(a.forcePull||!a.lastPullAt||Date.now()-Date.parse(a.lastPullAt)>=30000))await pull(account(a.id),request);
    for(const error of all('pos_errors').filter(e=>e.accountId===a.id&&e.state==='open').slice(0,20)){const row=get('pos_remote',error.id)?.data;if(row)try{await applyPosRow(a,error.kind,row);put('pos_errors',{...error,state:'resolved'});}catch{}}
-   a=account(a.id);if(a.pushExisting){for(const kind of kinds)for(const row of all(kind)){if(row.posSourceAccountId&&row.posSourceAccountId!==a.id)continue;const l=linkFor(a,kind,row.id),pending=get('pos_jobs',linkId(a,kind,row.id));if(!a.pushLocal&&!l&&row.posSourceAccountId!==a.id)continue;if(l?.localHash!==hash(fields(kind,row))&&!['conflict','unknown','sending'].includes(pending?.state))job(a,kind,row.id);}setAccount(a,{pushExisting:false});}
+   a=account(a.id);if(a.pushExisting){for(const kind of kinds)for(const row of all(kind)){if(kind==='orders'&&!acceptsOrder(a,row))continue;if(row.posSourceAccountId&&row.posSourceAccountId!==a.id)continue;const l=linkFor(a,kind,row.id),pending=get('pos_jobs',linkId(a,kind,row.id));if(!a.pushLocal&&!l&&row.posSourceAccountId!==a.id)continue;if(l?.localHash!==hash(fields(kind,row))&&!['conflict','unknown','sending'].includes(pending?.state))job(a,kind,row.id);}setAccount(a,{pushExisting:false});}
   }catch(e){const failures=(account(a.id).pullFailures||0)+1;setAccount(a,{lastError:e.message,pullFailures:failures,nextPullAt:Date.now()+Math.min(300000,5000*2**failures),syncPhase:'Cần kiểm tra',...(e.status===401?{status:'authentication_error'}:{})});}
  }}finally{running=false;}
 }
@@ -179,7 +183,23 @@ export async function posTick(request){
 export function posState(user){if(user?.role!=='owner')return null;return {accounts:all('pos_accounts').map(a=>({...a,counts:{linked:links(a).length,queued:all('pos_jobs').filter(j=>j.accountId===a.id&&['queued','sending'].includes(j.state)).length,issues:all('pos_jobs').filter(j=>j.accountId===a.id&&['failed','conflict','unknown'].includes(j.state)).length}})),issues:all('pos_jobs').filter(j=>['failed','conflict','unknown'].includes(j.state)).slice(0,100).map(({target,remoteTarget,...j})=>({...j,name:get(j.kind,j.localId)?.name||get(j.kind,j.localId)?.code||j.localId})),inboundErrors:all('pos_errors').filter(e=>e.state==='open').slice(0,30)};}
 export function receivePosWebhook(id,headers,payload,schedule=()=>void posTick().catch(e=>console.error('POS webhook worker:',e.message))){const a=account(id),expected=secret(keyFor(id)).webhookToken,supplied=String(headers['x-api-key']||'');if(!active(a)||!expected||supplied.length>512||Buffer.byteLength(supplied)!==Buffer.byteLength(expected)||!timingSafeEqual(Buffer.from(supplied),Buffer.from(expected)))fail('Webhook POS không hợp lệ.',403);const shop=payload?.shop_id??payload?.data?.record?.shop_id;if(shop!==undefined&&String(shop)!==String(a.shopId))fail('Webhook không thuộc shop.',403);if(!payload||typeof payload!=='object'||Array.isArray(payload))fail('Nội dung webhook không hợp lệ.');const eventId=id+':'+hash(payload);if(get('pos_hook_events',eventId))return {ok:true,duplicate:true};transaction(()=>{put('pos_hook_events',{id:eventId,accountId:id,receivedAt:now()});setAccount(a,{forcePull:true,lastWebhookAt:now()});});schedule();return {ok:true};}
 export async function posRoute(path,method,input,user,url,request=pancakeRequest){
- if(!path.startsWith('/api/pos/'))return undefined;owner(user);
+ if(!path.startsWith('/api/pos/'))return undefined;
+ const dispatch=path.match(/^\/api\/pos\/orders\/([^/]+)\/dispatch$/);
+ if(dispatch&&['POST','GET'].includes(method)){
+  permission(user,'orders');let o=get('orders',dispatch[1]);if(!o)fail('Không tìm thấy đơn hàng.',404);assertCustomer(user,o.customerId);
+  const accountId=o.fulfillmentTarget?.startsWith('pos:')?o.fulfillmentTarget.slice(4):String(input.accountId||'');const a=account(accountId);
+  if(o.fulfillmentTarget&&o.fulfillmentTarget!=='pos:'+a.id)fail('Đơn đã chọn nơi xử lý khác. Không gửi đồng thời hai bên.',409);
+  if(method==='POST'){
+   if(!active(a)||!a.warehouseId)fail('Kết nối POS hoặc kho đã ngắt. Kiểm tra Cài đặt → Pancake POS.',409);
+   if(!o.phone||!o.address||!o.receiverName)fail('Nhập đủ tên, số điện thoại và địa chỉ nhận hàng trước khi gửi POS.',422);
+   const existing=get('pos_jobs',linkId(a,'orders',o.id));
+   if(!o.posDispatchRequested)o=put('orders',{...o,fulfillmentTarget:'pos:'+a.id,posDispatchRequested:true});
+   if(!existing||['failed','skipped'].includes(existing.state))job(a,'orders',o.id);
+  }
+  const j=get('pos_jobs',linkId(a,'orders',o.id)),link=linkFor(a,'orders',o.id),r=link?.remote;
+  return {orderId:o.id,code:o.code,accountId:a.id,shopName:a.shopName||a.name,state:j?.state||'queued',error:j?.error||'',syncedAt:j?.syncedAt||link?.syncedAt||null,remote:r?{id:remoteId('orders',r),code:orderCode(r),status:r.status,warehouseId:r.warehouse_id,receiver:r.shipping_address?.full_name||r.bill_full_name,phone:r.shipping_address?.phone_number||r.bill_phone_number,address:r.shipping_address?.full_address,email:r.bill_email,items:r.items,total:Number(r.total_price??o.total),paid:paidAmount(r),shippingFee:Number(r.shipping_fee||0),tracking:r.partner?.extend_code||r.partner?.order_number_vtp||'',carrier:r.partner?.partner_name||'',updatedAt:r.updated_at}:null};
+ }
+ owner(user);
  if(path==='/api/pos/state'&&method==='GET')return posState(user);
  if(path==='/api/pos/discover'&&method==='POST'){
   const apiKey=String(input.apiKey||'').trim();if(apiKey.length<12||apiKey.length>4096)fail('Nhập API key Pancake POS.');const result=await request(apiKey,'/shops');if(!Array.isArray(result.shops)||!result.shops.length)fail('API key chưa có shop nào được cấp quyền.',422);

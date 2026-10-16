@@ -82,5 +82,15 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   put('orders',{id:'order-only-draft',code:'ORDER-ONLY-QA',customerId:c.id,receiverName:c.name,phone:c.phone,address:'',status:'draft',items:[],paid:0});await posTick(request);
   assert.equal(all('pos_jobs').find(j=>j.localId===c.id).state,'done');assert.equal(remote.customers.filter(x=>x.phone_numbers.includes(c.phone)).length,1);assert.equal(remote.orders.filter(x=>x.custom_id==='ORDER-ONLY-QA').length,1);
  });
+ await t.test('explicit POS dispatch is gated, idempotent, returns receipt, and never pushes other destinations',async()=>{
+  const selected=put('orders',{...get('orders',order.id),id:'selected-order',code:'SELECTED-POS-QA',status:'draft',posTracking:'',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
+  await posTick(request);assert.equal(remote.orders.some(o=>o.custom_id===selected.code),false);
+  let result=await route('/api/pos/orders/'+selected.id+'/dispatch','POST',{accountId:account.id});assert.equal(result.state,'queued');await posTick(request);
+  result=await route('/api/pos/orders/'+selected.id+'/dispatch');assert.equal(result.state,'done');assert.ok(result.remote.id);assert.equal(result.remote.address,selected.address);assert.equal(result.remote.warehouseId,'warehouse-1');assert.ok(!JSON.stringify(result).includes(apiKey));
+  await route('/api/pos/orders/'+selected.id+'/dispatch','POST',{accountId:account.id});await posTick(request);assert.equal(remote.orders.filter(o=>o.custom_id===selected.code).length,1);
+  put('orders',{...selected,id:'vtp-only-order',code:'VTP-ONLY-QA',fulfillmentTarget:'vtp:example'});await posTick(request);assert.equal(remote.orders.some(o=>o.custom_id==='VTP-ONLY-QA'),false);
+  const job=all('pos_jobs').find(j=>j.localId===selected.id&&j.kind==='orders');put('pos_jobs',{...job,state:'unknown',error:'Lost acknowledgement'});await route('/api/pos/orders/'+selected.id+'/dispatch','POST');assert.equal(get('pos_jobs',job.id).state,'unknown');
+  await assert.rejects(posRoute('/api/pos/orders/'+selected.id+'/dispatch','GET',{}, {id:'viewer',role:'viewer'},new URL('http://localhost'),request),{status:403});
+ });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
 });

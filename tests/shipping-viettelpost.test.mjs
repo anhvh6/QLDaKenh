@@ -150,3 +150,5 @@ test('editing connection preserves defaults and retained API token without re-ex
  const updated=await shippingRoute('/api/shipping/accounts','POST',{id:before.id,version:before.version,name:before.name,authMode:'website-token',token:''},owner,async(env,path,options)=>{assert.equal(path,'/v2/user/listInventory');assert.equal(options.token,'retained-api-token');return [];});
  assert.equal(updated.isDefault,true);assert.equal(updated.defaultService,'VMCH');assert.deepEqual(updated.sender,before.sender);assert.equal(updated.authMethod,'LoginVTP');
 });
+
+test('POS-routed orders cannot create a direct carrier shipment',async()=>{const o=newOrder();put('orders',{...o,fulfillmentTarget:'pos:other'});let calls=0;await assert.rejects(dispatchShipment(owner,o.id,body(o),async()=>{calls++;}),{status:409});assert.equal(calls,0);});

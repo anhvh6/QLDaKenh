@@ -61,7 +61,7 @@ export function shipmentPayload(order,customer,a,input){
  return {ORDER_NUMBER:order.code,SENDER_FULLNAME:from.name,SENDER_PHONE:from.phone,SENDER_ADDRESS:from.address,PICKUP_DATE:'',PICKUP_CODE:'',DELIVERY_CODE:'',ENABLE_SORT_CODE:false,RECEIVER_FULLNAME:receiverName,RECEIVER_PHONE:receiverPhone,RECEIVER_ADDRESS:receiverAddress,PRODUCT_NAME:items.map(i=>i.name).join(', ').slice(0,250),PRODUCT_QUANTITY:items.reduce((n,i)=>n+i.quantity,0),PRODUCT_PRICE:value,PRODUCT_WEIGHT:weight,PRODUCT_LENGTH:length,PRODUCT_WIDTH:width,PRODUCT_HEIGHT:height,ORDER_PAYMENT:payment,ORDER_SERVICE:service,ORDER_SERVICE_ADD:String(input.additionalServices||'').slice(0,100)||null,PRODUCT_TYPE:'HH',ORDER_NOTE:String(input.shippingNote||order.note||'').slice(0,500),MONEY_COLLECTION:cod,EXTRA_MONEY:0,CHECK_UNIQUE:true,PRODUCT_DETAIL:items.map(i=>({PRODUCT_NAME:i.name,PRODUCT_QUANTITY:i.quantity,PRODUCT_PRICE:i.price,PRODUCT_WEIGHT:get('products',i.productId)?.weight||0}))};
 }
 export async function dispatchShipment(user,id,input,request=vtpRequest){
- const o=get('orders',id);shippingAccess(user,o);if(!['draft','confirmed'].includes(o.status)||o.requiresShipping===false)fail('Đơn không thể tạo vận đơn.');
+ const o=get('orders',id);shippingAccess(user,o);if(o.fulfillmentTarget&&o.fulfillmentTarget!=='vtp:'+input.accountId)fail('Đơn đã chọn nơi xử lý khác. Không gửi đồng thời hai bên.',409);if(!['draft','confirmed'].includes(o.status)||o.requiresShipping===false)fail('Đơn không thể tạo vận đơn.');
  const a=account(input.accountId);let payload=shipmentPayload(o,get('customers',o.customerId),a,input);
  if(o.version!==Number(input.version))fail('Đơn đã thay đổi. Tải lại trước khi gửi.',409);
  if(inFlight.has(id))fail('Đang gửi đơn này.',409);
