@@ -1,3 +1,4 @@
+import {learnerRecord,learnerRows} from './learner-lookups.js';
 import {deletedLearner} from './learner-progress.js';
 import {staffControls} from './care-staff-ui.js';
 export const nameConditions={manual:'Gán thủ công cho khách',zalo_not_friend:'Chưa kết bạn Zalo',zalo_friend:'Đã kết bạn Zalo',deposit:'Đã cọc tiền (chưa thu đủ)',no_plan:'Chưa có phác đồ',plan_active:'Phác đồ còn hiệu lực',plan_expiring:'Phác đồ sắp hết hạn',plan_expired:'Phác đồ đã hết hạn',tag:'Có nhãn hội thoại'};
@@ -13,8 +14,8 @@ export const defaultNameSettings={id:'chat-names',version:0,expiringDays:7,rules
 export const chatName=(c,p)=>c.threadType===1?(c.localGroupName&&c.title?c.title:c.group?.name||c.title||p?.name||'Nhóm'):(p?.name||c.title||'Chưa có tên');
 export function nameStatuses(S,c,config=S.chatNameSettings||defaultNameSettings,time=Date.now()){
  if(c.threadType===1)return [];
- const p=S.customers.find(p=>p.id===c.customerId)||{},ch=S.connections.find(ch=>ch.id===c.connectionId),j=(S.journeys||[]).find(j=>j.customerId===p.id);
- const plan=(S.chatPlanSummaries||[]).find(r=>r.customerId===p.id),saved=(S.plan_handoffs||[]).some(h=>h.customerId===p.id&&h.status==='saved_local');
+ const p=learnerRecord(S,'customers',c.customerId)||{},ch=learnerRecord(S,'connections',c.connectionId),j=learnerRows(S,'journeys',p.id)[0];
+ const plan=learnerRows(S,'chatPlanSummaries',p.id)[0],saved=learnerRows(S,'plan_handoffs',p.id).some(h=>h.status==='saved_local');
  const hasPlan=!deletedLearner(p)&&!deletedLearner(plan)&&(!!plan||saved||!!(p.origin==='taophacdo'&&(p.video_date||p.is_customized)));
  const start=plan?.startDate||j?.startDate||p.start_date,end=plan?.endDate||j?.endDate||p.end_date;
  const endTime=end?Date.parse(end+'T23:59:59.999+07:00'):NaN,startTime=start?Date.parse(start+'T00:00:00+07:00'):-Infinity;
@@ -22,7 +23,7 @@ export function nameStatuses(S,c,config=S.chatNameSettings||defaultNameSettings,
  const expired=hasPlan&&Number.isFinite(endTime)&&endTime<time;
  const active=valid&&startTime<=time&&Number.isFinite(endTime)&&endTime>=time;
  const expiring=active&&Math.ceil((endTime-time)/86400000)<=config.expiringDays;
- const facts={zalo_not_friend:ch?.provider==='zalo_personal'&&c.isFriend===false,zalo_friend:ch?.provider==='zalo_personal'&&c.isFriend===true,deposit:(S.orders||[]).some(o=>o.customerId===p.id&&o.status!=='cancelled'&&o.total>0&&o.paid>0&&o.paid<o.total),no_plan:!hasPlan,plan_active:active,plan_expiring:expiring,plan_expired:expired};
+ const facts={zalo_not_friend:ch?.provider==='zalo_personal'&&c.isFriend===false,zalo_friend:ch?.provider==='zalo_personal'&&c.isFriend===true,deposit:learnerRows(S,'orders',p.id).some(o=>o.status!=='cancelled'&&o.total>0&&o.paid>0&&o.paid<o.total),no_plan:!hasPlan,plan_active:active,plan_expiring:expiring,plan_expired:expired};
  return config.rules.filter(r=>r.enabled&&/^#[0-9a-f]{6}$/i.test(r.color)&&(r.condition==='manual'?(p.chatStatusIds||[]).includes(r.id):r.condition==='tag'?(c.tags||[]).includes(r.value):facts[r.condition]===true));
 }
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
