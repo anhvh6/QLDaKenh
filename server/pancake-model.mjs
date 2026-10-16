@@ -12,6 +12,14 @@ export function fields(kind,row){
 }
 export function fromProduct(v){const product=v.product||{};return {name:[product.name||v.name||v.display_id,...(v.fields||[]).map(f=>f.value)].filter(Boolean).join(' · '),sku:String(v.custom_id||v.display_id||v.barcode||v.id),price:Number(v.retail_price||0),cost:Number(v.last_imported_price||v.average_imported_price||0),weight:Math.max(1,Number(v.weight||product.weight||500)),active:v.is_hidden!==true&&v.is_removed!==true&&product.is_published!==false,productType:product.type==='service'?'service':'physical',images:v.images||[]};}
 export function customerAddresses(c){return c.shop_customer_addresses||c.shop_customer_address||[];}
+export const orderCode=row=>String(row.custom_id||row.id||'');
+// Send only writable OpenAPI fields; GET responses include server-only fields and nulls.
+export function writableProduct(product){
+ const pick=(row,keys)=>Object.fromEntries(keys.filter(k=>row[k]!==undefined&&row[k]!==null).map(k=>[k,row[k]]));
+ const out=pick(product,['measure_group_id','name','type','category_ids','note','note_product','product_attributes','tags','weight','custom_id','is_published','bonus_products','materials','keyword','brand_id']);
+ out.variations=(product.variations||[]).map(v=>pick(v,['id','fields','images','last_imported_price','retail_price','price_at_counter','retail_price_by_currency','weight','size','barcode','custom_id','is_hidden','wholesale_price2','is_removed','keyword']));
+ return out;
+}
 export function fromCustomer(c){const address=customerAddresses(c)[0];return {name:c.name||'Khách hàng POS',phone:normalizePhone(c.phone_numbers?.[0]),email:c.emails?.[0]||'',address:String(address?.full_address||address?.address||'').replace(/^[,\s]+|[,\s]+$/g,'')};}
 export function orderBody(order,customer,items,account,shipment){
  const status=posStatus(order.status);if(status===undefined)throw Error('Trạng thái đơn hiện tại chưa có ánh xạ sang POS.');

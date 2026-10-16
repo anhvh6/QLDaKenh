@@ -3,7 +3,7 @@ process.env.DATA_DIR=mkdtempSync(join(tmpdir(),'hub-pos-test-'));process.env.PLA
 const {put,get,all,secret,db}=await import('../server/store.mjs');
 const {posRoute,posState,posTick,applyPosRow,receivePosWebhook,recoverPosJobs}=await import('../server/pancake-pos.mjs');
 const {pancakeRequest,pancakePages,pancakeReadBack}=await import('../server/pancake-api.mjs');
-const {fields,hash,fromCustomer}=await import('../server/pancake-model.mjs');
+const {fields,hash,fromCustomer,writableProduct}=await import('../server/pancake-model.mjs');
 const owner={id:'owner',role:'owner'},apiKey='QA-PRIVATE-PANCAKE-KEY-NEVER-EXPOSE';
 const remote={products:[],customers:[],orders:[]},calls=[];
 const copy=v=>structuredClone(v);
@@ -29,6 +29,10 @@ test('live POS customer address aliases and empty generated address are normaliz
  assert.equal(fromCustomer({shop_customer_addresses:[{full_address:'123 Duong A, Quan B'}]}).address,'123 Duong A, Quan B');
  assert.equal(fromCustomer({shop_customer_addresses:[{full_address:', '}]}).address,'');
  assert.equal(fromCustomer({shop_customer_address:[{address:'123 Duong A'}]}).address,'123 Duong A');
+});
+test('product writes omit server fields, nulls and inventory while retaining sibling metadata',()=>{
+ const result=writableProduct({id:'server',name:'QA',type:'service',brand_id:null,inserted_at:'server',variations:[{id:'v',barcode:'KEEP',retail_price:2000,keyword:null,is_locked:false,variations_warehouses:[{remain_quantity:5}]}]});
+ assert.deepEqual(result,{name:'QA',type:'service',variations:[{id:'v',barcode:'KEEP',retail_price:2000}]});
 });
 test('API credentials are restricted to official host and are redacted from failures',async()=>{
  await assert.rejects(pancakeRequest(apiKey,'https://evil.test'),/không hợp lệ/);
@@ -64,5 +68,6 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
  await t.test('lost create response is reconciled by SKU without issuing a duplicate create',async()=>{put('products',{id:'lost-product',name:'Lost response QA',sku:'LOST-SKU',price:10000,cost:0,weight:100,stock:2,reserved:0,active:true,productType:'physical'});let lost=false;await posTick(async(key,path,options={})=>{const result=await request(key,path,options);if(!lost&&options.method==='POST'&&path.endsWith('/products')&&options.body.product.custom_id==='LOST-SKU'){lost=true;throw Object.assign(Error('Lost response'),{unknown:true});}return result;});const j=all('pos_jobs').find(j=>j.localId==='lost-product');assert.equal(j.state,'unknown');await posTick(request);assert.equal(remote.products.filter(p=>p.display_id==='LOST-SKU').length,1);await route('/api/pos/jobs/'+encodeURIComponent(j.id)+'/reconcile','POST');assert.equal(get('pos_jobs',j.id).state,'done');assert.equal(remote.products.filter(p=>p.display_id==='LOST-SKU').length,1);});
  await t.test('webhook authentication and replay prevention; no API secret appears in state',async()=>{const token=secret('pancake:'+account.id).webhookToken;assert.throws(()=>receivePosWebhook(account.id,{},{}),{status:403});assert.throws(()=>receivePosWebhook(account.id,{'x-api-key':token},{shop_id:99},()=>{}),{status:403});const a=receivePosWebhook(account.id,{'x-api-key':token},{shop_id:10,id:'event'},()=>{});assert.equal(a.ok,true);assert.equal(receivePosWebhook(account.id,{'x-api-key':token},{shop_id:10,id:'event'},()=>{}).duplicate,true);assert.ok(!JSON.stringify(posState(owner)).includes(token));});
  await t.test('uncertain sends survive restart and cannot be retried blindly',async()=>{const j=all('pos_jobs')[0];put('pos_jobs',{...j,state:'sending'});recoverPosJobs();assert.equal(get('pos_jobs',j.id).state,'unknown');await assert.rejects(route('/api/pos/jobs/'+encodeURIComponent(j.id)+'/retry','POST'),{status:409});});
+ await t.test('live order ID fallback links the existing local order without creating a second row',async()=>{const o=get('orders',order.id),source=remote.orders.find(r=>r.custom_id===o.code);const before=all('orders').length;db.prepare('DELETE FROM records WHERE kind=? AND id=?').run('pos_links',account.id+':orders:'+o.id);await applyPosRow(account,'orders',{...source,id:o.code,custom_id:undefined});assert.equal(all('orders').length,before);assert.equal(all('pos_links').find(l=>l.kind==='orders'&&l.remoteId===o.code).localId,o.id);});
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,2);});
 });

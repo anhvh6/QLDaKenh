@@ -2,7 +2,7 @@ import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {db,all,get,put,remove,saveSecret,secret,transaction,audit,now,uid} from './store.mjs';
 import {inbound,changeSequence,phoneExpression} from './pancake-storage.mjs';
 import {pancakeRequest,pancakePages,pancakeReadBack} from './pancake-api.mjs';
-import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount,customerAddresses} from './pancake-model.mjs';
+import {hash,fields,normalizePhone,remoteId,fromProduct,fromCustomer,localStatus,orderBody,paidAmount,customerAddresses,orderCode,writableProduct} from './pancake-model.mjs';
 
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const kinds=['products','customers','orders'];
@@ -52,7 +52,7 @@ export async function applyPosRow(a,kind,row,{force=false}={}){
   const status=localStatus(row.status);if(!status)fail('Chưa hỗ trợ trạng thái POS '+row.status+'.',422);
   const subtotal=items.reduce((sum,i)=>sum+i.price*i.quantity,0),total=Math.max(0,subtotal-Number(row.total_discount||0)+Number(row.shipping_fee||0)),paid=Math.max(0,Number(row.cash||0)+Number(row.transfer_money||0)+['charged_by_card','charged_by_momo','charged_by_vnpay','charged_by_qrpay','charged_by_fundiin','charged_by_kredivo'].reduce((n,k)=>n+Number(row[k]||0),0));
   mapped={customerId:c.id,receiverName:row.shipping_address?.full_name||row.bill_full_name||c.name,phone:normalizePhone(row.shipping_address?.phone_number||row.bill_phone_number),email:row.bill_email||'',address:row.shipping_address?.full_address||'',items,subtotal,discount:Number(row.total_discount||0),shippingFee:Number(row.shipping_fee||0),total,paid,status,paymentStatus:paid>=total?'paid':paid?'partial':'unpaid',requiresShipping:!row.received_at_shop,note:row.note||'',posTracking:row.partner?.extend_code||row.partner?.order_number_vtp||'',posCarrier:row.partner?.partner_name||''};
-  if(!link){const matches=all('orders').filter(o=>row.custom_id&&o.code===row.custom_id&&!linkFor(a,kind,o.id));if(matches.length>1)fail('Mã đơn trùng; cần đối soát.',409);current=matches[0]||null;}
+  if(!link){const matches=all('orders').filter(o=>orderCode(row)&&o.code===orderCode(row)&&!linkFor(a,kind,o.id));if(matches.length>1)fail('Mã đơn trùng; cần đối soát.',409);current=matches[0]||null;}
  }
  snapshot(a,kind,row);
  if(kind==='products'&&link&&current&&current.posAvailableStock!==trackedStock(a,row)&&!get('pos_jobs',linkId(a,kind,current.id))?.inventory){current=inbound(()=>put('products',{...current,stock:Math.max(0,trackedStock(a,row))+Number(current.reserved||0),posAvailableStock:trackedStock(a,row),posStockUpdatedAt:now()}));}
@@ -71,7 +71,7 @@ export async function applyPosRow(a,kind,row,{force=false}={}){
    for(const i of after)if(!i.productType||i.productType==='physical')delta.set(i.productId,(delta.get(i.productId)||0)+i.quantity);
    for(const [productId,diff] of delta)if(diff){const p=get('products',productId);if(p){const reserved=Math.max(0,Number(p.reserved||0)+diff);put('products',{...p,reserved,stock:Math.max(0,Number(p.stock||0)-Number(p.reserved||0))+reserved});}}
   }
-  const saved=put(kind,{...current,...mapped,id,...(!current?{posSourceAccountId:a.id,createdBy:a.ownerId,tags:[],...(kind==='orders'?{code:row.custom_id||'POS-'+a.shopId+'-'+rid,source:'Pancake POS',createdAt:row.inserted_at}:{}),...(kind==='products'?{stock:Math.max(0,trackedStock(a,row)),reserved:0}:{} )}:{}),...(kind==='products'?{posAvailableStock:trackedStock(a,row),posStockUpdatedAt:now()}:{}),posSyncedAt:now()});
+  const saved=put(kind,{...current,...mapped,id,...(!current?{posSourceAccountId:a.id,createdBy:a.ownerId,tags:[],...(kind==='orders'?{code:orderCode(row)||'POS-'+a.shopId+'-'+rid,source:'Pancake POS',createdAt:row.inserted_at}:{}),...(kind==='products'?{stock:Math.max(0,trackedStock(a,row)),reserved:0}:{} )}:{}),...(kind==='products'?{posAvailableStock:trackedStock(a,row),posStockUpdatedAt:now()}:{}),posSyncedAt:now()});
   saveLink(a,kind,id,row,{localHash:hash(fields(kind,saved)),remoteHash:hash(incoming),syncedAt:now()});
   if(kind==='orders'&&mapped.posTracking){const old=all('shipments').find(s=>s.orderId===id&&s.tracking===mapped.posTracking);put('shipments',{...old,id:old?.id||'pos-shipment:'+a.id+':'+rid,orderId:id,carrier:old?.carrier||'pancake_pos',tracking:mapped.posTracking,status:mapped.status==='shipping'?'shipping':mapped.status,cod:Number(row.partner?.cod||0),fee:Number(row.partner?.total_fee||0),posAccountId:a.id,requiresReconciliation:mapped.status==='return_pending_check'});}
  });return {imported:true};
@@ -88,7 +88,7 @@ async function pull(a,request){
 async function locate(a,kind,current,r){
  const matches=[];const query={search:kind==='products'?current.sku:kind==='customers'?normalizePhone(current.phone):current.code};
  if(!query.search)return null;
- await pancakePages(r,root(a)+'/'+(kind==='products'?'products/variations':kind),query,rows=>{for(const row of rows){const exact=kind==='products'?fromProduct(row).sku===current.sku:kind==='customers'?(row.phone_numbers||[]).some(p=>normalizePhone(p)===normalizePhone(current.phone)):row.custom_id===current.code;if(exact)matches.push(row);}});
+ await pancakePages(r,root(a)+'/'+(kind==='products'?'products/variations':kind),query,rows=>{for(const row of rows){const exact=kind==='products'?fromProduct(row).sku===current.sku:kind==='customers'?(row.phone_numbers||[]).some(p=>normalizePhone(p)===normalizePhone(current.phone)):orderCode(row)===current.code;if(exact)matches.push(row);}});
  if(matches.length>1)fail('Nhiều bản ghi POS trùng khóa đối chiếu. Cần đối soát thủ công.',409);return matches[0]||null;
 }
 async function remoteCurrent(a,kind,link,r){
@@ -118,7 +118,7 @@ async function push(a,j,request){
   let product={name:local.name,weight:local.weight,custom_id:local.sku,is_published:local.active,type:current.productType==='physical'?'product':'service',variations:[variation]};
   if(link){const full=rowsIn(await r(root(a)+'/products/'+encodeURIComponent(remote.product?.custom_id||remote.product?.display_id||remote.product_id)));if(!full?.variations)fail('POS chưa trả đủ biến thể. Không cập nhật để tránh mất biến thể khác.',409);if(full.variations.length>1&&local.name!==fromProduct(remote).name)fail('Sản phẩm có nhiều biến thể. Đổi tên chung tại POS để tránh đổi tên các biến thể khác.',409);product={...full,name:full.variations.length>1?full.name:local.name,variations:full.variations.map(v=>String(v.id)===link.remoteId?{...v,...variation}:v)};}
   if(link){delete product.variations_warehouses;product.variations=product.variations.map(({variations_warehouses,...v})=>v);}
-  body={product};path=root(a)+'/products'+(link?'/'+encodeURIComponent(remote.product_id):'');
+  body={product:link?writableProduct(product):product};path=root(a)+'/products'+(link?'/'+encodeURIComponent(remote.product_id):'');
  }else{
   if(!a.warehouseId)fail('Chọn kho POS trước khi đồng bộ đơn.',422);
   const c=get('customers',current.customerId);if(!c)fail('Đơn thiếu khách hàng.',422);
