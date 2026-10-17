@@ -32,19 +32,19 @@ function sendingPossible(c,v,user,time){
 }
 const latestStatement=()=>db.prepare("SELECT id,data FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.direction') IN ('incoming','outgoing') AND json_extract(data,'$.deletedAt') IS NULL ORDER BY json_extract(data,'$.createdAt') DESC,rowid DESC LIMIT 1");
 function eligibleSource(m,run){return m?.direction==='outgoing'&&m.senderType!=='ai'&&!m.botId&&!m.communicationCampaignId&&!m.history&&['accepted','sent','received','demo'].includes(m.status)&&m.actor===run.actor;}
-export function messageAudience(user,c,time){
- const lower=c.messageTiming==='minutes'?Math.max(Date.parse(c.startAt),Date.parse(c.messageActiveSince||c.createdAt||c.startAt)):Date.parse(dayKey(time-c.daysTo*86400000)+'T00:00:00+07:00');
+export function messageAudience(user,c,time,includeWaiting=false){
+ const lower=c.messageTiming==='minutes'?0:Date.parse(dayKey(time-c.daysTo*86400000)+'T00:00:00+07:00');
  const runs=db.prepare("SELECT r.id,json_extract(r.data,'$.templateId') AS templateId,json_extract(r.data,'$.conversationId') AS conversationId,json_extract(r.data,'$.actor') AS actor,m.id AS lastId FROM records r JOIN records m ON m.kind='messages' AND m.id=json_extract(r.data,'$.messageIds[#-1]') WHERE r.kind='template_runs' AND json_extract(r.data,'$.status')='done' AND json_extract(r.data,'$.templateId') IN (SELECT value FROM json_each(?)) AND julianday(COALESCE(json_extract(m.data,'$.templateSentAt'),json_extract(m.data,'$.sentAt'),json_extract(m.data,'$.createdAt')))>=julianday(?)").all(JSON.stringify(c.templateIds),new Date(lower).toISOString());
  const byMessage=new Map(runs.filter(r=>r.lastId&&get('templates',r.templateId)?.enabled!==false&&get('templates',r.templateId)).map(r=>[r.lastId,r])),seen=new Set(),rows=[],latest=latestStatement();
  for(const r of runs){if(seen.has(r.conversationId))continue;seen.add(r.conversationId);const conv=get('conversations',r.conversationId);if(!conv||!sendingPossible(c,conv,user,time))continue;
   const last=latest.get(conv.id),run=last&&byMessage.get(last.id),m=last&&JSON.parse(last.data);if(!run||!eligibleSource(m,run))continue;
-  const p=get('customers',conv.customerId);if(!p||p.mergedInto)continue;const sent=m.templateSentAt||m.sentAt||m.createdAt;if(!messageTimeMatches(c,sent,time))continue;
+  const p=get('customers',conv.customerId);if(!p||p.mergedInto)continue;const sent=m.templateSentAt||m.sentAt||m.createdAt;if(!messageTimeMatches(c,sent,time,includeWaiting))continue;
   rows.push({conversationId:conv.id,customerId:p.id,name:p.name,connectionId:conv.connectionId,channelName:get('connections',conv.connectionId).name,provider:get('connections',conv.connectionId).provider,triggerMessageId:last.id,triggerTemplateId:run.templateId,triggerTemplateName:get('templates',run.templateId)?.name||run.templateId,triggerSentAt:sent,templateRunId:run.id,dueAt:c.messageTiming==='minutes'?new Date(Date.parse(sent)+c.waitMinutes*60000).toISOString():new Date(time).toISOString()});
  }
  return rows;
 }
 export function messageJobCurrent(user,c,job,time){
- const conv=get('conversations',job.conversationId),source=get('messages',job.triggerMessageId),run=get('template_runs',job.templateRunId);if(!conv||!source||!messageTimeMatches(c,source.templateSentAt||source.sentAt||source.createdAt,time)||!run||run.status!=='done'||!eligibleSource(source,run)||!c.templateIds.includes(run.templateId)||!get('templates',run.templateId)||get('templates',run.templateId).enabled===false||!sendingPossible(c,conv,user,time))return false;
+ const conv=get('conversations',job.conversationId),source=get('messages',job.triggerMessageId),run=get('template_runs',job.templateRunId);if(!conv||!source||!messageTimeMatches(c,source.templateSentAt||source.sentAt||source.createdAt,time,true)||!run||run.status!=='done'||!eligibleSource(source,run)||!c.templateIds.includes(run.templateId)||!get('templates',run.templateId)||get('templates',run.templateId).enabled===false||!sendingPossible(c,conv,user,time))return false;
  // The campaign's own accepted blocks may follow its trigger; any other message cancels the rest.
  const allowed=new Set([job.triggerMessageId,...job.messageIds||[],...job.failedMessageIds||[]]),tail=db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.direction') IN ('incoming','outgoing') AND json_extract(data,'$.deletedAt') IS NULL AND (json_extract(data,'$.createdAt')>? OR json_extract(data,'$.createdAt')=? AND rowid>(SELECT rowid FROM records WHERE kind='messages' AND id=?))").all(conv.id,source.createdAt,source.createdAt,source.id);
  return tail.every(m=>allowed.has(m.id));

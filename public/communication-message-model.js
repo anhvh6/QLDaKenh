@@ -1,8 +1,8 @@
 import {dayKey} from './communication-model.js';
 export function messageAgeDays(sent,time){return Math.round((Date.parse(dayKey(time)+'T00:00:00Z')-Date.parse(dayKey(Date.parse(sent))+'T00:00:00Z'))/86400000);}
-export function messageTimeMatches(c,sent,time){
+export function messageTimeMatches(c,sent,time,includeWaiting=false){
  const at=Date.parse(sent);if(!Number.isFinite(at)||at>time)return false;
- if(c.messageTiming==='minutes')return at>=Math.max(Date.parse(c.startAt),Date.parse(c.messageActiveSince||c.createdAt||c.startAt));
+ if(c.messageTiming==='minutes')return includeWaiting||time-at>=c.waitMinutes*60000;
  const age=messageAgeDays(sent,time);return age>=c.daysFrom&&age<=c.daysTo;
 }
 export function messageOccurrences(c,time){

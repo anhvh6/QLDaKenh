@@ -36,14 +36,14 @@ test('validation rejects invalid template, malformed lists, range and missing sc
  assert.equal((await route(base+'/preview','POST',config({maxSendsPerCustomer:1}),owner)).count,0);
 });
 test('source identity comes from completed template run, not text, AI, partial run or a replied conversation',()=>{
- clean();const a=source(at-60000),c=config();assert.ok(audience(owner,c,at).some(r=>r.conversationId===a.v.id));
+ clean();const a=source(at-60000),c=config({waitMinutes:1});assert.ok(audience(owner,c,at).some(r=>r.conversationId===a.v.id));
  put('template_runs',{...a.run,status:'running'});assert.ok(!audience(owner,c,at).some(r=>r.conversationId===a.v.id));put('template_runs',a.run);
  put('messages',{...a.m,senderType:'ai'});assert.ok(!audience(owner,c,at).some(r=>r.conversationId===a.v.id));put('messages',a.m);
  put('messages',{id:'typed',conversationId:a.v.id,direction:'outgoing',senderType:'staff',actor:owner.id,status:'demo',text:a.m.text,createdAt:iso(at)});assert.ok(!audience(owner,c,at).some(r=>r.conversationId===a.v.id));
  const b=source(at-60000);put('messages',{id:'answer',conversationId:b.v.id,direction:'incoming',createdAt:iso(at)});assert.ok(!audience(owner,c,at).some(r=>r.conversationId===b.v.id));
 });
 test('templates combine OR, channels/time combine AND; dynamic channels follow connection state',()=>{
- const a=source(at-60000);put('template_runs',{...a.run,templateId:'t2'});const c=config({templateIds:['t1','t2']});assert.ok(audience(owner,c,at).some(r=>r.conversationId===a.v.id));assert.ok(!audience(owner,config(),at).some(r=>r.conversationId===a.v.id));
+ const a=source(at-60000);put('template_runs',{...a.run,templateId:'t2'});const c=config({templateIds:['t1','t2'],waitMinutes:1});assert.ok(audience(owner,c,at).some(r=>r.conversationId===a.v.id));assert.ok(!audience(owner,config(),at).some(r=>r.conversationId===a.v.id));
  put('connections',{id:'new-z',provider:'zalo_personal',mode:'demo',status:'connected',name:'New QA'});put('conversations',{...a.v,connectionId:'new-z'});assert.ok(!audience(owner,c,at).some(r=>r.conversationId===a.v.id));assert.ok(audience(owner,{...c,channelSelection:'all_active'},at).some(r=>r.conversationId===a.v.id));
  put('connections',{...get('connections','new-z'),status:'disconnected'});assert.ok(!audience(owner,{...c,channelSelection:'all_active'},at).some(r=>r.conversationId===a.v.id));
 });
@@ -82,3 +82,7 @@ test('real template sender preserves template ID, run, and final-block provenanc
 });
 
 test('partial provider acceptance never retries a block even when a later attachment is rejected',async()=>{clean();source(at-31*60000);const c=await campaign({maxRetries:3});await tick(at,async()=>{throw Object.assign(Error('Later attachment rejected'),{providerStatus:400,externalMessages:[{id:'accepted-part'}]});});assert.equal(job(c).status,'unknown');await tick(at+600000,()=>assert.fail('must not duplicate accepted part'));});
+
+test('minimum minutes includes historical sources and preview works without name or outgoing content',async()=>{clean();const old=source(Date.now()-3*86400000),recent=source(Date.now()-30000);const input=config({name:'',blocks:[{text:'',assetIds:[]}],waitMinutes:1,startAt:new Date().toISOString()});const before=all('communication_jobs').length;const p=await route(base+'/preview','POST',input,owner);assert.deepEqual(p.recipients.map(r=>r.conversationId),[old.v.id]);assert.equal(all('communication_jobs').length,before);const c=await campaign({waitMinutes:1,startAt:iso(at)});const rows=audience(owner,c,Date.now());assert.ok(rows.some(r=>r.conversationId===old.v.id));assert.ok(!rows.some(r=>r.conversationId===recent.v.id));assert.equal(messageTimeMatches(c,iso(at-60000),at),true);assert.equal(messageTimeMatches(c,iso(at-59999),at),false);});
+
+test('minute worker processes a source older than campaign activation once it exceeds the minimum',async()=>{clean();const s=source(at-5*86400000),c=await campaign({startAt:iso(at),waitMinutes:1});await tick(at,sender(at));assert.equal(job(c).triggerMessageId,s.m.id);assert.equal(job(c).status,'done');await tick(at+60000,()=>assert.fail('duplicate historical source'));});
