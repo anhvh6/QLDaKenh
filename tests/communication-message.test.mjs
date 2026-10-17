@@ -80,3 +80,5 @@ test('disabled template invalidates pending work and no incoming source triggers
 test('real template sender preserves template ID, run, and final-block provenance',async()=>{
  clean();const s=source(Date.now()-60000);const result=await runTemplate(owner,s.v.id,{templateId:'t1',requestId:'qa-provenance-123456',version:get('conversations',s.v.id).version});assert.equal(result.status,'done');const m=get('messages',result.messageIds.at(-1));assert.equal(m.templateId,'t1');assert.equal(m.templateRunId,result.id);assert.equal(m.templateSequenceEnd,true);
 });
+
+test('partial provider acceptance never retries a block even when a later attachment is rejected',async()=>{clean();source(at-31*60000);const c=await campaign({maxRetries:3});await tick(at,async()=>{throw Object.assign(Error('Later attachment rejected'),{providerStatus:400,externalMessages:[{id:'accepted-part'}]});});assert.equal(job(c).status,'unknown');await tick(at+600000,()=>assert.fail('must not duplicate accepted part'));});
