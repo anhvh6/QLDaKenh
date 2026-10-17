@@ -35,3 +35,21 @@ Không tạo chiến dịch thật, kích hoạt gửi cho khách thật hoặc 
 ## Gửi ngay cho Người mới
 
 Khi chọn Người mới, có thể bật **Gửi ngay sau khi nhận được tin nhắn**. Chế độ này chỉ dùng Người mới, tự động thực hiện và ẩn Lặp lại, Chu kỳ, Giờ gửi. Ngày bắt đầu/kết thúc vẫn giới hạn thời gian áp dụng. Worker kiểm tra mỗi giây, dựa trên tin đến trực tiếp và xếp một lượt bền vững theo mã tin đầu tiên; không kích hoạt bởi lịch sử nhập lại, không gửi trùng khi nền tảng phát lại tin và không gửi bù những tin nhận trong lúc tạm dừng. Điều kiện chưa kết bạn vẫn áp dụng nếu được chọn.
+
+## Theo tin nhắn mẫu
+
+Chọn **Loại chiến dịch → Theo tin nhắn** để cấu hình độc lập với trạng thái khách hàng. Một hoặc nhiều ID mẫu kết hợp HOẶC; nền tảng, thời gian, quyền gửi và điều kiện tin cuối kết hợp VÀ. Chỉ nhận lượt gửi mẫu đã hoàn tất do nhân viên gửi, bằng ID mẫu/lượt gửi và ID tin cuối của lượt đó. Tin gõ tay giống văn bản mẫu, AI, lịch sử nhập lại, tin đã bị xóa và lượt mẫu chưa hoàn tất không kích hoạt. Luồng gửi mẫu lưu thêm `templateId`, `templateRunId`, `templateBlockIndex`, `templateSequenceEnd`, `templateSentAt`; các lượt cũ có liên kết `template_runs.messageIds` vẫn nhận diện được.
+
+- **Theo ngày:** đúng N ngày trước hoặc khoảng N–M ngày theo lịch Việt Nam, kể cả tin gửi sát nửa đêm. Chạy ngay lúc kích hoạt hoặc khi đến thời điểm bắt đầu; lịch có nhiều giờ, một lần, hằng ngày hoặc chọn thứ. Chạy ngay kèm lặp chạy lượt đầu ngay, các ngày sau theo khung giờ. Không gửi bù khung giờ đã quá 30 phút.
+- **Theo phút:** xếp lượt chờ theo tin mẫu mới trong thời gian chiến dịch có hiệu lực. Đủ N phút mới gửi, không sử dụng giờ cố định. Hai lựa chọn lặp đều chỉ xử lý mỗi tin kích hoạt một lần; hằng ngày tiếp tục theo dõi mẫu mới, không phát lại mẫu cũ.
+- **Kênh:** lựa chọn cố định một/nhiều/tất cả kênh hiện có, hoặc tự cập nhật mọi kênh đang hoạt động. Gửi trên chính hội thoại nguồn. Giới hạn quyền, cửa sổ Messenger, kết nối Zalo và phạm vi tệp vẫn áp dụng; OA không nhận chuỗi có media.
+
+Trước mỗi khối, worker đọc lại hội thoại: chỉ cho phép tin kích hoạt và những tin đã gửi của chính lượt này. Bất kỳ phản hồi khách hoặc tin mới ngoài lượt đều hủy các khối còn chờ. Khóa bền vững `communication_triggers` gắn chiến dịch + hội thoại + tin kích hoạt, không gửi trùng sau khởi động lại. Giới hạn lượt trên mỗi khách dùng chung các hội thoại/kênh trong chiến dịch; lượt gửi dở và chưa rõ kết quả cũng chiếm giới hạn.
+
+**Tạm dừng / Kết thúc** hủy lượt đang chờ. **Tiếp tục** mở mốc theo dõi mới: theo phút chỉ nhận mẫu gửi từ khi tiếp tục, bỏ lượt chờ cũ. Chiến dịch đã kết thúc không mở lại. Tin đã được nền tảng tiếp nhận có thể hoàn tất sau khi bấm dừng. Không giới hạn ngày kết thúc nghĩa là chạy đến khi người dùng dừng.
+
+Chính sách thử lại cấu hình từ 0–5 lần, chờ 1–1440 phút. Chỉ lỗi xác định là chưa gửi mới thử lại cùng khối của cùng job; không gửi lại khối thành công. Kết quả không xác định hoặc khởi động lại khi đang gửi chuyển `unknown`, cần đối chiếu thủ công. Nhật ký lưu tin mẫu nguồn, mốc dự kiến, nội dung/media đã gửi, ID tin, từng lần thử, trạng thái và nguyên nhân lỗi.
+
+Worker dùng chỉ mục lượt mẫu/job và giới hạn truy vấn mẫu theo khoảng thời gian; chế độ phút không rà lại danh sách nguồn khi dữ liệu/cấu hình chưa thay đổi. Lượt đang chờ vẫn kiểm tra thời gian và hội thoại mỗi nhịp, không phụ thuộc giao diện trình duyệt đang mở.
+
+Kiểm thử bổ sung: `node --test tests/communication-message.test.mjs`. Script `npm run test:communication-ui` kiểm tra cả hai loại chiến dịch, các cấu hình ngày/phút, lưu/sửa và giao diện PC/mobile bằng dữ liệu mô phỏng tách biệt.
