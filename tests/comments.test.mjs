@@ -27,11 +27,41 @@ test('Threads incoming replies remain separate from Facebook identities and own 
  const r=upsertComment(t,{id:'own-thread-reply',text:'Response',is_reply_owned_by_me:true,replied_to:{id:'thread-comment'}});assert.equal(r.conversationId,m.conversationId);
  const status=commentsStatus({id:'owner',role:'owner'});assert.equal(status.filter(c=>c.supported).length,2);
 });
+test('Threads sync reads the replies edge instead of the post conversation edge',async()=>{
+ const channel=put('connections',{id:'threads-sync',provider:'threads',accountId:'threads-user',status:'connected',mode:'api'});saveSecret(channel.id,{token:'test'});const calls=[];
+ const request=async url=>{calls.push(url);if(url.includes('/threads-user/threads?'))return {data:[{id:'threads-post',text:'Post',timestamp:'2026-10-14T01:00:00Z',permalink:'https://www.threads.net/post'}]};if(url.includes('/threads-post/replies?'))return {data:[{id:'threads-reply',text:'Reply',username:'viewer',timestamp:'2026-10-14T02:00:00Z',replied_to:{id:'threads-post'}}]};throw Error('Unexpected Threads URL: '+url);};
+ const state=await syncComments(channel,request);assert.equal(state.status,'ready');assert.ok(calls.some(url=>url.includes('/threads-post/replies?')));assert.ok(!calls.some(url=>url.includes('/threads-post/conversation?')));assert.ok(all('messages').some(m=>m.externalId==='threads-reply'));
+});
+test('Threads keeps a standalone reply owned by the connected account visible',()=>{
+ const channel=put('connections',{id:'threads-own',provider:'threads',accountId:'threads-owner',name:'Owner',status:'connected',mode:'api'});
+ const message=upsertComment(channel,{id:'own-visible',text:'My visible reply',username:'owner-name',timestamp:'2026-10-14T03:00:00Z',is_reply_owned_by_me:true,replied_to:{id:'own-post'}},{id:'own-post',text:'Post'});
+ assert.ok(message);assert.equal(message.direction,'outgoing');assert.equal(get('conversations',message.conversationId).externalCommentId,'own-visible');
+});
+
+test('DEV.to comments are imported with author, post context and nested reply identity',async()=>{
+ const channel=put('connections',{id:'dev-comments',provider:'devto',accountId:'author',name:'DEV.to',mode:'api',status:'connected'});saveSecret(channel.id,{token:'dev-key'});
+ const request=async url=>url.includes('/articles/me')?[{id:11,title:'Article',url:'https://dev.to/a/article',published_at:'2026-10-14T01:00:00Z'}]:[{id_code:'dev-root',body_html:'<p>Hello</p>',created_at:'2026-10-14T02:00:00Z',user:{user_id:7,name:'Reader',username:'reader',profile_image_90:'https://example.com/a.png'},children:[{id_code:'dev-child',body_html:'<p>Nested</p>',created_at:'2026-10-14T03:00:00Z',user:{user_id:8,name:'Second reader',username:'second'},children:[]}]}];
+ const state=await syncComments(channel,request);assert.equal(state.status,'ready');assert.ok(state.completedAt);const root=all('messages').find(m=>m.externalId==='dev-root'),child=all('messages').find(m=>m.externalId==='dev-child');assert.equal(root.text,'Hello');assert.equal(child.parentCommentId,'dev-root');assert.equal(get('customers',get('conversations',root.conversationId).customerId).name,'Reader');
+});
+
+test('YouTube comments use the uploads playlist and preserve video context',async()=>{
+ const channel=put('connections',{id:'yt-comments',provider:'youtube',accountId:'youtube-channel',name:'YouTube',mode:'api',status:'connected'});saveSecret(channel.id,{token:'youtube-token'});
+ const request=async url=>{if(url.includes('/channels?'))return {items:[{contentDetails:{relatedPlaylists:{uploads:'uploads-id'}}}]};if(url.includes('/playlistItems?'))return {items:[{contentDetails:{videoId:'video-id'},snippet:{title:'Video title',publishedAt:'2026-10-14T01:00:00Z'}}]};return {items:[{id:'thread-id',snippet:{topLevelComment:{id:'youtube-comment',snippet:{textDisplay:'Great video',publishedAt:'2026-10-14T02:00:00Z',authorDisplayName:'Viewer',authorChannelId:{value:'viewer-id'},authorProfileImageUrl:'https://example.com/viewer.png',likeCount:3}}}}]};};
+ const state=await syncComments(channel,request);assert.equal(state.status,'ready');const message=all('messages').find(m=>m.externalId==='youtube-comment'),conversation=get('conversations',message.conversationId);assert.equal(conversation.postId,'video-id');assert.equal(conversation.postTitle,'Video title');assert.match(conversation.postUrl,/youtube\.com/);
+});
 
 test('Threads reply publishes against the selected original comment and returns a receipt',async()=>{
  const {sendMessage}=await import('../server/connectors.mjs');saveSecret('threads',{token:'test'});const previous=globalThis.fetch,calls=[];
  globalThis.fetch=async(url,opts)=>{calls.push({url,body:JSON.parse(opts.body)});return new Response(JSON.stringify({id:calls.length===1?'container':'published-reply'}),{status:200});};
  try{const r=await sendMessage(get('connections','threads'),{kind:'comment',externalCommentId:'target'},'Response');assert.equal(r.id,'published-reply');assert.equal(calls[0].body.reply_to_id,'target');assert.equal(calls[1].body.creation_id,'container');assert.equal(calls.length,2);await assert.rejects(sendMessage(get('connections','threads'),{kind:'comment',externalCommentId:'target'},'a'.repeat(501)),/500/);}finally{globalThis.fetch=previous;}
+});
+test('DEV.to reply fails locally with an actionable read-only API message',async()=>{
+ const {sendMessage}=await import('../server/connectors.mjs');const channel=put('connections',{id:'dev-reply',provider:'devto',mode:'api',status:'connected'});saveSecret(channel.id,{token:'dev-key'});const previous=globalThis.fetch;let called=false;globalThis.fetch=async()=>{called=true;throw Error('must not call');};
+ try{await assert.rejects(sendMessage(channel,{kind:'comment',externalCommentId:'parent-code'},'Thanks'),/chỉ cung cấp API đọc bình luận/);assert.equal(called,false);}finally{globalThis.fetch=previous;}
+});
+test('Blogger reply fails locally because its comment API has no insert method',async()=>{
+ const {sendMessage}=await import('../server/connectors.mjs');const channel=put('connections',{id:'blogger-reply',provider:'blogger',mode:'api',status:'connected'});saveSecret(channel.id,{token:'google-token'});const previous=globalThis.fetch;let called=false;globalThis.fetch=async()=>{called=true;throw Error('must not call');};
+ try{await assert.rejects(sendMessage(channel,{kind:'comment',externalCommentId:'comment-id'},'Thanks'),/không hỗ trợ tạo trả lời/);assert.equal(called,false);}finally{globalThis.fetch=previous;}
 });
 test('channel diagnostics exclude channels unavailable to a staff account',()=>{assert.equal(commentsStatus({id:'unassigned',role:'support'}).length,0);});
 
@@ -49,6 +79,27 @@ test('detail context loads post metrics and parent; replies can target parent or
  assert.equal(await commentReplyTarget(owner,conv,'parent'),'parent-context');await assert.rejects(commentReplyTarget(owner,conv,'arbitrary-id'),/không hợp lệ/);await assert.rejects(commentContext({id:'staff',role:'support'},conv.id),/phân công/);
  const previous=globalThis.fetch,calls=[];globalThis.fetch=async(url,opts)=>{calls.push(url);return new Response(JSON.stringify({id:'sent-context-'+calls.length}),{status:200});};
  try{const parentReply=await reply(owner,conv.id,{text:'Reply parent',replyTarget:'parent',version:get('conversations',conv.id).version});assert.equal(parentReply.replyToExternalId,'parent-context');assert.ok(calls[0].includes('/parent-context/comments'));await reply(owner,conv.id,{text:'Reply child',replyTarget:'current',version:get('conversations',conv.id).version});assert.ok(calls[1].includes('/child-context/comments'));}finally{globalThis.fetch=previous;}
+});
+test('Facebook context keeps local data and hides raw Graph traces when read permission is missing',async()=>{
+ const owner={id:'owner',role:'owner'};
+ const channel=put('connections',{id:'facebook-context-permission',provider:'facebook',accountId:'page-context',name:'Facebook',mode:'api',status:'connected'});saveSecret(channel.id,{token:'page-token'});
+ const customer=put('customers',{name:'Viewer'}),conv=put('conversations',{customerId:customer.id,connectionId:channel.id,externalCommentId:'post_comment',postId:'page_post',postTitle:'Local post',kind:'comment',mode:'api',status:'open'});put('messages',{conversationId:conv.id,externalId:'post_comment',direction:'incoming',senderName:'Viewer',text:'Local comment',createdAt:'2026-10-14T01:00:00Z'});
+ const {commentContext}=await import('../server/comment-context.mjs'),data=await commentContext(owner,conv.id,async()=>{throw Error("Unsupported get request. This endpoint requires the 'pages_read_engagement' permission · code 100 · subcode 33 · trace secret-trace");});
+ assert.equal(data.post.text,'Local post');assert.equal(data.current.text,'Local comment');assert.ok(data.errors.every(x=>x.includes('kết nối lại Facebook Page')));assert.ok(data.errors.every(x=>!x.includes('secret-trace')));
+});
+test('Blogger context uses synchronized local data without calling Meta Graph',async()=>{
+ const owner={id:'owner',role:'owner'},channel=put('connections',{id:'blogger-context',provider:'blogger',accountId:'blog-id',name:'Blogger',mode:'api',status:'connected'});saveSecret(channel.id,{token:'google-token'});
+ const customer=put('customers',{name:'Blog reader'}),conv=put('conversations',{customerId:customer.id,connectionId:channel.id,externalCommentId:'blog-comment',postId:'blog-post',postTitle:'Blog title',postUrl:'https://example.blogspot.com/post',kind:'comment',mode:'api',status:'open'});put('messages',{conversationId:conv.id,externalId:'blog-comment',direction:'incoming',senderName:'Blog reader',text:'Blog comment',createdAt:'2026-10-14T01:00:00Z'});
+ put('comment_context',{id:conv.id,conversationId:conv.id,post:{text:'stale'},current:{text:'stale'},errors:['Expected 1 dot · code 190 · trace old'],loadedAt:new Date().toISOString()});
+ const {commentContext}=await import('../server/comment-context.mjs');let called=false,data=await commentContext(owner,conv.id,async()=>{called=true;throw Error('must not call Meta');});
+ assert.equal(called,false);assert.equal(data.post.text,'Blog title');assert.equal(data.current.text,'Blog comment');assert.deepEqual(data.errors,[]);
+});
+test('Threads context uses synchronized data instead of unsupported object lookups',async()=>{
+ const owner={id:'owner',role:'owner'},channel=put('connections',{id:'threads-context-local',provider:'threads',accountId:'threads-user',name:'Threads',mode:'api',status:'connected'});saveSecret(channel.id,{token:'threads-token'});
+ const customer=put('customers',{name:'Threads reader'}),conv=put('conversations',{customerId:customer.id,connectionId:channel.id,externalCommentId:'threads-reply',postId:'threads-post',postTitle:'Thread text',kind:'comment',mode:'api',status:'open'});put('messages',{conversationId:conv.id,externalId:'threads-reply',direction:'incoming',senderName:'Threads reader',text:'Threads reply',createdAt:'2026-10-14T01:00:00Z'});
+ put('comment_context',{id:conv.id,conversationId:conv.id,errors:['Unsupported get request'],loadedAt:new Date().toISOString()});
+ const {commentContext}=await import('../server/comment-context.mjs');let called=false,data=await commentContext(owner,conv.id,async()=>{called=true;throw Error('must not call object endpoint');});
+ assert.equal(called,false);assert.equal(data.post.text,'Thread text');assert.equal(data.current.text,'Threads reply');assert.deepEqual(data.errors,[]);
 });
 test('missing metrics render as unavailable and context HTML escapes social content',async()=>{
  const {commentContextHTML}=await import('../public/comment-detail.js');const html=commentContextHTML({post:{text:'<script>bad</script>',likes:null,shares:null,comments:0},parentId:'p',parent:{id:'p',text:'Parent',name:'Name',likes:2,dislikes:null}},'parent');assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes('Trả lời bình luận gốc'));assert.ok(html.includes('—'));assert.ok(html.includes('data-target="current"'));

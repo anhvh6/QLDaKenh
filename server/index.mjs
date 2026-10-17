@@ -265,7 +265,7 @@ void facebookChatTick(); setInterval(() => void facebookChatTick(), 10000).unref
 
 recoverCustomerReminders();setInterval(() => void customerReminderTick().catch(e=>console.error('Customer reminders:',e.message)), 5000).unref();
 
-void commentsTick().catch(e=>console.error('Comments:',e.message));setInterval(()=>void commentsTick().catch(e=>console.error('Comments:',e.message)),20000).unref();
+void commentsTick().catch(e=>console.error('Comments:',e.message));setInterval(()=>void commentsTick().catch(e=>console.error('Comments:',e.message)),15000).unref();
 
 recoverAutomation();setInterval(()=>void automationTick().catch(e=>console.error('Copy automation:',e.message)),5000).unref();
 
