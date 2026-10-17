@@ -21,7 +21,7 @@ export const providers = {
 export async function remote(url, options = {}) {
   const readOnly=(!options.method||options.method==='GET');
   let res,raw; try { res = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
-  let data; try { data = JSON.parse(raw); } catch { data = { message: raw.slice(0, 300) }; }
+  let data; try { data = JSON.parse(raw); } catch { data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
   const providerError = data.error && (typeof data.error === 'object' ? data.error.code && !['ok', 0, '0'].includes(data.error.code) : data.error !== 0);
   if (!res.ok || providerError) {
     const error = data.error && typeof data.error === 'object' ? data.error : {};
@@ -43,7 +43,7 @@ function bloggerContent(p) { const media = p.type === 'text' ? '' : validMediaUR
 function devtoContent(p) { const media = p.type === 'text' ? '' : validMediaURL(p.mediaUrl), attachment = p.type === 'image' ? `\n\n![${p.title}](${media})` : media ? `\n\n[${p.type === 'video' ? 'Xem video' : 'Nghe âm thanh'}](${media})` : ''; return { media, bodyMarkdown: String(p.caption || '') + attachment }; }
 function publicationAsset(p, type = p.type) { const asset = (p.assets || []).map(assetId => get('assets', assetId)).find(item => item?.active !== false && item.type === type); if (!asset) throw new Error(`Không tìm thấy file ${type === 'video' ? 'video' : 'media'} đã đính kèm.`); return asset; }
 function assetFile(asset) { if (!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z0-9]+$/.test(asset.url || '')) throw new Error('Đường dẫn media không hợp lệ.'); const path = join(dataDir, 'uploads', basename(asset.url)); return { path, size: statSync(path).size, mime: asset.mime || 'application/octet-stream' }; }
-async function refreshedToken(c) {
+export async function refreshedToken(c) {
   const current = secret(c.id); if (!current.refreshToken || !current.expiresAt || Number(current.expiresAt) > Date.now() + 60000) return current.token;
   let data;
   if (['youtube', 'blogger'].includes(c.provider)) data = await remote('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID || '', client_secret: process.env.GOOGLE_CLIENT_SECRET || '', refresh_token: current.refreshToken, grant_type: 'refresh_token' }) });
@@ -223,6 +223,12 @@ export async function sendMessage(c, conv, text, options = {}) {
     const result=await remote(root+'/threads_publish',json({creation_id:container.id},token));
     if(!result.id)throw Object.assign(Error('Threads chưa xác nhận đăng trả lời. Kiểm tra trên nền tảng trước khi thử lại.'),{unknown:true});
     return result;
+  }
+  if(c.provider==='devto'&&conv.kind==='comment'){
+    throw Error('DEV.to hiện chỉ cung cấp API đọc bình luận, chưa có API tạo trả lời. Mở bài gốc trên DEV.to để trả lời.');
+  }
+  if(c.provider==='blogger'&&conv.kind==='comment'){
+    throw Error('Blogger API chỉ hỗ trợ đọc và kiểm duyệt bình luận, không hỗ trợ tạo trả lời. Mở bài gốc trên Blogger để trả lời.');
   }
   if (!conv.externalUserId) throw new Error('Hội thoại chưa có định danh người nhận thực tế.');
   if (c.provider === 'facebook') {
