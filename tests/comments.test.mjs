@@ -49,6 +49,11 @@ test('YouTube comments use the uploads playlist and preserve video context',asyn
  const request=async url=>{if(url.includes('/channels?'))return {items:[{contentDetails:{relatedPlaylists:{uploads:'uploads-id'}}}]};if(url.includes('/playlistItems?'))return {items:[{contentDetails:{videoId:'video-id'},snippet:{title:'Video title',publishedAt:'2026-10-14T01:00:00Z'}}]};return {items:[{id:'thread-id',snippet:{topLevelComment:{id:'youtube-comment',snippet:{textDisplay:'Great video',publishedAt:'2026-10-14T02:00:00Z',authorDisplayName:'Viewer',authorChannelId:{value:'viewer-id'},authorProfileImageUrl:'https://example.com/viewer.png',likeCount:3}}}}]};};
  const state=await syncComments(channel,request);assert.equal(state.status,'ready');const message=all('messages').find(m=>m.externalId==='youtube-comment'),conversation=get('conversations',message.conversationId);assert.equal(conversation.postId,'video-id');assert.equal(conversation.postTitle,'Video title');assert.match(conversation.postUrl,/youtube\.com/);
 });
+test('YouTube skips unavailable videos and continues syncing the channel',async()=>{
+ const channel=put('connections',{id:'yt-missing-video',provider:'youtube',accountId:'youtube-channel',name:'YouTube',mode:'api',status:'connected'});saveSecret(channel.id,{token:'youtube-token'});let comments=0;
+ const request=async url=>{if(url.includes('/channels?'))return {items:[{contentDetails:{relatedPlaylists:{uploads:'uploads-id'}}}]};if(url.includes('/playlistItems?'))return {items:[{contentDetails:{videoId:'missing-video'}},{contentDetails:{videoId:'live-video'}}]};comments++;if(url.includes('missing-video'))throw Object.assign(Error('The video identified by the videoId parameter could not be found.'),{providerStatus:404});return {items:[]};};
+ const state=await syncComments(channel,request);assert.equal(state.status,'ready');assert.equal(comments,2);
+});
 
 test('Threads reply publishes against the selected original comment and returns a receipt',async()=>{
  const {sendMessage}=await import('../server/connectors.mjs');saveSecret('threads',{token:'test'});const previous=globalThis.fetch,calls=[];
