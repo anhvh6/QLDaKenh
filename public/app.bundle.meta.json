@@ -1,5 +1,5 @@
 {
-  "version": "19c482215cdb",
+  "version": "5c4e03c372ca",
   "compiler": "0.25.12",
   "files": {
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
@@ -11,12 +11,12 @@
     "public/order-linked-chat.js": "dfc29d8ef5374660d1c584cc9c186b17e5732eca17382d1a550d5d0a545e59c4",
     "public/icons.js": "99d1b8401fc6c1e2c1f8182d9278b6c62bffda8a80e5e666a57303ddc426428e",
     "public/order-workspace-model.js": "4ce1bc815e830eeca86e5b454ab575fd32ee14c8711b6220c4ea79a41239e645",
-    "public/orders-grid.js": "57ea5f6a8d98ef88c4d014685dd7c0e29711040f32c039aac3584a3cc5ca554e",
+    "public/orders-grid.js": "e32c34b5ed0fe743d8611463b3906caad04bec5577438d33fec18432220a5148",
     "public/shipping-policy.js": "b850912a3bd7b2846bca9be7f4145812263303d53aacd1120d6866ba1c680f55",
     "public/shipping-address.js": "e04c05c0097466c0c38b510b9a387fc99b8eccf132c138d44a6d79407dc0a11c",
     "public/carrier-orders.js": "506973c6d9370ea44acc2cf6ac0ddadcf5a1129b1bd4e2fab898bcb375fe33ab",
     "public/shipping-ui.js": "7b412793551d93517177764b1eab45e41314bed7d10941576807ba09545ba91e",
-    "public/order-detail-editor.js": "d9182263491d6f160a8e3b15db916518e6e92ec996802225a8a333a700510d8f",
+    "public/order-detail-editor.js": "d05942f6a07938d64b44de3e06db479559b72c7e01d2b60795e5d0de3d2dea32",
     "public/communication-message-ui.js": "5a3bccb8e2ca6253dc5723985b10be200229b598552f5e234aeb7317e670802e",
     "public/learner-lookups.js": "8a1328bb6df7fc2de83c64681662c2667997876cc99f93fbea6f6fa12563402c",
     "public/learner-progress.js": "37070ef2c5561e19e7c3214644d6ae16e80bfc4b84e99b4e699555552a0aac85",
@@ -81,6 +81,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
     "public/app.js": "25c5798d66ca4051bbba17e42ad593914c23dd3e8c149eb515b552a59d449bdc",
-    "public/app.bundle.js": "19c482215cdbdb8c313faf88c09e5c88297bc0533cad80d1aa1a38baaff8ed33"
+    "public/app.bundle.js": "5c4e03c372ca4fe1f1a44bd22c9486f8a33dddb3b7975fd63de40d20c719a4a9"
   }
 }
