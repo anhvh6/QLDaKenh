@@ -159,3 +159,18 @@ test('new comments alert while initial history pagination is unfinished',async()
  assert.equal(fresh.history,false);assert.ok(fresh.pushReceivedAt);assert.equal(old.history,true);assert.equal(old.pushReceivedAt,undefined);
  assert.ok(all('notifications').some(n=>n.messageId===fresh.id));assert.ok(!get('comment_sync',channel.id).completedAt);
 });
+
+
+test('late author details replace fallback names without changing attachments or creating another notification',async()=>{
+ const channel=put('connections',{id:'author-page',provider:'facebook',accountId:'author-page',name:'Page',mode:'api',status:'connected'});
+ const m=upsertComment(channel,{id:'author-comment',message:'Same text',attachment:{media:{image:{src:'https://example.com/photo.jpg'}}}},{id:'post'},true);
+ assert.equal(get('conversations',m.conversationId).authorMissing,true);
+ const count=all('notifications').length;
+ const {updateCommentAuthor}=await import('../server/comments.mjs');
+ updateCommentAuthor(channel,{id:'author-comment',from:{id:'author-user',name:'Real author'}});
+ const updated=get('messages',m.id);assert.equal(updated.senderName,'Real author');assert.deepEqual(updated.attachments,m.attachments);assert.equal(updated.history,m.history);assert.equal(updated.pushReceivedAt,m.pushReceivedAt);
+ assert.equal(get('customers',get('conversations',m.conversationId).customerId).name,'Real author');
+ upsertComment(channel,{id:'author-comment',message:'Same text',from:{id:'author-user',name:'Real author'},attachment:{media:{image:{src:'https://example.com/photo.jpg'}}}},{id:'post'},true);
+ upsertComment(channel,{id:'author-comment',message:'Edited',from:{id:'author-user'}},{id:'post'},true);
+ assert.equal(get('messages',m.id).senderName,'Real author');assert.equal(all('notifications').length,count);
+});

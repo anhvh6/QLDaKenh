@@ -11,3 +11,10 @@ test('publication icons escape provider errors and reject executable URLs',()=>{
  const html=publicationIcons({id:'job',reupTargets:[{publicationId:'p',provider:'threads',success:true,url:'javascript:alert(1)'},{publicationId:'bad',provider:'facebook',status:'failed',error:'<script>alert(1)</script>'}]});assert.doesNotMatch(html,/href="javascript:/);assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);
 });
 test('Threads limit catches long captions before a remote publish and counts Unicode code points',()=>{assert.doesNotThrow(()=>validateThreadsText('💚'.repeat(500)));assert.throws(()=>validateThreadsText('a'.repeat(501)),/500 ký tự.*501 ký tự/);});
+
+
+test('publication tooltips identify remote channel names, even for disabled pending icons',()=>{
+ const rows=copyPublicationResults([{id:'waiting',connectionId:'page',status:'scheduled'}],[{id:'page',provider:'facebook',name:'Facebook Page',remoteName:'Maximus - Menswear'}]);
+ assert.equal(rows[0].channelName,'Maximus - Menswear');const html=publicationIcons({id:'job',reupTargets:rows});
+ assert.match(html,/title="Facebook · Maximus - Menswear:/);assert.match(html,/tabindex="0"/);assert.match(html,/disabled/);
+});

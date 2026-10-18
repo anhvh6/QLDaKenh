@@ -1,5 +1,5 @@
 {
-  "version": "bac8587ff334",
+  "version": "a81e89e347d9",
   "compiler": "0.25.12",
   "files": {
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
@@ -30,7 +30,7 @@
     "public/pancake-pos.js": "a698b78a8f406f63594cb04bcdcc0acd1d43c5020e0421639726017db204f940",
     "public/comment-detail.js": "6d57b175a5f0299765ad7ae47379f6141b580ffafb4bfeff6d140d71e06a383c",
     "public/api-response.js": "fe1ca887d268d9c2d75fe47ff0068114cc15397a2e034f5e64137c44d28aea6c",
-    "public/copy-job-table.js": "fbfed2c4cacdc24725dd311ac63c3185be5dd850c905e36f697eb8522d2a1d5c",
+    "public/copy-job-table.js": "d2b77df49bee015014f672ad6fbdfbc2796e478963b7ab2cb4ece6d65a16ad73",
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
     "public/copy-layout-model.js": "1fb8deff67667b988bf4cc43932323675affca23c7b6e79c8ad42693060a9027",
     "public/copy-automation.js": "6976d2d53c05b458fa46e1182281ecfea9ce5001d3045be78daded9f87b92880",
@@ -42,7 +42,8 @@
     "public/student-care-settings.js": "eb49cec69a149ab2faf4d82cb5d48ca2825bb59ff18d88978ee48ab1b3c1785c",
     "public/quick-replies.js": "cf1eb5fad7323c570b7cdc9eabd545aa292468697e5ace88f24c736772c5bd03",
     "public/products-management.js": "e7d08013cafe81a244bc0acf98a96c0be6d9e2e33c016add0e930136db1572d1",
-    "public/device-notifications.js": "3529619b13b8bc40bcf989d0947b8c6eae8a228856555ed408deb3f69d2412e4",
+    "public/notification-permission.js": "882e1ca1e5651f9e75fc25833f999b15085142a3f45f643b49fa252034190aea",
+    "public/device-notifications.js": "e590b7f31b7a6a40a4bcafb4486303865f80b5d13092b640bf56d8f277b8aa82",
     "public/conversation-tags.js": "644e4cd45868a44eb3b0490029d85c09cabb8444ac0439469b9ca928bf49fadb",
     "public/chat-connection-state.js": "81e885e80b8e0485c6a91bd9af0552b9eae2a3fdbb93be1a3c1ab6d606eaea21",
     "public/inbox-model.js": "ca16376e9e3fd57786f95af7a574d533888733e37fac5a9f066a51a737ca58bb",
@@ -80,7 +81,7 @@
     "public/inbox.js": "650413d3baf679d6a18ecf42c2268dfc1420725fdeccccb30f99c2bbee15e6f7",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
-    "public/app.js": "25c5798d66ca4051bbba17e42ad593914c23dd3e8c149eb515b552a59d449bdc",
-    "public/app.bundle.js": "bac8587ff334d3e203aed2bc71786a06600bc5b60a70079261752863887cb497"
+    "public/app.js": "baeda3059d86e166034742a0ec3ccfddb03aabd19375372a3960d21174a90949",
+    "public/app.bundle.js": "a81e89e347d9f3f35170121209e8ac05e4e97ba67a352433e599e972ddd6448b"
   }
 }
