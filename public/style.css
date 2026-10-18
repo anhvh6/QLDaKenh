@@ -5231,3 +5231,10 @@ body.comments-route .topbar{display:none}body.comments-route .content.inbox-page
  .comment-post-list .comment-toolbar .btn{padding:8px;font-size:11px}
  .comment-original-post .comment-post-context{margin:0}
 }
+
+@media(max-width:760px){
+ body.comments-route #page.content.inbox-page{height:calc(100dvh - 64px - env(safe-area-inset-bottom));padding:0;min-height:0}
+ body.comments-route #page .comments-workspace{margin:0;min-height:0}
+ body.comments-route #page .comment-detail .chat-compose{padding:8px 12px;min-height:0}
+ body.comments-route #page .comment-channel-picker:not([open]) .comment-channel-options{display:none}
+}
