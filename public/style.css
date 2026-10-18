@@ -4112,6 +4112,24 @@ details .field {
     gap: 5px
 }
 
+.publication-remote-cleanup {
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px
+}
+
+.publication-remote-cleanup>div {
+    min-width: 0
+}
+
+.publication-remote-cleanup .help-text {
+    margin: 4px 0 0
+}
+
+.publication-remote-cleanup .btn {
+    flex-shrink: 0
+}
+
 @media(max-width:760px) {
     .media-pick-grid {
         grid-template-columns: repeat(3, 1fr)
@@ -4123,6 +4141,11 @@ details .field {
 
     .publishing-history table {
         min-width: 760px
+    }
+
+    .publication-remote-cleanup {
+        align-items: stretch;
+        flex-direction: column
     }
 }
 
