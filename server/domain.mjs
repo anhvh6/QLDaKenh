@@ -1,3 +1,4 @@
+import {contentSourceKey,copySourceBlock} from './copy-history.mjs';
 import {chatOrderSource} from './chat-order-drafts.mjs';
 import {validateOrderTarget} from './order-routing.mjs';
 import {copyPlanBlock,copyPlanHandoffReady} from './copy-plan-guard.mjs';
@@ -34,7 +35,7 @@ export function editRecord(user, kind, id, input) {
   if (kind === 'customers') { data.createdBy = prev?.createdBy || user.id; data.customer_id = prev?.customer_id || 'LOCAL-' + uid('customer'); if (prev?.origin === 'taophacdo') for (const k of ['customer_id', 'is_customized', 'video_date', 'ma_vd', 'start_date', 'end_date', 'san_pham', 'gia_tien', 'status']) data[k] = prev[k]; required(data.name, 'Tên khách', 200); data.tags = Array.isArray(data.tags) ? data.tags.slice(0, 20) : []; data.consent = data.consent === true; }
   if (kind === 'contents') {
     if (id && all('copy_jobs').some(j => j.contentId === id && ['queued', 'downloading', 'uploading'].includes(j.status))) fail('Bài đang được chuẩn bị đăng. Chờ tải hoàn tất trước khi sửa.', 409);
-    for (const key of ['sourceCopyId', 'sourceURL', 'copyReady', 'copyJobId', 'driveFolderId']) { if (prev?.[key] !== undefined) data[key] = prev[key]; else delete data[key]; }
+    for (const key of ['sourceVideoKey', 'sourceCopyId', 'sourceURL', 'copyReady', 'copyJobId', 'driveFolderId']) { if (prev?.[key] !== undefined) data[key] = prev[key]; else delete data[key]; }
     required(data.title, 'Tên nội dung', 250); data.caption = String(data.caption || ''); if (data.caption.length > 100000) fail('Nội dung bài vượt 100.000 ký tự.'); if (!['text', 'image', 'video', 'audio'].includes(data.type)) fail('Loại nội dung không hợp lệ.');
     data.channels = (data.channels || []).filter(x => get('connections', x)); data.assets = (data.assets || []).map(id => { const a = get('assets', id); if (!a || a.active === false || !(a.scopes || ['post']).includes('post')) fail('Media không còn dùng cho đăng bài.'); if (a.connectionId) assertChannel(user, a.connectionId); return id; }); data.status = 'draft'; data.approval = 'pending';
     // Editing an already scheduled content does not silently mutate the frozen publication.
@@ -95,7 +96,7 @@ export function schedule(user, id, input, { prepared = false } = {}) {
     }
     if (mode === 'api' && mediaItems.length > 1 && !['facebook', 'instagram', 'threads'].includes(ch.provider)) fail('Kênh này chưa hỗ trợ tự động đăng nhiều media. Chọn chế độ hỗ trợ đăng.');
     if (mode === 'api' && ch.provider === 'facebook' && mediaItems.length > 1 && mediaItems.some(item => item.type !== 'image')) fail('Facebook API hiện hỗ trợ album ảnh; bài nhiều video cần đăng hỗ trợ.');
-    return { contentId: id, connectionId: cid, title: v.title || c.title, caption: v.caption || c.caption, type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, mediaItems, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
+    return { sourceVideoKey:contentSourceKey(c),contentId: id, connectionId: cid, title: v.title || c.title, caption: v.caption || c.caption, type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, mediaItems, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
   }); return transaction(() => { const jobs = frozen.map(next => { const prev = active.find(p => p.connectionId === next.connectionId); return put('publications', { ...prev, ...next, ...(prev ? { id: prev.id } : {}) }); }); for (const p of active.filter(p => !channels.includes(p.connectionId))) put('publications', { ...p, status: 'cancelled' }); put('contents', { ...c, status: 'scheduled', scheduleAt, approval: 'approved' }); audit(user.id, active.length ? 'reschedule' : 'schedule', id, { targets: jobs.length }); return jobs; });
 }
 export async function publicationAction(user, id, input) {
@@ -233,7 +234,7 @@ export async function tick() {
   if (ticking) return; ticking = true; try {
     const jobs = all('publications').filter(p => p.status === 'scheduled' && Date.parse(p.scheduleAt) <= Date.now()).filter(p=>{const block=copyPlanBlock(p);return !block||block.startsWith('Đã lỡ')||block.startsWith('Đã đăng')||block.startsWith('Kênh đã');}).slice(0, 5);
     for (const p of jobs) {
-      const copyBlock=copyPlanBlock(p);if(copyBlock){if(copyBlock.startsWith('Đã lỡ')||copyBlock.startsWith('Đã đăng')||copyBlock.startsWith('Kênh đã'))put('publications',{...p,status:'blocked',error:copyBlock});continue;}
+      const copyBlock=copySourceBlock(get('contents',p.contentId)||{sourceVideoKey:p.sourceVideoKey},p.connectionId,{publicationId:p.id,dispatch:true})||copyPlanBlock(p);if(copyBlock){if(copyBlock.startsWith('Bài nguồn')||copyBlock.startsWith('Đã lỡ')||copyBlock.startsWith('Đã đăng')||copyBlock.startsWith('Kênh đã'))put('publications',{...p,status:'blocked',error:copyBlock});continue;}
       const ch = get('connections', p.connectionId); if (!ch || ch.status === 'disconnected') { put('publications', { ...p, status: 'blocked', error: 'Kênh đã ngắt kết nối.' }); continue; }
       if (p.mode === 'assisted') { put('publications', { ...p, status: 'awaiting_manual' }); notification('Đến giờ đăng: ' + p.title, `Mở gói đăng cho ${ch.name}.`, 'calendar'); continue; }
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }

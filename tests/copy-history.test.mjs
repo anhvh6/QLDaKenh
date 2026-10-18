@@ -1,0 +1,20 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdirSync,mkdtempSync} from 'node:fs';import {resolve,join} from 'node:path';
+mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'copy-history-'));process.env.PLAN_REMOTE_CATALOG='0';
+const {put,get,remove,all,db}=await import('../server/store.mjs');const {copySourceBlock,backfillCopyHistory}=await import('../server/copy-history.mjs');const {sourceVideoKey}=await import('../server/copy-source-key.mjs');const {schedule,tick}=await import('../server/domain.mjs');
+const user={id:'owner',role:'owner'};put('connections',{id:'target',name:'Target',provider:'facebook',mode:'demo',status:'connected'});
+test('source identity normalizes post aliases and tracking links for supported platforms',()=>{for(const [provider,url,alias] of [['tiktok','https://www.tiktok.com/@a/video/123456','https://www.tiktok.com/@b/video/123456?foo=1'],['facebook','https://www.facebook.com/reel/123456','https://m.facebook.com/watch/?v=123456'],['youtube','https://youtu.be/abc_DEF-12','https://www.youtube.com/watch?v=abc_DEF-12&si=xx'],['instagram','https://www.instagram.com/p/Abc123/','https://www.instagram.com/reel/Abc123/?igsh=x'],['threads','https://www.threads.net/@a/post/Abc123','https://www.threads.com/@a/post/Abc123?x=1'],['x','https://x.com/a/status/123456','https://twitter.com/a/status/123456?x=1']])assert.equal(sourceVideoKey({provider,url}),sourceVideoKey({provider,url:alias}));});
+test('manual re-copy cannot schedule a source already published or queued on that destination',()=>{
+ const post=put('copy_posts',{provider:'tiktok',externalId:'123456',url:'https://www.tiktok.com/@a/video/123456'}),old=put('contents',{sourceCopyId:post.id}),fresh=put('contents',{sourceCopyId:post.id,title:'New draft',caption:'Text',type:'text',channels:['target']});
+ const pub=put('publications',{contentId:old.id,connectionId:'target',status:'published',externalId:'remote-proof'});assert.throws(()=>schedule(user,fresh.id,{version:fresh.version,immediate:true}),/đã đăng/);assert.equal(copySourceBlock(fresh,'another-target'),'');
+ put('publications',{...pub,status:'unknown'});assert.throws(()=>schedule(user,fresh.id,{version:fresh.version,immediate:true}),/đối soát/);
+ put('publications',{...pub,status:'scheduled'});assert.throws(()=>schedule(user,fresh.id,{version:fresh.version,immediate:true}),/lịch trùng/);
+ put('publications',{...pub,status:'failed'});const [job]=schedule(user,fresh.id,{version:fresh.version,immediate:true});assert.equal(job.sourceVideoKey,'tiktok:123456');
+});
+test('historical proof survives deletion of source content and copy result rows',async()=>{
+ const post=put('copy_posts',{provider:'youtube',externalId:'persist-me'}),c=put('contents',{sourceCopyId:post.id}),p=put('publications',{contentId:c.id,connectionId:'target',status:'manually_confirmed'});backfillCopyHistory();assert.equal(get('publications',p.id).updatedAt,p.updatedAt);assert.equal(get('publications',p.id).sourceVideoKey,'youtube:persist-me');remove('contents',c.id);remove('copy_posts',post.id);assert.match(copySourceBlock({sourceVideoKey:'youtube:persist-me'},'target'),/đã đăng/);const {remainingChannels}=await import('../server/copy-automation.mjs');assert.deepEqual(remainingChannels({channels:['target','another']},{provider:'youtube',externalId:'persist-me'},null),['another']);
+});
+test('worker checks source identity again, serializes legacy duplicate schedules and never re-sends',async()=>{
+ const key='facebook:987654',c1=put('contents',{title:'First',sourceVideoKey:key}),c2=put('contents',{title:'Second',sourceVideoKey:key});
+ for(const [id,c,createdAt] of [['legacy-a',c1,'2026-01-01'],['legacy-b',c2,'2026-01-02']])put('publications',{id,contentId:c.id,sourceVideoKey:key,connectionId:'target',status:'scheduled',mode:'demo',scheduleAt:'2026-01-01',createdAt,attempts:0});
+ await tick();assert.equal(get('publications','legacy-a').status,'demo_published');assert.equal(get('publications','legacy-b').status,'blocked');assert.match(get('publications','legacy-b').error,/trùng/);
+});

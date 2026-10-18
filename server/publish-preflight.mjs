@@ -1,3 +1,4 @@
+import {copySourceBlock} from './copy-history.mjs';
 import { all, get } from './store.mjs';
 import { providers } from './connectors.mjs';
 import { assertChannel } from './taophacdo.mjs';
@@ -18,6 +19,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     const ch = get('connections', id);
     if (!ch) { add(null, 'Kênh đã bị xóa. Hãy chọn lại kênh đăng.'); continue; }
     try { assertChannel(user, id); } catch (error) { add(ch, error.message); continue; }
+    if(checkHistory){const block=copySourceBlock(content,id);if(block)add(ch,block);}
     const variant = content.variants?.[id] || {}, type = variant.type || content.type;
     const caption = String(variant.caption || content.caption || ''), title = String(variant.title || content.title || 'Video');
     const api = ['youtube', 'tiktok'].includes(ch.provider) && ch.status === 'connected' || ch.mode === 'api';

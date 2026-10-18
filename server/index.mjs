@@ -1,3 +1,4 @@
+import {backfillCopyHistory} from './copy-history.mjs';
 import {serveFrontendFile} from './frontend-files.mjs';
 import {dashboardMessages} from './dashboard-state.mjs';
 import {communicationRoute,communicationTick,recoverCommunication} from './communication-campaigns.mjs';
@@ -50,6 +51,7 @@ import { planRoute, syncPlanHandoff } from './plan-bridge.mjs';
 import * as care from './taophacdo.mjs';
 import { supabaseRoute, integrationState } from './supabase.mjs';
 care.migrateLocal();
+backfillCopyHistory();
 for (const run of all('template_runs').filter(r => ['sending', 'pending'].includes(r.status))) put('template_runs', { ...run, status: run.status === 'sending' ? 'unknown' : 'failed', error: run.status === 'sending' ? 'Máy chủ khởi động lại khi đang gửi. Kiểm tra trên kênh trước khi gửi lại.' : 'Chuỗi bị gián đoạn; có thể tiếp tục phần chưa gửi.' });
 import { providers, testConnection, aiDraft, ghn } from './connectors.mjs';
 import * as zalo from './zalo.mjs';
