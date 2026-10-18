@@ -141,7 +141,7 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   const o=put('orders',{...order,id:'paid-delete',code:'PAID-DELETE',status:'confirmed',paid:260000,total:260000,fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
   await route('/api/pos/orders/'+o.id+'/dispatch','POST');await posTick(request);
   let r=remote.orders.find(r=>r.custom_id===o.code);r.partner={partner_id:3,extend_code:'MGP-test',order_number_vtp:'PKE-test',partner_status:'request_received'};
-  await assert.rejects(route('/api/pos/orders/'+o.id+'/delete','POST',{version:get('orders',o.id).version}),/hãng chưa xác nhận/);
+  assert.equal((await route('/api/pos/orders/'+o.id+'/delete','POST',{version:get('orders',o.id).version})).pending,true);
   assert.equal(get('orders',o.id).deletedAt,undefined);assert.equal(r.status,6);
   r.partner.partner_status='canceled';const result=await route('/api/pos/orders/'+o.id+'/delete','POST',{version:get('orders',o.id).version});
   assert.equal(result.deleted,true);assert.equal(get('orders',o.id).paid,260000);assert.equal(r.status,7);

@@ -205,18 +205,19 @@ export async function posRoute(path,method,input,user,url,request=pancakeRequest
  const deletion=path.match(/^\/api\/pos\/orders\/([^/]+)\/delete$/);
  if(deletion&&method==='POST'){
   owner(user);const id=decodeURIComponent(deletion[1]),o=get('orders',id);if(!o)fail('Không tìm thấy đơn.',404);assertCustomer(user,o.customerId);
-  if(input.version!==o.version)fail('Đơn đã thay đổi. Mở lại đơn trước khi xóa.',409);
+  const deletionRequest=get('pos_delete_requests',id);if(o.deletedAt&&deletionRequest?.state==='done')return {orderId:id,deleted:true,paidPreserved:o.paid};if(input.version!==o.version&&!deletionRequest)fail('Đơn đã thay đổi. Mở lại đơn trước khi xóa.',409);
   const a=account(o.fulfillmentTarget?.slice(4)),l=linkFor(a,'orders',id);if(!l)fail('Chưa đối chiếu được đơn POS.',409);
   const r=reqFor(a,request);let remote=await remoteCurrent(a,'orders',l,r);
   if(![0,1,8,9,11,6,7].includes(Number(remote?.status)))fail('Đơn đã bàn giao; cần xử lý hoàn hàng.',409);
   const p=remote?.partner||{};if(p.extend_code&&!['request_received','waiting','processing_picked_up','picking_up','canceled',null,undefined].includes(p.partner_status))fail('Hãng đã lấy hàng; không thể xóa đơn.',409);
   const path=root(a)+'/orders/'+encodeURIComponent(l.remoteId);
+  if(!deletionRequest)put('pos_delete_requests',{id,orderId:id,actor:user.id,state:'waiting',requestedAt:now()});
   if(![6,7].includes(Number(remote.status))){await r(path,{method:'PUT',body:{status:6}});remote=await remoteCurrent(a,'orders',l,r);}
   if(![6,7].includes(Number(remote?.status)))fail('POS chưa xác nhận hủy đơn. Không xóa tại hệ thống.',409);
-  if(remote.partner?.extend_code&&remote.partner?.partner_status!=='canceled')fail('POS đã hủy đơn nhưng hãng chưa xác nhận hủy vận đơn. Hủy vận đơn trên POS/Viettel Post rồi kiểm tra lại; chưa xóa đơn tại hệ thống.',409);
+  if(remote.partner?.extend_code&&remote.partner?.partner_status!=='canceled')return {orderId:id,pending:true,message:'Đang chờ hãng xác nhận hủy vận đơn trước khi xóa.'};
   if(Number(remote.status)!==7){await r(path,{method:'PUT',body:{status:7}});remote=await remoteCurrent(a,'orders',l,r);}
   if(Number(remote?.status)!==7)fail('POS chưa xác nhận xóa mềm. Không tự gửi lại.',409);
-  await applyPosRow(a,'orders',remote);const saved=get('orders',id);if(!saved.deletedAt)fail('Đã xóa trên POS nhưng cần đối soát bản ghi nội bộ.',409);audit(user.id,'pos_order_deleted',id,{tracking:p.order_number_vtp||p.extend_code,paidPreserved:saved.paid});return {orderId:id,deleted:true,paidPreserved:saved.paid};
+  await applyPosRow(a,'orders',remote);const saved=get('orders',id);if(!saved.deletedAt)fail('Đã xóa trên POS nhưng cần đối soát bản ghi nội bộ.',409);put('pos_delete_requests',{...get('pos_delete_requests',id),state:'done',completedAt:now()});audit(user.id,'pos_order_deleted',id,{tracking:p.order_number_vtp||p.extend_code,paidPreserved:saved.paid});return {orderId:id,deleted:true,paidPreserved:saved.paid};
  }
  const template=path.match(/^\/api\/pos\/accounts\/([^/]+)\/notification-template$/);
  if(template){owner(user);const a=account(template[1]);if(method==='GET')return a.trackingTemplate||{text:''};if(method==='POST'){const text=String(input.text||'').trim();if(text.length>8000)fail('Mẫu tối đa 8000 ký tự.');const allowed=['PRODUCT_NO_ATTRIBUTE','TRACKING_ID','TRACKING_URL','PARTNER_FEE','PARTNER_NAME','FULL_NAME','PHONE_NUMBER','FULL_ADDRESS','DELIVERY_TEL'];for(const token of text.matchAll(/#\{([^}]+)\}/g))if(!allowed.includes(token[1]))fail('Chưa hỗ trợ biến '+token[1]);setAccount(a,{trackingTemplate:{text,source:'pos-manual-copy',updatedAt:now()}});audit(user.id,'pos_tracking_template_updated',a.id);return {ok:true};}}
