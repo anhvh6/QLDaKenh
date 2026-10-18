@@ -1,5 +1,5 @@
 export function pinnedRows(state,c){
- const messages=state.messages.filter(m=>m.conversationId===c.id&&!m.deletedAt),remote=(c.platformPins||[]).map(p=>{
+ const messages=[...new Map([...(state.pinnedMessages||[]),...state.messages].map(m=>[m.id,m])).values()].filter(m=>m.conversationId===c.id&&!m.deletedAt),remote=(c.platformPins||[]).map(p=>{
   const m=messages.find(m=>p.externalId&&m.externalId===p.externalId||p.clientId&&m.externalClientId===p.clientId);
   return {...p,topicId:p.id,id:m?.id||p.id,text:m?.text||p.text,attachments:m?.attachments||[],remote:true,available:!!m};
  });

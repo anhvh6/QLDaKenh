@@ -1,5 +1,5 @@
 {
-  "version": "2734ae9398f2",
+  "version": "04cd9452509f",
   "compiler": "0.25.12",
   "files": {
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
@@ -49,7 +49,7 @@
     "public/media-library.js": "a8eec5e8e4ced54c94877678dd7c8eea3299585c9198b5133ffc3ce930add492",
     "public/chat-appointments.js": "0e5fba10c507aa9c61daeaefbf6dd24403338a682717aa7b71c5a611fae9fc6b",
     "public/chat-timeline.js": "6b4852c200b2428b13602c8dab9f4abc3f2bf95b185f1681f1afc9357a7a1512",
-    "public/chat-pins.js": "bc37d99926a201af71b528888b0368a124c1b31b30a82a7ce34caeb3ecc54c58",
+    "public/chat-pins.js": "d989417f11444e1397982011796721833c7a78e998ceb37b21c65c7f200c21c5",
     "public/chat-list-style.js": "dd8a38b80d10bf9dda22214d73f1a509dbc18f4db05a5b47fb962d5e72eaf5c5",
     "public/chat-text-content.js": "20c721e742bf7be37d3e73651f2379fd6a6bde1d44834cb6088be76bcbccb4cb",
     "public/chat-content-ui.js": "66d24f1b28db5e6e2f7fde8a4604746ab55daf620be6c2ed75f40a134f8c5170",
@@ -70,15 +70,15 @@
     "public/group-mention-model.js": "48e05e550090427644d273e7c400b47f44e5d7208714bf15e9239805c90ec891",
     "public/group-mentions.js": "b9b68b98ca9a910f9ff289f0fead38fc65d1673dab6e949873882d7538d7711e",
     "public/chat-media-content.js": "776a23dd075ce74eae6a3e240d11ec8cdd08fb5f55a1784e240520d67bc48c68",
-    "public/chat-message-rich.js": "0d2757f271243ba96bb44c5a77f7d26ada39c881f977f45c2f6dbff4a843c6f8",
+    "public/chat-message-rich.js": "258c3a7729a1910b118737fa7ca5b188a3d23546acc49afe8e1e12909dd9eec0",
     "public/chat-media-picker.js": "eaae5535b6193492cd51e0c23b8d6ab9f26fdd81dfafa521a470d99b8fc83a0a",
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "faf9823da17bfbd1ce616dc9071b3c4e4041c5e798144df87029c13dbfdef65f",
+    "public/inbox.js": "650413d3baf679d6a18ecf42c2268dfc1420725fdeccccb30f99c2bbee15e6f7",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
-    "public/app.js": "fe19d37e28f7d7b551531af7e0932b3fd89cce36e7f652e70a8b971b1987373b",
-    "public/app.bundle.js": "2734ae9398f2278729b5307b304e7dda3437a9370f83192f6f37edc4bbb57f5f"
+    "public/app.js": "5cb16840cdaabfa5976187a0147deab5c109eb3fcb3c61058bd41a78d1d4b643",
+    "public/app.bundle.js": "04cd9452509f6536e66ce735b7793ea0c69da34a6d2d47c757051510dc5226ba"
   }
 }

@@ -35,6 +35,7 @@ test('conditional state and notifications invalidate after writes, isolate users
   put('messages',{id:'dash-last',conversationId:'dash-conv',direction:'incoming',createdAt:stamp,text:'Private message body',attachments:[{url:'https://example.test/private.jpg'}]});
   const compact=await(await fetch(base+'/api/state?view=dashboard',{headers})).json();assert.equal(compact.snapshotView,'dashboard');assert.equal(compact.messages.length,1);assert.equal(compact.messages[0].id,'dash-last');assert.equal(compact.messages[0].text,undefined);assert.equal(compact.messages[0].attachments,undefined);
   assert.equal((await(await fetch(base+'/api/state?view=dashboard&since='+compact.snapshotRevision,{headers})).json()).unchanged,true);
+  const inbox=await(await fetch(base+'/api/state?view=inbox&since='+compact.snapshotRevision,{headers})).json();assert.equal(inbox.snapshotView,'inbox');assert.equal(inbox.messages.length,0);
   const full=await(await fetch(base+'/api/state?since='+compact.snapshotRevision,{headers})).json();assert.equal(full.snapshotView,'full');assert.equal(full.messages.length,101);assert.equal(full.messages.find(m=>m.id==='dash-last').text,'Private message body');assert.ok(JSON.stringify(full).length>JSON.stringify(compact).length*5);
  }finally{server.kill();}
 });

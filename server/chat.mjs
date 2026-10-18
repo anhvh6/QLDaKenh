@@ -1,3 +1,4 @@
+import {chatWindow} from './chat-window.mjs';
 import {reminderRecipients,activeAppointmentTask} from '../public/reminder-model.js';
 import { syncFacebookChat, syncFacebookConversation } from './facebook-chat.mjs';
 import {createHash} from 'node:crypto';
@@ -75,7 +76,8 @@ export async function chatRoute(path,method,input,user,url){
   void refreshZaloPins(conversation);void syncFacebookConversation(get('connections',conversation.connectionId),conversation).catch(()=>{});
   // Check a covering index before loading potentially large media/quote payloads.
   const rows=db.prepare("SELECT id,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY id").all(conversation.id);
-  const revision=createHash('sha256').update(JSON.stringify(conversation)).update(JSON.stringify(rows.map(r=>[r.id,r.version]))).digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
+  const revision=createHash('sha256').update(JSON.stringify(conversation)).update(JSON.stringify(rows.map(r=>[r.id,r.version]))).update(url?.searchParams.get('limit')||'full').update(url?.searchParams.get('before')||'').digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
+  if(url?.searchParams.has('limit'))return {conversation,...chatWindow(conversation.id,url.searchParams,conversation.platformPins||[]),revision};
   const messages=db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY json_extract(data,'$.createdAt'),id").all(conversation.id).map(r=>({...JSON.parse(r.data),id:r.id,version:r.version}));return {conversation,messages,revision};
  }
  const preview=path.match(/^\/api\/chat\/messages\/([^/]+)\/link-preview$/);if(preview&&method==='POST'){const m=get('messages',preview[1]);if(!m||m.deletedAt)fail('Không tìm thấy tin nhắn.',404);chatConversation(user,m.conversationId);return linkPreview(m,input.url);}
