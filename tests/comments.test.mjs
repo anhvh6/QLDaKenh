@@ -1,9 +1,26 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdirSync,mkdtempSync} from 'node:fs';import {join,resolve} from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'comments-'));
-const {all,get,put,saveSecret}=await import('../server/store.mjs');
+const {all,get,put,saveSecret,db}=await import('../server/store.mjs');
 const {upsertComment,ingestCommentEvents,syncComments,commentsStatus}=await import('../server/comments.mjs');
 const c=put('connections',{id:'fb',provider:'facebook',accountId:'page',name:'Page',mode:'api',status:'connected'});saveSecret('fb',{token:'test'});
+test('comment lookup isolates channels, reconciles receipt IDs and avoids parsing unrelated chat history',()=>{
+ const other=put('connections',{id:'other-page',provider:'facebook',accountId:'other',mode:'api'});
+ const a=upsertComment(c,{id:'shared-id',message:'A',from:{id:'a'}}),b=upsertComment(other,{id:'shared-id',message:'B',from:{id:'b'}});
+ assert.notEqual(a.conversationId,b.conversationId);
+ const receipt=put('messages',{conversationId:a.conversationId,direction:'outgoing',status:'accepted',text:'Sent',actor:'staff',externalMessages:[{id:'receipt-id'}]});
+ assert.equal(upsertComment(c,{id:'receipt-id',message:'Sent',from:{id:'page'},parent:{id:'shared-id'}}).id,receipt.id);
+ const pending=put('messages',{conversationId:a.conversationId,direction:'outgoing',status:'sending',text:'Pending',replyToExternalId:'shared-id',actor:'staff'});
+ assert.equal(upsertComment(c,{id:'pending-receipt',message:'Pending',from:{id:'page'},parent:{id:'shared-id'}}).id,pending.id);
+ const insert=db.prepare('INSERT INTO records(kind,id,data,version,updated_at) VALUES(?,?,?,?,?)');
+ db.exec('BEGIN');try{for(let i=0;i<10000;i++)insert.run('messages','bulk-'+i,JSON.stringify({conversationId:'unrelated',text:'unrelated-history-marker '+i}),1,'2026-10-18');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+ const parse=JSON.parse;let unrelated=0;JSON.parse=function(value,...args){if(String(value).includes('unrelated-history-marker'))unrelated++;return parse(value,...args);};
+ try{upsertComment(c,{id:'shared-id',message:'Changed',from:{id:'a'}});upsertComment(c,{id:'new-indexed-comment',message:'New',from:{id:'new-person'}});}finally{JSON.parse=parse;db.prepare("DELETE FROM records WHERE kind='messages' AND id LIKE 'bulk-%'").run();}
+ assert.equal(unrelated,0);assert.equal(get('messages',a.id).text,'Changed');assert.equal(get('messages',b.id).text,'B');
+ for(const id of [a.conversationId,b.conversationId,get('messages',pending.id)?.conversationId]){if(id){db.prepare("DELETE FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=?").run(id);db.prepare("DELETE FROM records WHERE kind='conversations' AND id=?").run(id);}}
+ const fresh=get('messages',db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.externalId')='new-indexed-comment'").get()?.id);if(fresh){db.prepare("DELETE FROM records WHERE kind='messages' AND id=?").run(fresh.id);db.prepare("DELETE FROM records WHERE kind='conversations' AND id=?").run(fresh.conversationId);}
+ db.prepare("DELETE FROM records WHERE kind='connections' AND id='other-page'").run();
+});
 test('historical comments dedupe, include attachment-only content and preserve reply attribution',()=>{
  const item={id:'comment',message:'Hello',from:{id:'person',name:'Customer'},created_time:'2026-10-14T01:00:00Z'};
  const first=upsertComment(c,item,{id:'post',message:'Original',permalink_url:'https://facebook.com/post'});upsertComment(c,item,{id:'post'});

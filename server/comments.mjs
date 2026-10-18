@@ -3,6 +3,20 @@ import {all,get,put,secret,now,db,notification,transaction} from './store.mjs';
 import {remote,refreshedToken} from './connectors.mjs';
 import {permission,fail} from './domain.mjs';
 import {assertChannel,observeCareMessage} from './taophacdo.mjs';
+import {setImmediate as yieldIO} from 'node:timers/promises';
+
+// Resolve comments in SQLite rather than parsing the entire chat history per item.
+db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_external ON records(json_extract(data,'$.externalId')) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_comment_channel ON records(json_extract(data,'$.connectionId'),json_extract(data,'$.kind'),json_extract(data,'$.externalCommentId')) WHERE kind='conversations';`);
+const stored=row=>row?{...JSON.parse(row.data),id:row.id,version:row.version}:null;
+function commentMessage(channelId,externalId){
+ const row=db.prepare(`SELECT m.id,m.data,m.version FROM records m INDEXED BY idx_messages_external JOIN records c ON c.kind='conversations' AND c.id=json_extract(m.data,'$.conversationId')
+ WHERE m.kind='messages' AND json_extract(m.data,'$.externalId')=? AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment' ORDER BY m.updated_at DESC LIMIT 1`).get(externalId,channelId);
+ if(row)return stored(row);
+ return stored(db.prepare(`SELECT m.id,m.data,m.version FROM records c INDEXED BY idx_comment_channel CROSS JOIN records m INDEXED BY idx_messages_conversation ON m.kind='messages' AND json_extract(m.data,'$.conversationId')=c.id
+ WHERE c.kind='conversations' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment'
+ AND EXISTS(SELECT 1 FROM json_each(m.data,'$.externalMessages') e WHERE json_extract(e.value,'$.id')=?) ORDER BY m.updated_at DESC LIMIT 1`).get(channelId,externalId));
+}
 
 export const commentProviders=new Set(['facebook','threads','instagram','youtube','blogger','x','devto']);
 const locks=new Map();
@@ -15,12 +29,12 @@ export function commentAttachments(item){
 export function upsertComment(channel,item,post={},live=false){
  if(!item.id)return null;
  return transaction(()=>{
- const existingConvs=all('conversations').filter(c=>c.connectionId===channel.id&&c.kind==='comment'),ids=new Set(existingConvs.map(c=>c.id));
- let existing=all('messages').find(m=>ids.has(m.conversationId)&&(m.externalId===String(item.id)||(m.externalMessages||[]).some(x=>x.id===String(item.id))));
+ const existingConvs=db.prepare("SELECT id,data,version FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.kind')='comment' ORDER BY updated_at DESC").all(channel.id).map(stored);
+ let existing=commentMessage(channel.id,String(item.id));
  if(existing?.deletedAt)return existing;
  const own=existing?.direction==='outgoing'||item.is_reply_owned_by_me===true||String(item.from?.id||'')===String(channel.accountId);
  const parent=String(item.parent?.id||item.replied_to?.id||'');
- if(own&&!existing)existing=all('messages').find(m=>ids.has(m.conversationId)&&m.status==='sending'&&m.replyToExternalId===parent);
+ if(own&&!existing)existing=stored(db.prepare(`SELECT m.id,m.data,m.version FROM records c INDEXED BY idx_comment_channel CROSS JOIN records m INDEXED BY idx_messages_conversation ON m.kind='messages' AND json_extract(m.data,'$.conversationId')=c.id WHERE c.kind='conversations' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment' AND json_extract(m.data,'$.status')='sending' AND json_extract(m.data,'$.replyToExternalId')=? ORDER BY m.updated_at DESC LIMIT 1`).get(channel.id,parent));
  let conv=existing&&get('conversations',existing.conversationId)||existingConvs.find(c=>c.externalCommentId===String(own?parent:item.id));
  const standaloneOwnReply=channel.provider==='threads'&&own&&!conv;
  if(own&&!conv&&!standaloneOwnReply)return null;
@@ -73,7 +87,7 @@ async function syncProviderComments(channel,state,request){
  if(channel.provider==='devto')return syncDevto(channel,state,request);
  if(channel.provider==='x')return syncX(channel,state,request);
 }
-export function ingestCommentEvents(channel,entries){for(const entry of entries||[]){if(String(entry.id)!==String(channel.accountId))continue;for(const change of entry.changes||[]){const v=change.value;if(change.field!=='feed'||v?.item!=='comment'||!v.comment_id)continue;const key=channel.id+':comment:'+v.comment_id+':'+v.verb+':'+(v.created_time||entry.time||'');if(db.prepare('SELECT id FROM events WHERE id=?').get(key))continue;transaction(()=>{if(v.verb==='remove'){for(const c of all('conversations').filter(c=>c.connectionId===channel.id&&c.kind==='comment')){const m=all('messages').find(m=>m.conversationId===c.id&&m.externalId===v.comment_id);if(m)put('messages',{...m,deletedAt:now(),text:'Bình luận đã xóa',attachments:[],status:'deleted'});if(c.externalCommentId===v.comment_id)put('conversations',{...c,status:'resolved',remoteDeleted:true});}}else if(['add','edited'].includes(v.verb)){upsertComment(channel,{id:v.comment_id,message:v.message||'',from:v.from,parent:{id:v.parent_id},attachment:v.photo?{media:{image:{src:v.photo?.url||v.photo}}}:v.attachment,created_time:new Date(Number(v.created_time||entry.time||Date.now()/1000)*1000).toISOString()},{id:v.post_id},true);}db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(key,channel.id,now(),JSON.stringify(change));});}}}
+export function ingestCommentEvents(channel,entries){for(const entry of entries||[]){if(String(entry.id)!==String(channel.accountId))continue;for(const change of entry.changes||[]){const v=change.value;if(change.field!=='feed'||v?.item!=='comment'||!v.comment_id)continue;const key=channel.id+':comment:'+v.comment_id+':'+v.verb+':'+(v.created_time||entry.time||'');if(db.prepare('SELECT id FROM events WHERE id=?').get(key))continue;transaction(()=>{if(v.verb==='remove'){for(const c of db.prepare("SELECT id,data,version FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.kind')='comment'").all(channel.id).map(stored)){const m=stored(db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.externalId')=? AND json_extract(data,'$.conversationId')=? ORDER BY updated_at DESC LIMIT 1").get(v.comment_id,c.id));if(m)put('messages',{...m,deletedAt:now(),text:'Bình luận đã xóa',attachments:[],status:'deleted'});if(c.externalCommentId===v.comment_id)put('conversations',{...c,status:'resolved',remoteDeleted:true});}}else if(['add','edited'].includes(v.verb)){upsertComment(channel,{id:v.comment_id,message:v.message||'',from:v.from,parent:{id:v.parent_id},attachment:v.photo?{media:{image:{src:v.photo?.url||v.photo}}}:v.attachment,created_time:new Date(Number(v.created_time||entry.time||Date.now()/1000)*1000).toISOString()},{id:v.post_id},true);}db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(key,channel.id,now(),JSON.stringify(change));});}}}
 
 export async function syncComments(channel,request=remote){
  if(locks.has(channel.id))return locks.get(channel.id);
@@ -86,7 +100,7 @@ export async function syncComments(channel,request=remote){
  for(const post of queue.slice(0,5)){
   const key=channel.id+':'+post.id,p=get('comment_post_sync',key)||{},cursor=p.after||'';
   const page=await read(post.id+'/'+(channel.provider==='threads'?'replies':'comments'),{fields:channel.provider==='threads'?'id,text,timestamp,username,media_type,media_url,permalink,is_reply_owned_by_me,replied_to,root_post':'id,message,created_time,from{id,name,picture},attachment,parent,user_likes,like_count,permalink_url',limit:'50',...(channel.provider==='facebook'?{filter:'stream'}:{}),...(cursor?{after:cursor}:{})});
-  const initial=!!state.completedAt;for(const item of [...(page.data||[])].sort((a,b)=>Date.parse(a.created_time||a.timestamp)-Date.parse(b.created_time||b.timestamp)))upsertComment(channel,item,post,initial&&Date.parse(item.created_time||item.timestamp)>Date.now()-3600000);
+  const initial=!!state.completedAt;for(const item of [...(page.data||[])].sort((a,b)=>Date.parse(a.created_time||a.timestamp)-Date.parse(b.created_time||b.timestamp))){upsertComment(channel,item,post,initial&&Date.parse(item.created_time||item.timestamp)>Date.now()-3600000);await yieldIO();}
   const next=page.paging?.next?page.paging?.cursors?.after||'':'';put('comment_post_sync',{id:key,after:next});processed++;if(next){queue=[post,...queue.slice(processed)];processed=0;break;}
  }
  queue=queue.slice(processed);state=put('comment_sync',{...state,queue,after,status:'ready',error:'',syncedAt:now(),...(!queue.length&&!after?{completedAt:now()}:{})});return state;

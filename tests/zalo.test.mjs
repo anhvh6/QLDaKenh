@@ -68,7 +68,7 @@ test('Zalo persistence, history, listener and routing',async t=>{
   const rows=all('messages').filter(m=>m.albumId==='incoming-album');assert.equal(rows.length,2);assert.equal(rows.find(m=>m.senderId==='friend1').attachments.length,2);assert.equal(zalo.ingestMessage('z1',image('incoming-2','friend1')),false);
  });
  await t.test('message and conversation lookup use indexes instead of scanning all records',()=>{
-  const messagePlan=db.prepare("EXPLAIN QUERY PLAN SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=?").all('c','m');assert.match(JSON.stringify(messagePlan),/idx_messages_conversation/);
+  const messagePlan=db.prepare("EXPLAIN QUERY PLAN SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=?").all('c','m');assert.match(JSON.stringify(messagePlan),/SEARCH records USING INDEX idx_messages_(conversation|external)/);
   const channelPlan=db.prepare("EXPLAIN QUERY PLAN SELECT id FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=? AND coalesce(json_extract(data,'$.threadType'),0)=?").all('z1','friend1',0);assert.match(JSON.stringify(channelPlan),/idx_zalo_conversation/);
  });
  await t.test('receipt reconciliation rolls back duplicate removal if saving fails',async()=>{
