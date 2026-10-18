@@ -1,3 +1,4 @@
+import {formatHint,formatLabels} from '../public/composer-format.js';
 import {copySourceBlock} from './copy-history.mjs';
 import { all, get } from './store.mjs';
 import { providers } from './connectors.mjs';
@@ -29,7 +30,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     if (type !== 'text' && !media.some(m => m.type === type) && !(variant.mediaUrl || content.mediaUrl)) add(ch, `Thiếu media phù hợp với định dạng ${type}.`);
     if (!api) continue;
     const provider = providers[ch.provider];
-    if (!provider?.publish || !provider.formats.includes(type)) add(ch, `API của kênh chưa hỗ trợ định dạng ${type}. Chọn định dạng hoặc kênh khác.`);
+    if (!provider?.publish || !provider.formats.includes(type)) add(ch,formatHint(ch.provider,type)||`API của kênh chưa hỗ trợ định dạng ${formatLabels[type]||type}. Chọn định dạng hoặc kênh khác.`);
     const limits = { threads: 500, instagram: 2200, x: 280, tiktok: 2200 };
     // TikTok's limit uses UTF-16; Threads counts Unicode code points.
     const count = ch.provider === 'tiktok' || ch.provider === 'x' ? caption.length : Array.from(caption).length;
@@ -40,7 +41,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
       if (bytes > 5000) add(ch, `Mô tả ${bytes}/5000 byte UTF-8. Cần rút gọn nội dung.`);
       if (/[<>]/.test(title + caption)) add(ch, 'Tiêu đề và mô tả YouTube không được chứa dấu < hoặc >.');
     }
-    const album = !!source || content.copyReady;
+    const album = type!=='text'&&(!!source || content.copyReady);
     if (album && media.length > 1 && !['facebook', 'instagram', 'threads'].includes(ch.provider)) add(ch, 'Kênh này chưa hỗ trợ tự động đăng nhiều media trong một bài.');
     if (album && media.length > 1 && ch.provider === 'facebook' && media.some(m => m.type !== 'image')) add(ch, 'Facebook API chỉ hỗ trợ album ảnh; không thể đăng album có video trong hệ thống.');
     const url = variant.mediaUrl || content.mediaUrl;

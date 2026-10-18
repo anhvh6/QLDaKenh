@@ -19,7 +19,7 @@ test('aggregates every destination error and respects channel-specific caption w
  const result = publicationPreflight(owner, c, { immediate: true });
  assert.equal(result.ok, false);assert.ok(result.issues.every(i => i.channelId === 'instagram'));
  assert.ok(result.issues.some(i => i.message.includes('2201/2200')));
- assert.ok(result.issues.some(i => i.message.includes('định dạng text')));
+ assert.ok(result.issues.some(i => i.channelId==='instagram'&&i.message.includes('cần ảnh hoặc video')));
  assert.equal(all('publications').length, before);
  assert.equal(publicationPreflight(owner, content({caption:'💚'.repeat(500)}), {immediate:true}).ok, true);
 });
@@ -48,4 +48,10 @@ test('source media is checked before import; valid future source can proceed to 
  const c=content({type:'video',channels:['facebook'],sourceCopyId:source.id});
  assert.ok(publicationPreflight(owner,c,{immediate:true}).issues.some(i=>i.message.includes('album ảnh')));
  assert.equal(publicationPreflight(owner,{...c,channels:['threads']},{scheduleAt:new Date(Date.now()+3600000).toISOString()}).ok,true);
+});
+
+test('pending source video supports Instagram and YouTube before download; per-channel text ignores source album',()=>{
+ const post=put('copy_posts',{id:'format-source',userId:owner.id,media:[{type:'video'}]});const c=content({sourceCopyId:post.id,type:'video',channels:['instagram','youtube']});assert.equal(publicationPreflight(owner,c,{immediate:true}).ok,true);
+ const imagePost=put('copy_posts',{id:'format-images',userId:owner.id,media:[{type:'image'},{type:'image'}]});const textOnly=content({sourceCopyId:imagePost.id,type:'image',channels:['threads','youtube'],variants:{threads:{type:'text'},youtube:{type:'video'}}});const review=publicationPreflight(owner,textOnly,{immediate:true});assert.equal(review.issues.some(i=>i.channelId==='threads'),false);assert.ok(review.issues.some(i=>i.channelId==='youtube'&&/Thiếu media/.test(i.message)));
+ const bad=publicationPreflight(owner,content({channels:['instagram','youtube']}),{immediate:true});assert.ok(bad.issues.some(i=>/Instagram cần ảnh hoặc video/.test(i.message)));assert.ok(bad.issues.some(i=>/YouTube cần video/.test(i.message)));
 });
