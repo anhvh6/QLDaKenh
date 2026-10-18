@@ -400,7 +400,7 @@ if ('serviceWorker' in navigator){
  navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
  navigator.serviceWorker.addEventListener('message',event=>{if(event.data?.type!=='hub-open-notification')return;let target;try{target=new URL(event.data.url,location.origin);}catch{return;}if(target.origin!==location.origin||target.username||target.password)return;
   if(!S?.user){location.assign(target.href);event.ports?.[0]?.postMessage({handled:true});return;}
-  rememberInboxDraft();history.pushState(null,'',target.href);route=target.hash.slice(1)||'dashboard';filter='all';query='';commentChannel='';const page=$('#page');if(page)page.innerHTML='<p role="status">Đang mở nội dung thông báo…</p>';
+  rememberInboxDraft();closeModal();history.pushState(null,'',target.href);route=target.hash.slice(1)||'dashboard';filter='all';query='';commentChannel='';const page=$('#page');if(page)page.innerHTML='<p role="status">Đang mở nội dung thông báo…</p>';
   void refresh().catch(err=>toast(err.message,true));event.ports?.[0]?.postMessage({handled:true});
  });
 }
