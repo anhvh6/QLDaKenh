@@ -5197,3 +5197,37 @@ body.comments-route .topbar{display:none}body.comments-route .content.inbox-page
 .notification-message-target{outline:2px solid #d29a36;outline-offset:4px;border-radius:12px}
 
 .content-date-group{margin:16px 0 24px}.content-date-heading{display:flex;align-items:center;gap:12px;margin:0 0 12px;font-size:15px}.content-date-heading span{font-size:12px;font-weight:400;color:var(--text-muted)}.publishing-list-head h2{margin:0}.publishing-page-head>h1{margin:0}@media(max-width:600px){.content-date-group{margin:12px 0 18px}.publishing-page-head{flex-wrap:wrap;gap:12px}}
+
+/* Comment filters belong to the list; the reply pane keeps its full height. */
+.comment-post-list .comment-toolbar{padding:10px;gap:8px;margin:0;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap}
+.comment-post-list .comment-toolbar .tabs{width:100%;overflow-x:auto;flex-wrap:nowrap}
+.comment-post-list .comment-toolbar .tab{white-space:nowrap}
+.comment-post-list .comment-toolbar .search-field{display:flex;width:100%;min-width:0}
+.comment-post-list .comment-sync-status{margin:0;padding:0 10px;font-size:11px}
+.comment-channel-picker{position:relative;flex:1;min-width:130px;font-size:12px}
+.comment-channel-picker>summary{cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:white;list-style:none}
+.comment-channel-picker>summary:after{content:'⌄';float:right;margin-left:8px}
+.comment-channel-options{position:absolute;left:0;top:100%;z-index:35;min-width:240px;max-width:310px;max-height:300px;overflow:auto;background:white;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 20px #0002;padding:6px}
+.comment-channel-options label{display:flex;align-items:center;gap:9px;padding:9px;margin:0;cursor:pointer;font-size:12px}
+.comment-channel-options input{width:16px;height:16px;accent-color:var(--primary)}
+.comment-original-post{margin-bottom:14px;font-size:12px}
+.comment-original-post>summary{cursor:pointer;color:var(--primary);padding:8px 0}
+.comment-original-post:not([open]){margin-bottom:5px}
+@media(max-width:760px){
+ .comments-workspace{border-radius:0}
+ .comments-workspace.has-selection .comment-post-list{display:none}
+ .comments-workspace:not(.has-selection) .comment-work-area{display:none}
+ .comment-chat-head{padding:10px 12px;gap:8px;min-height:64px}
+ .comment-chat-head>.avatar{display:none}
+ .comment-chat-head strong{font-size:15px}
+ .comment-feed-scroll{background:#f1f2f7;padding:10px 14px 16px}
+ .comment-message.incoming>.avatar{display:none}
+ .comment-message.incoming .comment-message-bubble{background:transparent;border:0;box-shadow:none;padding:7px 0}
+ .comment-message.outgoing .comment-message-bubble{background:#dff5c6;border:0;border-radius:18px 18px 4px 18px}
+ .comment-message-bubble img,.comment-message-bubble video{max-width:100%;max-height:42dvh;object-fit:contain}
+ .comment-message-meta{gap:9px;flex-wrap:wrap}
+ .comment-detail .chat-compose{padding:9px 12px}
+ .comment-detail .chat-compose textarea{min-height:72px;max-height:130px}
+ .comment-post-list .comment-toolbar .btn{padding:8px;font-size:11px}
+ .comment-original-post .comment-post-context{margin:0}
+}

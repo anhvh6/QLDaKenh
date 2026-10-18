@@ -1,7 +1,8 @@
 {
-  "version": "faa58e1c6900",
+  "version": "a4c70e6394bf",
   "compiler": "0.25.12",
   "files": {
+    "public/comment-channel-filter.js": "4252fa9cf3c08ef3dc8a1ba83432213767393d2dc7d1ea944c5a65ba46dfe30d",
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
@@ -80,8 +81,8 @@
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
     "public/inbox.js": "650413d3baf679d6a18ecf42c2268dfc1420725fdeccccb30f99c2bbee15e6f7",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
-    "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
-    "public/app.js": "baeda3059d86e166034742a0ec3ccfddb03aabd19375372a3960d21174a90949",
-    "public/app.bundle.js": "faa58e1c69008c98ae39ea57fcbd766fd874eef6e4336acb4dd8ff3d64767afa"
+    "public/care.js": "c001957fa5b1e6ec3edaac86d429be300cdc0830b516284256e34199c6b96d4b",
+    "public/app.js": "16d5bcb59fd702f4e0e0b065332bb1236f071a4d0105d99653d7fc1bb5faf14f",
+    "public/app.bundle.js": "a4c70e6394bf5c2ed48c86deaf8f51d6a82bf97ceb38f9aec076333a35d3d52e"
   }
 }
