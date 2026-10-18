@@ -146,6 +146,9 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   r.partner.partner_status='canceled';const result=await route('/api/pos/orders/'+o.id+'/delete','POST',{version:get('orders',o.id).version});
   assert.equal(result.deleted,true);assert.equal(get('orders',o.id).paid,260000);assert.equal(r.status,7);
  });
+ await t.test('POS title casing of customer address does not create a false conflict',async()=>{
+  const c=put('customers',{name:'Case test',phone:'0912345699',address:'01 ngõ a, phường b, hà nội',email:''});await posTick(request);const r=remote.customers.find(r=>r.phone_numbers.includes(c.phone));r.shop_customer_address[0].full_address='01 Ngõ A, Phường B, Hà Nội';r.updated_at=new Date().toISOString();await applyPosRow(account,'customers',r);assert.equal(get('customers',c.id).address,c.address);assert.notEqual(all('pos_jobs').find(j=>j.localId===c.id)?.state,'conflict');
+ });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
 });
 

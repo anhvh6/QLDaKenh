@@ -39,7 +39,7 @@ function rowsIn(data){const row=data?.data??data;return Array.isArray(row)?row[0
 function equivalentOrderAddress(remote,local){const canonical=v=>String(v||'').normalize('NFC').toLocaleLowerCase('vi').replace(/\s*,\s*/g,',').replace(/\s+/g,' ').trim();return canonical(remote)===canonical(local)?local:remote;}
 function comparable(a,kind,row,current){
  if(kind==='products')return fields(kind,fromProduct({...row,weight:row.weight??row.product?.weight??current?.weight}));
- if(kind==='customers')return fields(kind,fromCustomer(row));
+ if(kind==='customers'){const c=fromCustomer(row);c.address=equivalentOrderAddress(c.address,current?.address);return fields(kind,c);}
  return fields(kind,{...current,receiverName:row.shipping_address?.full_name||row.bill_full_name||'',phone:row.shipping_address?.phone_number||row.bill_phone_number||'',email:row.bill_email||'',address:equivalentOrderAddress(orderAddress(row),current.address),items:(row.items||[]).map(i=>({productId:findRemote(a,'products',i.variation_id)?.localId||'unmapped:'+i.variation_id,quantity:i.quantity,price:i.variation_info?.retail_price||0})),surcharge:Number(row.surcharge||0),discount:row.total_discount||0,shippingFee:row.shipping_fee||0,paid:paidAmount(row),status:localStatus(row.status),note:row.note||'',printNote:row.note_print||'',posTracking:row.partner?.order_number_vtp||row.partner?.extend_code||'',posCarrier:row.partner?.partner_name||''});
 }
 
@@ -72,6 +72,7 @@ export async function applyPosRow(a,kind,row,{force=false}={}){
  if(kind==='products'&&link&&current&&current.posAvailableStock!==trackedStock(a,row)&&!get('pos_jobs',linkId(a,kind,current.id))?.inventory){current=inbound(()=>put('products',{...current,stock:Math.max(0,trackedStock(a,row))+Number(current.reserved||0),posAvailableStock:trackedStock(a,row),posStockUpdatedAt:now()}));}
  if(kind==='orders'&&current&&link&&!force&&printChanged(kind,current,link)){if(String(row.note_print||'')!==String(link.remote?.note_print||'')&&String(row.note_print||'')!==String(current.printNote||'')){job(a,kind,current.id,{state:'conflict',error:'Ghi chú in đã thay đổi ở cả hai bên. Chọn bên cần giữ.'});return {conflict:true};}mapped.printNote=current.printNote||'';}
  if(kind==='orders'&&current){if(current.conversationId)mapped.customerId=current.customerId;mapped.address=equivalentOrderAddress(mapped.address,current.address);}
+ if(kind==='customers'&&current)mapped.address=equivalentOrderAddress(mapped.address,current.address);
  const incoming=fields(kind,mapped),local=current?fields(kind,current):null;
  if(current&&!force&&hash(incoming)!==hash(local)&&(!link||link.localHash!==hash(local)&&link.remoteHash!==hash(incoming))){
   saveLink(a,kind,current.id,row,{localHash:link?.localHash,remoteHash:link?.remoteHash});job(a,kind,current.id,{state:'conflict',error:'Dữ liệu hai bên khác nhau. Chọn bên cần giữ trước khi ghi đè.',remoteTarget:incoming});return {conflict:true};
