@@ -129,6 +129,13 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   assert.equal((await route(path,'GET')).orderId,draft.id);
   await assert.rejects(route('/api/pos/orders/%ZZ/dispatch','POST'),{status:400});
  });
+ await t.test('soft deletion sends POS deleted status and can be restored without removing history',async()=>{
+  const draft=put('orders',{...order,id:'delete-qa',code:'DELETE-QA',status:'confirmed',paid:0,fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
+  await route('/api/pos/orders/'+draft.id+'/dispatch','POST');await posTick(request);
+  const {orderAction}=await import('../server/domain.mjs');orderAction(owner,draft.id,{action:'delete'});await posTick(request);
+  assert.equal(remote.orders.find(r=>r.custom_id===draft.code).status,7);assert.ok(get('orders',draft.id).deletedAt);assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');
+  orderAction(owner,draft.id,{action:'restore'});assert.equal(get('orders',draft.id).deletedAt,undefined);
+ });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
 });
 

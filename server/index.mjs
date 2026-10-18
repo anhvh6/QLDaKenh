@@ -157,7 +157,7 @@ async function dispatch(req, res, url, user, input) {
   if (path.match(/^\/api\/contents\/[^/]+\/update-published$/) && method === 'POST') return domain.updatePublishedContent(user, path.split('/')[3]);
   if (path.match(/^\/api\/publications\/[^/]+\/action$/) && method === 'POST') return domain.publicationAction(user, path.split('/')[3], input);
   if (path === '/api/orders' && method === 'POST') return domain.createOrder(user, input);
-  if (path.match(/^\/api\/orders\/[^/]+\/action$/) && method === 'POST') return domain.orderAction(user, path.split('/')[3], input);
+  if (path.match(/^\/api\/orders\/[^/]+\/action$/) && method === 'POST') return domain.orderAction(user, decodeURIComponent(path.split('/')[3]), input);
   if (path.match(/^\/api\/orders\/[^/]+\/shipments$/) && method === 'POST') return domain.createShipment(user, path.split('/')[3], input);
   if (path.match(/^\/api\/shipments\/[^/]+\/action$/) && method === 'POST') return domain.shipmentAction(user, path.split('/')[3], input);
   if (path === '/api/shipping/quote' && method === 'POST') { domain.permission(user, 'shipping'); const o = get('orders', input.orderId); if (!o) domain.fail('Không tìm thấy đơn.'); return ghn('v2/shipping-order/fee', { service_type_id: 2, to_district_id: domain.number(input.toDistrict, 'Mã quận/huyện', 1), to_ward_code: domain.required(input.toWard, 'Mã phường/xã', 100), weight: o.items.reduce((s, i) => s + (get('products', i.productId).weight || 500) * i.quantity, 0), insurance_value: o.subtotal, length: 20, width: 15, height: 10 }); }
