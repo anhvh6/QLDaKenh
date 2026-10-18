@@ -1,3 +1,4 @@
+import {trackingNotificationTick,recoverTrackingNotifications} from './order-tracking-notifications.mjs';
 import {backfillCopyHistory} from './copy-history.mjs';
 import {serveFrontendFile} from './frontend-files.mjs';
 import {dashboardMessages} from './dashboard-state.mjs';
@@ -285,3 +286,5 @@ recoverAutomation();setInterval(()=>void automationTick().catch(e=>console.error
 recoverPosJobs();setInterval(()=>void posTick().catch(e=>console.error('POS worker:',e.message)),1000).unref();
 
 recoverCommunication();setInterval(()=>void communicationTick().catch(e=>console.error('Communication worker:',e.message)),1000).unref();
+
+recoverTrackingNotifications();setInterval(()=>void trackingNotificationTick().catch(e=>console.error('Tracking notification:',e.message)),2000).unref();

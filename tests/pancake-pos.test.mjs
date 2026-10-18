@@ -9,6 +9,7 @@ const remote={products:[],customers:[],orders:[]},calls=[];
 const copy=v=>structuredClone(v);
 async function request(key,path,options={}){
  assert.equal(key,apiKey);const {method='GET',body,query={}}=options;calls.push({path,method,body:copy(body),query:copy(query)});
+ if(path.endsWith('/partners'))return {success:true,data:[]};
  if(path==='/shops')return {success:true,shops:[{id:10,name:'Shop QA'}]};
  if(path==='/shops/10/warehouses')return {success:true,data:[{id:'warehouse-1',name:'Kho QA'}]};
  if(path==='/shops/10'&&method==='PUT')return {success:true};
