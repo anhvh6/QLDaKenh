@@ -106,6 +106,14 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');assert.equal(get('orders',draft.id).posTracking,'PKE-AUTO-QA');const ship=all('shipments').find(s=>s.orderId===draft.id);assert.equal(ship.fee,23519);assert.equal(ship.status,'pickup_pending');
   const r=remote.orders.find(r=>r.custom_id===draft.code);r.partner.total_fee=25000;r.partner.partner_status='out_for_delivery';await applyPosRow(account,'orders',copy(r));assert.equal(get('shipments',ship.id).fee,25000);assert.equal(get('shipments',ship.id).status,'in_transit');const version=get('shipments',ship.id).version;await applyPosRow(account,'orders',copy(r));assert.equal(get('shipments',ship.id).version,version);
  });
+ await t.test('chat order IDs are decoded for dispatch and readback without creating duplicate jobs',async()=>{
+  const draft=put('orders',{...order,id:'chat-order:encoded-qa',code:'CHAT-ENCODED-QA',status:'confirmed',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
+  const path='/api/pos/orders/'+encodeURIComponent(draft.id)+'/dispatch';
+  const first=await route(path,'POST');assert.equal(first.orderId,draft.id);assert.equal(get('orders',draft.id).posDispatchRequested,true);
+  await route(path,'POST');assert.equal(all('pos_jobs').filter(j=>j.localId===draft.id).length,1);
+  assert.equal((await route(path,'GET')).orderId,draft.id);
+  await assert.rejects(route('/api/pos/orders/%ZZ/dispatch','POST'),{status:400});
+ });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
 });
 

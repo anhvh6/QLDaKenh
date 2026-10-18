@@ -201,7 +201,7 @@ export async function posRoute(path,method,input,user,url,request=pancakeRequest
  if(shippingOptions&&method==='GET'){permission(user,'orders');const a=account(shippingOptions[1]),cached=shippingOptionCache.get(a.id);if(cached&&Date.now()-cached.at<60000)return cached.data;const result=await reqFor(a,request)(root(a)+'/partners'),rows=result.data||result.partners||[];if(!Array.isArray(rows))fail('POS chưa trả danh sách vận chuyển hợp lệ.',502);const data={partners:rows.filter(p=>p.is_linked||Array.isArray(p.accounts)&&p.accounts.length).map(p=>({id:p.id,name:p.name||p.partner_name||'ĐVVC'}))};shippingOptionCache.set(a.id,{at:Date.now(),data});return data;}
  const dispatch=path.match(/^\/api\/pos\/orders\/([^/]+)\/dispatch$/);
  if(dispatch&&['POST','GET'].includes(method)){
-  permission(user,'orders');let o=get('orders',dispatch[1]);if(!o)fail('Không tìm thấy đơn hàng.',404);assertCustomer(user,o.customerId);
+  permission(user,'orders');let orderId;try{orderId=decodeURIComponent(dispatch[1]);}catch{fail('Mã đơn hàng không hợp lệ.');}let o=get('orders',orderId);if(!o)fail('Không tìm thấy đơn hàng.',404);assertCustomer(user,o.customerId);
   const accountId=o.fulfillmentTarget?.startsWith('pos:')?o.fulfillmentTarget.slice(4):String(input.accountId||'');const a=account(accountId);
   if(o.fulfillmentTarget&&o.fulfillmentTarget!=='pos:'+a.id)fail('Đơn đã chọn nơi xử lý khác. Không gửi đồng thời hai bên.',409);
   if(method==='POST'){
