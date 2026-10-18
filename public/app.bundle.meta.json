@@ -1,5 +1,5 @@
 {
-  "version": "f16444b0d743",
+  "version": "eb34882d82bd",
   "compiler": "0.25.12",
   "files": {
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
@@ -15,8 +15,8 @@
     "public/shipping-policy.js": "b850912a3bd7b2846bca9be7f4145812263303d53aacd1120d6866ba1c680f55",
     "public/shipping-address.js": "e04c05c0097466c0c38b510b9a387fc99b8eccf132c138d44a6d79407dc0a11c",
     "public/carrier-orders.js": "506973c6d9370ea44acc2cf6ac0ddadcf5a1129b1bd4e2fab898bcb375fe33ab",
-    "public/shipping-ui.js": "46ae7bc944792f054ad0fe4f0b36d3abdf066edfc629359f39f714491877345f",
-    "public/order-detail-editor.js": "76c26114b413cdfcdb3191ece16e41c7cd141d1f17323920bd8c3d7602c8d216",
+    "public/shipping-ui.js": "e1bc4bc3a7843e4743c2c3a1cc31195f140278a2582f3b29ff16f7011a3f733a",
+    "public/order-detail-editor.js": "1ea2986aa2022f65ff8a7d73b7045987242c69ddc36f882ef65bb2e27d34603c",
     "public/communication-message-ui.js": "5a3bccb8e2ca6253dc5723985b10be200229b598552f5e234aeb7317e670802e",
     "public/learner-lookups.js": "8a1328bb6df7fc2de83c64681662c2667997876cc99f93fbea6f6fa12563402c",
     "public/learner-progress.js": "37070ef2c5561e19e7c3214644d6ae16e80bfc4b84e99b4e699555552a0aac85",
@@ -27,7 +27,7 @@
     "public/learner-cycle-model.js": "52ee355e5b50dba6864c3c011531cd4c928280e86608ce1ae284cbd13d4c16c7",
     "public/dashboard-overview.js": "4eaa9ebeb22dbd277665ef9e26f1e717724b92fd512b7887c3dc6fdb95244127",
     "public/calendar-filter.js": "176a3651497e43f7427575c86f6c4096149566ff255d3f392704b48274c0ec88",
-    "public/pancake-pos.js": "361897bdd3f3954c83e6c954fb36b411862c8e5d2705d78854ded9012fa6e38f",
+    "public/pancake-pos.js": "a698b78a8f406f63594cb04bcdcc0acd1d43c5020e0421639726017db204f940",
     "public/comment-detail.js": "6d57b175a5f0299765ad7ae47379f6141b580ffafb4bfeff6d140d71e06a383c",
     "public/api-response.js": "fe1ca887d268d9c2d75fe47ff0068114cc15397a2e034f5e64137c44d28aea6c",
     "public/copy-job-table.js": "fbfed2c4cacdc24725dd311ac63c3185be5dd850c905e36f697eb8522d2a1d5c",
@@ -81,6 +81,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
     "public/app.js": "25c5798d66ca4051bbba17e42ad593914c23dd3e8c149eb515b552a59d449bdc",
-    "public/app.bundle.js": "f16444b0d743fab63f534ada5891cf84ec7e5d8591627dadc832374f3e08f769"
+    "public/app.bundle.js": "eb34882d82bddc6cc1472079235cc4d7fbdce4eaf66856ed4bcb9a5e50aeb8b2"
   }
 }

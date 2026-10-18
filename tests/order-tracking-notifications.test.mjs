@@ -14,3 +14,11 @@ test('POS Viettel reference waits for carrier tracking and uses actual fee fallb
  put('shipments',{id:'p',orderId:'pending-pos',...data});await tick(send);assert.equal(sent.length,1);assert.match(sent[0],/PKE-real/);assert.match(sent[0],/24.639/);assert.ok(!sent[0].includes('MGP-ref'));
  assert.ok(!trackingMessage(order,{tracking:'PKE',fee:0}).includes(' 0 đ'));
 });
+
+test('private template requires consent on the specific order, correct recipient and complete provider data',async()=>{
+ const {renderTrackingTemplate}=await import('../server/order-tracking-notifications.mjs');const t='#{PRODUCT_NO_ATTRIBUTE} #{TRACKING_ID} #{PARTNER_FEE} #{FULL_NAME} #{PHONE_NUMBER} #{FULL_ADDRESS} #{TRACKING_URL}';
+ const o={...order,receiverName:'Receiver',items:[{quantity:1,name:'Product'}]},s={tracking:'PKE-test',fee:24639,carrierName:'VTP',trackingUrl:'https://pke.gg/provider-issued'};
+ assert.throws(()=>renderTrackingTemplate(t,o,s),/bật riêng/);
+ o.trackingNotification={...o.trackingNotification,recipientDetailsConsent:true};const text=renderTrackingTemplate(t,o,s);assert.match(text,/PKE-test/);assert.match(text,/24.639/);assert.match(text,/Receiver/);assert.match(text,/PRIVATE-PHONE/);assert.ok(!text.includes('#{'));
+ assert.throws(()=>renderTrackingTemplate(t,o,{...s,trackingUrl:''}),/TRACKING_URL/);assert.throws(()=>renderTrackingTemplate(t,o,{...s,fee:0}),/PARTNER_FEE/);
+});

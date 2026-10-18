@@ -137,6 +137,15 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   assert.equal(remote.orders.find(r=>r.custom_id===draft.code).status,7);assert.ok(get('orders',draft.id).deletedAt);assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');
   orderAction(owner,draft.id,{action:'restore'});assert.equal(get('orders',draft.id).deletedAt,undefined);
  });
+ await t.test('delete paid POS order waits for carrier cancellation and preserves confirmed receipt',async()=>{
+  const o=put('orders',{...order,id:'paid-delete',code:'PAID-DELETE',status:'confirmed',paid:260000,total:260000,fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
+  await route('/api/pos/orders/'+o.id+'/dispatch','POST');await posTick(request);
+  let r=remote.orders.find(r=>r.custom_id===o.code);r.partner={partner_id:3,extend_code:'MGP-test',order_number_vtp:'PKE-test',partner_status:'request_received'};
+  await assert.rejects(route('/api/pos/orders/'+o.id+'/delete','POST',{version:get('orders',o.id).version}),/hãng chưa xác nhận/);
+  assert.equal(get('orders',o.id).deletedAt,undefined);assert.equal(r.status,6);
+  r.partner.partner_status='canceled';const result=await route('/api/pos/orders/'+o.id+'/delete','POST',{version:get('orders',o.id).version});
+  assert.equal(result.deleted,true);assert.equal(get('orders',o.id).paid,260000);assert.equal(r.status,7);
+ });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
 });
 
