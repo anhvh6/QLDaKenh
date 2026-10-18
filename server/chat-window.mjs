@@ -1,6 +1,6 @@
 import {db,get} from './store.mjs';
 export function chatWindow(conversationId,params,pins=[]){
- const limit=Math.min(200,Math.max(1,Number(params.get('limit'))||60));let before=null;
+ const limit=Math.min(200,Math.max(1,Math.floor(Number(params.get('limit')))||60));let before=null;
  if(params.get('before')){try{before=JSON.parse(Buffer.from(params.get('before'),'base64url'));if(typeof before.at!=='string'||typeof before.id!=='string')throw Error();}catch{throw Object.assign(Error('Mốc lịch sử không hợp lệ.'),{status:400});}}
  const where=before?" AND (json_extract(data,'$.createdAt')<? OR (json_extract(data,'$.createdAt')=? AND id<?))":'',args=before?[conversationId,before.at,before.at,before.id,limit+1]:[conversationId,limit+1];
  const rows=db.prepare("SELECT id,data,version FROM records INDEXED BY idx_messages_live_order WHERE kind='messages' AND json_extract(data,'$.conversationId')=?"+where+" ORDER BY json_extract(data,'$.createdAt') DESC,id DESC LIMIT ?").all(...args),hasMore=rows.length>limit;
