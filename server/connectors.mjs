@@ -6,7 +6,7 @@ import { publicMediaUrl } from './public-media.mjs';
 
 export const providers = {
   facebook: { label: 'Facebook Page', publish: true, message: true, oauth: true, update: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth để chọn Facebook Page bạn quản lý; ảnh/video cần URL HTTPS công khai.' },
-  instagram: { label: 'Instagram', publish: true, message: false, oauth: true, formats: ['image', 'video'], hint: 'Kết nối OAuth qua Facebook Page đã liên kết Instagram Professional. Meta không hỗ trợ sửa hoặc xóa bài Instagram đã xuất bản qua API.' },
+  instagram: { label: 'Instagram', publish: true, message: false, oauth: true, delete: true, formats: ['image', 'video'], hint: 'Kết nối OAuth qua Facebook Page đã liên kết Instagram Professional. Xóa bài cần quyền instagram_manage_contents.' },
   threads: { label: 'Threads', publish: true, message: false, oauth: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth Threads với quyền đọc hồ sơ và xuất bản.' },
   x: { label: 'X', publish: true, message: false, oauth: true, delete: true, formats: ['text'], hint: 'Kết nối OAuth 2.0 với quyền đọc tài khoản và đăng bài.' },
   devto: { label: 'DEV.to', publish: true, message: false, update: true, delete: true, deleteMode: 'unpublish', formats: ['text', 'image', 'video', 'audio'], hint: 'API key DEV.to. Ảnh được nhúng bằng Markdown; video/âm thanh được đính kèm bằng liên kết công khai.' },
@@ -162,7 +162,8 @@ export async function deletePublication(c, p) {
   else if (c.provider === 'x') url = `https://api.x.com/2/tweets/${externalId}`;
   else if (c.provider === 'threads') url = `https://graph.threads.net/v1.0/${externalId}`;
   else url = `https://graph.facebook.com/${graphVersion(c)}/${externalId}`;
-  await remote(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  const result = await remote(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (c.provider === 'instagram' && result !== true && result?.success !== true) throw Object.assign(new Error('Instagram không xác nhận đã xóa bài viết.'), { unknown: true });
   return { ok: true };
 }
 export async function updatePublication(c, p, content) {

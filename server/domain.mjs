@@ -106,7 +106,7 @@ export async function publicationAction(user, id, input) {
   if (input.action === 'publish_now') { if (p.status !== 'scheduled') fail('Chỉ có thể đăng ngay tác vụ đang chờ lịch.'); return put('publications', { ...p, scheduleAt: now() }); }
   if (input.action === 'resolve') { if (!['unknown', 'processing'].includes(p.status)) fail('Tác vụ không cần đối soát.'); let u; try { u = new URL(input.url); } catch { fail('Cần URL đã kiểm tra thực tế.'); } if (u.protocol !== 'https:') fail('Cần URL HTTPS.'); audit(user.id, 'publication_reconciled', id); return put('publications', { ...p, status: 'manually_confirmed', url: u.href, publishedAt: now() }); }
   if (input.action === 'delete_remote') {
-    if (p.status !== 'published' || p.mode !== 'api') fail('Chỉ xóa được bài đã xuất bản bằng API.'); const connection = get('connections', p.connectionId); if (!connection) fail('Kênh xuất bản không còn tồn tại.', 404); if (!providers[connection.provider]?.delete) fail('Nền tảng này chưa hỗ trợ xóa bài từ hệ thống.');
+    if (p.status !== 'published' || !p.externalId || !['api', undefined, null, ''].includes(p.mode)) fail('Chỉ xóa được bài đã xuất bản bằng API và còn ID nền tảng.'); const connection = get('connections', p.connectionId); if (!connection) fail('Kênh xuất bản không còn tồn tại.', 404); if (!providers[connection.provider]?.delete) fail('Nền tảng này chưa hỗ trợ xóa bài từ hệ thống.');
     const result = await deletePublication(connection, p); audit(user.id, result.unpublished ? 'publication_unpublished_remote' : 'publication_deleted_remote', id, { provider: connection.provider }); return put('publications', { ...p, status: result.unpublished ? 'unpublished_remote' : 'deleted_remote', deletedAt: now() });
   }
   fail('Hành động không hợp lệ.');
