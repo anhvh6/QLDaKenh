@@ -141,3 +141,11 @@ test('Threads context uses synchronized data instead of unsupported object looku
 test('missing metrics render as unavailable and context HTML escapes social content',async()=>{
  const {commentContextHTML}=await import('../public/comment-detail.js');const html=commentContextHTML({post:{text:'<script>bad</script>',likes:null,shares:null,comments:0},parentId:'p',parent:{id:'p',text:'Parent',name:'Name',likes:2,dislikes:null}},'parent');assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes('Trả lời bình luận gốc'));assert.ok(html.includes('—'));assert.ok(html.includes('data-target="current"'));
 });
+
+test('existing comment refresh never parses unrelated comment conversations',()=>{
+ const message=upsertComment(c,{id:'target-perf',message:'Target',from:{id:'target-perf'}});
+ for(let i=0;i<100;i++)put('conversations',{id:'unrelated-comment-'+i,kind:'comment',connectionId:c.id,externalCommentId:'unrelated-'+i,postTitle:'unrelated-comment-marker'});
+ const parse=JSON.parse;let reads=0;JSON.parse=function(value,...rest){if(String(value).includes('unrelated-comment-marker'))reads++;return parse(value,...rest);};
+ try{assert.equal(upsertComment(c,{id:'target-perf',message:'Updated target',from:{id:'target-perf'}}).id,message.id);}finally{JSON.parse=parse;}
+ assert.equal(reads,0);db.prepare("DELETE FROM records WHERE kind='conversations' AND id LIKE 'unrelated-comment-%'").run();
+});

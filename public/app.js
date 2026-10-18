@@ -132,7 +132,7 @@ function syncIncomingWhileInteracting(next) {
   S = next; updateChatNotifications(next.notifications || []); enhanceLiveMessages();
   if (incoming.length) { const bottom = chat.scrollHeight - chat.clientHeight - chat.scrollTop < 60; chat.insertAdjacentHTML('beforeend', chatMessages(incoming, c, S)); enhanceLiveMessages(); if (bottom) chat.scrollTop = chat.scrollHeight; }
 }
-function navigate(next) { filter = 'all'; query = ''; if (next !== 'inbox') selectedConversation = null; location.hash = next; route = next; document.body.classList.remove('menu-open'); render(); }
+function navigate(next) { filter = 'all'; query = ''; if (next !== 'inbox'||find('conversations',selectedConversation)?.kind==='comment') selectedConversation = null; location.hash = next; route = next; document.body.classList.remove('menu-open'); render(); }
 function render() {
   if(S?.conversations&&stateView()==='inbox'&&S.snapshotView!=='inbox'){S=cachedChatState({...S,snapshotView:'inbox',snapshotRevision:null});if(!fullStateLoading)fullStateLoading=refresh().catch(err=>toast(err.message,true)).finally(()=>{fullStateLoading=null;});}
   if(S&&((S.snapshotView==='dashboard'&&route!=='dashboard')||(S.snapshotView==='inbox'&&stateView()==='full')||(stateView()==='inbox'&&S.snapshotView!=='inbox'))){if(!fullStateLoading){fullStateLoading=refresh().catch(err=>toast(err.message,true)).finally(()=>{fullStateLoading=null;});}const box=$('#page');if(box)box.innerHTML='<p class="help-text" role="status">Đang tải dữ liệu chi tiết…</p>';return;}

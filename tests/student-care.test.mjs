@@ -95,3 +95,15 @@ test('denied staff can search and reply; assigned tasks retain visibility and al
  c=patchChat(b,c.id,{version:c.version,dismissCareTask:true});source=studentCareState();assert.equal(visibleCare(source,c,b),false);assert.equal(receivesCare(source,c,b),false);
  put('staff_handoffs',{conversationId:c.id,assignedStaffId:b.id,status:'open'});assert.equal(visibleCare(studentCareState(),c,b),true);
 });
+
+test('care snapshots reuse parsed records and invalidate immediately on record or staff changes',()=>{
+ put('customers',{id:'cache-proof',name:'cache-proof-marker'});studentCareState();const parse=JSON.parse;let reads=0;JSON.parse=function(value,...rest){if(String(value).includes('cache-proof-marker'))reads++;return parse(value,...rest);};
+ try{const s=studentCareState();s.journeyEvents=['local-only'];assert.equal(studentCareState().journeyEvents,undefined);}finally{JSON.parse=parse;}
+ assert.equal(reads,0);put('customers',{...get('customers','cache-proof'),name:'Updated'});assert.equal(studentCareState().customers.find(c=>c.id==='cache-proof').name,'Updated');
+ db.prepare("UPDATE users SET name='Renamed staff' WHERE id='a'").run();assert.equal(studentCareState().users.find(u=>u.id==='a').name,'Renamed staff');
+});
+
+test('care snapshots cannot reuse a revision observed inside a rolled-back transaction',()=>{
+ db.exec('BEGIN');put('customers',{id:'rolled-back-cache',name:'Temporary'});studentCareState();db.exec('ROLLBACK');put('customers',{id:'replacement-cache',name:'Saved'});
+ const current=studentCareState();assert.equal(current.customers.some(c=>c.id==='rolled-back-cache'),false);assert.equal(current.customers.find(c=>c.id==='replacement-cache').name,'Saved');
+});

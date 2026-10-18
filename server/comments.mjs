@@ -30,13 +30,12 @@ export function commentAttachments(item){
 export function upsertComment(channel,item,post={},live=false){
  if(!item.id)return null;
  return transaction(()=>{
- const existingConvs=db.prepare("SELECT id,data,version FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.kind')='comment' ORDER BY updated_at DESC").all(channel.id).map(stored);
  let existing=commentMessage(channel.id,String(item.id));
  if(existing?.deletedAt)return existing;
  const own=existing?.direction==='outgoing'||item.is_reply_owned_by_me===true||String(item.from?.id||'')===String(channel.accountId);
  const parent=String(item.parent?.id||item.replied_to?.id||'');
  if(own&&!existing)existing=stored(db.prepare(`SELECT m.id,m.data,m.version FROM records c INDEXED BY idx_comment_channel CROSS JOIN records m INDEXED BY idx_messages_conversation ON m.kind='messages' AND json_extract(m.data,'$.conversationId')=+c.id WHERE c.kind='conversations' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment' AND json_extract(m.data,'$.status')='sending' AND json_extract(m.data,'$.replyToExternalId')=? ORDER BY m.updated_at DESC LIMIT 1`).get(channel.id,parent));
- let conv=existing&&get('conversations',existing.conversationId)||existingConvs.find(c=>c.externalCommentId===String(own?parent:item.id));
+ let conv=existing&&get('conversations',existing.conversationId)||stored(db.prepare("SELECT id,data,version FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.kind')='comment' AND json_extract(data,'$.externalCommentId')=? ORDER BY updated_at DESC LIMIT 1").get(channel.id,String(own?parent:item.id)));
  const standaloneOwnReply=channel.provider==='threads'&&own&&!conv;
  if(own&&!conv&&!standaloneOwnReply)return null;
  const external=String(item.from?.id||item.username||item.id),name=item.from?.name||item.username||'Khách từ bình luận';
