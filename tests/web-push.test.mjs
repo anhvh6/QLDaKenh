@@ -10,6 +10,14 @@ const user={id:'push-owner',role:'owner'},staff={id:'push-staff',role:'support'}
 for(const u of [user,staff,outsider]){db.prepare('INSERT INTO users VALUES(?,?,?,?,?,1)').run(u.id,u.id+'@test.invalid',u.id,u.role,'unused');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(u.id,u.id,'unused',Date.now()+3600000);}
 put('connections',{id:'push-channel',status:'connected'});put('team_members',{userId:staff.id,teamId:'push-team'});put('channel_teams',{teamId:'push-team',connectionId:'push-channel'});put('conversations',{id:'push-chat',connectionId:'push-channel',title:'Private customer'});
 const sub={endpoint:'https://fcm.googleapis.com/fcm/send/test-only',keys:{p256dh:'A'.repeat(87),auth:'B'.repeat(22)}},prefs={messages:true,reminders:true,handoffs:true,sound:true};
+test('message, receipt and SLA alert produce one meaningful customer push, not generic duplicates',()=>{
+ const m=put('messages',{id:'dedupe-message',conversationId:'push-chat',direction:'incoming',text:'Khách gửi nội dung'});
+ assert.equal(eventFor('messages',m,staff,prefs).body,m.text);
+ assert.equal(eventFor('notifications',{id:'receipt',messageId:m.id,conversationId:'push-chat',route:'inbox'},staff,prefs),null);
+ assert.equal(eventFor('notifications',{id:'sla',title:'Quá hạn phản hồi',route:'inbox'},staff,prefs),null);
+ assert.equal(eventFor('notifications',{id:'comment-receipt',conversationId:'push-chat',title:'Bình luận mới trên Page',route:'comments'},staff,prefs),null);
+ const content=eventFor('notifications',{id:'posting',title:'Cần xử lý bài đăng',body:'Kênh chưa kết nối',route:'content'},staff,prefs);assert.equal(content.title,'Cần xử lý bài đăng');assert.equal(content.body,'Kênh chưa kết nối');assert.equal(content.url,'/#content');
+});
 test('appointment pushes show call details only to the recipient and respect preview privacy without a duplicate task push',()=>{
  const n={id:'chat-reminder:advance:qa',reminderId:'qa',recipientId:staff.id,conversationId:'push-chat',title:'Sắp đến giờ call cho khách',body:'Khách QA · Giờ call: 15:30'};
  assert.equal(eventFor('notifications',n,staff,prefs).body,n.body);assert.equal(eventFor('notifications',n,user,prefs),null);
@@ -25,7 +33,7 @@ test('subscription validation rejects private networks, credentials, lookalike d
 test('events enforce recipient/channel scope and respect lock screen preview preference',()=>{
  const message={id:'sensitive',conversationId:'push-chat',direction:'incoming',text:'Private phone and content'};
  const hidden=eventFor('messages',message,staff,{...prefs,preview:false});assert.equal(hidden.title,'Có tin nhắn mới');assert.ok(!hidden.body.includes('Private'));
- const payload=eventFor('messages',message,staff,prefs);assert.equal(payload.title,'Private customer');assert.equal(payload.body,message.text);assert.equal(payload.url,'/?conversation=push-chat#inbox');
+ const payload=eventFor('messages',message,staff,prefs);assert.equal(payload.title,'Private customer');assert.equal(payload.body,message.text);assert.equal(payload.url,'/?conversation=push-chat&message=sensitive#inbox');
  const group=put('conversations',{id:'group-push',connectionId:'push-channel',threadType:1,title:'QA nhóm'});const grouped=eventFor('messages',{...message,conversationId:group.id,senderName:'QA nick'},staff,prefs);assert.equal(grouped.title,'QA nick · QA nhóm');
  assert.equal(eventFor('messages',{...message,history:true},staff,prefs),null);
  assert.equal(eventFor('messages',message,outsider,prefs),null);
@@ -39,6 +47,8 @@ test('worker sends new events once, persists retry cursor and removes expired su
  await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);
  await new Promise(r=>setTimeout(r,5));
  put('messages',{id:'push-event1',conversationId:'push-chat',direction:'incoming',text:'Secret',createdAt:'2020-01-01T00:00:00.000Z'});
+ put('notifications',{id:'sla-push-duplicate',title:'Quá hạn phản hồi',body:'Khách · 3 phút',route:'inbox',read:false});
+ put('notifications',{id:'message-push-receipt',messageId:'push-event1',conversationId:'push-chat',title:'Tin nhắn mới',route:'inbox',read:false});
  const delivered=[];await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);const idleVersion=all('push_subscriptions')[0].version;await pushTick(async(s,p)=>delivered.push(p));assert.equal(delivered.length,1);assert.equal(all('push_subscriptions')[0].version,idleVersion,'Empty push polling must not emit state-change revisions');assert.ok(all('push_subscriptions')[0].lastDeliveredAt);
  await new Promise(r=>setTimeout(r,5));put('messages',{id:'push-event2',conversationId:'push-chat',direction:'incoming'});
  await pushTick(async()=>{throw Object.assign(Error('retry'),{statusCode:503});});let saved=all('push_subscriptions')[0];assert.ok(saved.retryAt>Date.now());assert.match((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).error,/503/);put('push_subscriptions',{...saved,retryAt:null});
@@ -59,4 +69,19 @@ test('service worker shows system alert, sound preference and badge; click rejec
  assert.equal(shown[0][1].silent,true);assert.deepEqual(badges,[3]);
  listeners.notificationclick({notification:{close(){},data:{url:'https://evil.test'}},waitUntil:p=>waiting=p});await waiting;assert.equal(opened.length,0);
  listeners.notificationclick({notification:{close(){},data:{url:'/#inbox'}},waitUntil:p=>waiting=p});await waiting;assert.deepEqual(opened,['https://hub.test/#inbox']);
+});
+test('notification click focuses an existing app before navigation and opens a window if a stale client fails',async()=>{
+ const listeners={},order=[],opened=[],url='https://hub.test/?conversation=push-chat&message=sensitive#inbox';let fail=false;
+ const client={url:'https://hub.test/#dashboard',focus:async()=>{order.push('focus');return client;},navigate:async target=>{order.push('navigate');assert.equal(target,url);if(fail)throw Error('stale client');return client;}};
+ const self={location:{origin:'https://hub.test'},addEventListener:(n,fn)=>listeners[n]=fn,clients:{matchAll:async()=>[client],openWindow:async u=>opened.push(u)}};
+ vm.runInNewContext(readFileSync('public/sw.js','utf8'),{self,URL});let waiting;
+ const click=()=>listeners.notificationclick({notification:{close(){},data:{url}},waitUntil:p=>waiting=p});click();await waiting;assert.deepEqual(order,['focus','navigate','focus']);assert.equal(opened.length,0);
+ fail=true;click();await waiting;assert.deepEqual(opened,[url]);
+});
+test('current app acknowledges a notification deep link without reloading or opening a duplicate window',async()=>{
+ const listeners={},messages=[],calls=[],url='https://hub.test/?conversation=push-chat#inbox';
+ class Channel{constructor(){this.port1={close(){}};this.port2={reply:data=>queueMicrotask(()=>this.port1.onmessage({data}))};}}
+ const client={url:'https://hub.test/#dashboard',focus:async()=>calls.push('focus'),navigate:async()=>{throw Error('must not reload');},postMessage:(message,ports)=>{messages.push(message);ports[0].reply({handled:true});}};
+ const self={location:{origin:'https://hub.test'},addEventListener:(n,fn)=>listeners[n]=fn,clients:{matchAll:async()=>[client],openWindow:async()=>{throw Error('must reuse current app');}}};
+ vm.runInNewContext(readFileSync('public/sw.js','utf8'),{self,URL,MessageChannel:Channel,setTimeout,clearTimeout});let waiting;listeners.notificationclick({notification:{close(){},data:{url}},waitUntil:p=>waiting=p});await waiting;assert.deepEqual(calls,['focus']);assert.equal(messages[0].type,'hub-open-notification');assert.equal(messages[0].url,url);
 });

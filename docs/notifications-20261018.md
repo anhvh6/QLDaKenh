@@ -1,0 +1,7 @@
+# Device notification deduplication and deep links
+
+Incoming messages have a dedicated push with the customer name and message preview. In-app message receipts, legacy comment receipts, and generic SLA overdue alerts must not generate a second device push for the same customer activity. SLA alerts remain in the app. Other actionable notifications use their actual title/body and route; preview privacy preferences remain respected.
+
+Message pushes include the conversation and message IDs. Task pushes include the handoff ID. The service worker focuses an existing app first, asks it to handle the deep link, and navigates or opens a same-origin window if the app is outdated or the client is unavailable. The app refreshes authorized state before opening a notification target, preserves drafts, clears list search filters, opens the conversation/task, and highlights the target message when available. Cold start and post-login URLs retain the target until state is ready.
+
+Validation: mocked push delivery confirms one message push despite accompanying receipt/SLA records; service worker VM tests cover focus ordering, rejected navigation, warm-app acknowledgement, and cross-origin rejection. Local browser tests cover cold deep links and warm navigation from a compact dashboard into full chat history. The full regression suite passed (596 tests), with an additional warm acknowledgement test passing afterward. No test messages were sent to customer devices. Actual Android notification tray/installed-app launching still needs confirmation on the user's phone.

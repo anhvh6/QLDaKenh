@@ -50,7 +50,7 @@ export function upsertComment(channel,item,post={},live=false){
  const msg=put('messages',{...existing,conversationId:conv.id,externalId:String(item.id),direction:own?'outgoing':'incoming',senderName:own?channel.name:name,text,attachments,liked:item.user_likes??existing?.liked,status:own?'accepted':'received',createdAt,permalink:safeUrl(item.permalink_url||item.permalink),parentCommentId:parent,likeCount:item.like_count??existing?.likeCount??null});
  const newest=Date.parse(createdAt)>=Date.parse(conv.lastAt||'1970-01-01');
  put('conversations',{...get('conversations',conv.id),...(newest?{lastAt:createdAt,lastMessage:text||(attachments[0]?.type==='video'?'Video':'Ảnh')}:{}),...(!own&&live?{unread:true,status:'open'}:{})});
- if(!own&&!existing&&live){observeCareMessage(get('conversations',conv.id),msg);notification('Bình luận mới trên '+channel.name,text.slice(0,120),'comments',{conversationId:conv.id});}
+ if(!own&&!existing&&live){observeCareMessage(get('conversations',conv.id),msg);notification('Bình luận mới trên '+channel.name,text.slice(0,120),'comments',{conversationId:conv.id,messageId:msg.id});}
  return msg;
  });
 }

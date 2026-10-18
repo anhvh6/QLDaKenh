@@ -36,7 +36,9 @@ export async function sendPush(s,payload){const keys=pushKeys();return webpush.s
 // The user authorized message previews; each device can still hide them on its lock screen.
 export function eventFor(kind,r,user,p){
  if(kind==='notifications'){
-  if(r.id.startsWith('care-message:')||r.id.startsWith('chat-reminder:task:'))return null;
+  if(r.id.startsWith('care-message:')||r.id.startsWith('chat-reminder:task:')||r.title==='Quá hạn phản hồi')return null;
+  // Customer messages already generate their own detailed push. Keep only the in-app receipt.
+  if(r.messageId&&get('messages',r.messageId)?.direction==='incoming'||r.conversationId&&r.route==='comments'&&/^Bình luận mới/.test(r.title||''))return null;
   if(r.read||(r.recipientId&&r.recipientId!==user.id)||(!p.reminders&&r.id.startsWith('chat-reminder:')))return null;
  }else if(kind==='messages'){
   if(!p.messages||r.direction!=='incoming'||r.deletedAt||r.history===true)return null;
@@ -50,9 +52,11 @@ export function eventFor(kind,r,user,p){
  if(c){const state=studentCareState();if(!channelConnected(get('connections',c.connectionId))||!canReadCare(state,c,user)||kind==='messages'&&!receivesCare(state,c,user))return null;}
  const type=kind==='messages'?'message':kind==='staff_handoffs'?'handoff':r.id.startsWith('chat-reminder:')?'reminder':'notification';
  let title={message:'Có tin nhắn mới',handoff:'Yêu cầu nhân viên xử lý',reminder:'Đến giờ nhắc hẹn',notification:'Có thông báo mới'}[type],body='Mở MeGa Phương để xem nội dung.';
- if(kind==='notifications'&&r.reminderId&&p.preview!==false){title=String(r.title||title).slice(0,100);body=String(r.body||body).slice(0,350);}
+ if(kind==='notifications'&&p.preview!==false){title=String(r.title||title).slice(0,100);body=String(r.body||body).slice(0,350);}
  if(type==='message'&&p.preview!==false){const name=(c?.customerId?get('customers',c.customerId)?.name:null)||c?.title||'Khách hàng';title=(c?.threadType===1?(r.senderName||'Thành viên')+' · '+(c.title||'Nhóm'):name).slice(0,100);body=String(r.contactCard?'Đã gửi danh thiếp':r.sticker?'Đã gửi sticker':r.text||((r.attachments||[]).length?'Đã gửi tệp hoặc hình ảnh':'Bạn có tin nhắn mới.')).slice(0,350);}
- return {title,body,url:type==='handoff'?'/#handoffs':c?'/?conversation='+encodeURIComponent(c.id)+'#'+(c.kind==='comment'?'comments':'inbox'):'/#inbox',tag:c?'hub-chat-'+c.id:'hub-'+type};
+ const route=['dashboard','inbox','comments','calendar','content','handoffs','orders','phacdo','shipping','campaigns'].includes(r.route)?r.route:'inbox';
+ const url=type==='handoff'?'/?handoff='+encodeURIComponent(r.id)+'#handoffs':c?'/?conversation='+encodeURIComponent(c.id)+(kind==='messages'?'&message='+encodeURIComponent(r.id):'')+'#'+(c.kind==='comment'?'comments':'inbox'):'/#'+route;
+ return {title,body,url,tag:kind==='messages'?'hub-chat-'+c.id:'hub-'+type+'-'+r.id};
 }
 let busy=false;
 export async function pushTick(send=sendPush){

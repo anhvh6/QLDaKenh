@@ -1,5 +1,5 @@
 {
-  "version": "65aabc450ff8",
+  "version": "3d778be752c0",
   "compiler": "0.25.12",
   "files": {
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
@@ -78,7 +78,7 @@
     "public/inbox.js": "faf9823da17bfbd1ce616dc9071b3c4e4041c5e798144df87029c13dbfdef65f",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
-    "public/app.js": "4b5f5af7006bf7071a6f01da16acde9e089eeca78b9ead5104ee92c5f9693524",
-    "public/app.bundle.js": "65aabc450ff829f3c5d236870757232b6c34dc50201a92f3b14015f4a71c254e"
+    "public/app.js": "5e20ac2b5fdff218875418473f0b4b2c926124ad2186d4319667feffe1bff88e",
+    "public/app.bundle.js": "3d778be752c061d3572cb41b1b412b0fb0c485d1ab440b8b0f20346fab701e8a"
   }
 }
