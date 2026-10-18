@@ -56,6 +56,20 @@ test('Threads keeps a standalone reply owned by the connected account visible',(
  assert.ok(message);assert.equal(message.direction,'outgoing');assert.equal(get('conversations',message.conversationId).externalCommentId,'own-visible');
 });
 
+test('Instagram polls comments and accepts live comment webhook payloads',async()=>{
+ const channel=put('connections',{id:'instagram-comments',provider:'instagram',accountId:'ig-user',name:'Instagram',apiVersion:'v25.0',mode:'api',status:'connected'});saveSecret(channel.id,{token:'page-token'});const calls=[];
+ const request=async url=>{calls.push(url);if(url.includes('/ig-user/media?'))return {data:[{id:'ig-post',caption:'Post',timestamp:'2026-10-14T01:00:00Z',permalink:'https://www.instagram.com/p/post'}]};return {data:[{id:'ig-comment',text:'Hello',timestamp:'2026-10-14T02:00:00Z',username:'reader',from:{id:'reader-id',username:'reader'}}]};};
+ const state=await syncComments(channel,request);assert.equal(state.status,'ready');assert.ok(calls.every(url=>url.startsWith('https://graph.facebook.com/v25.0/')));assert.ok(all('messages').some(m=>m.externalId==='ig-comment'));
+ ingestCommentEvents(channel,[{id:'ig-user',time:200,changes:[{field:'comments',value:{id:'ig-live-comment',text:'Live hello',from:{id:'live-reader',username:'live_reader'},media:{id:'ig-post'}}}]}]);
+ const live=all('messages').find(m=>m.externalId==='ig-live-comment');assert.equal(live.text,'Live hello');assert.equal(get('customers',get('conversations',live.conversationId).customerId).name,'live_reader');
+});
+
+test('Instagram replies to and deletes the selected comment through Facebook Graph',async()=>{
+ const {sendMessage,deleteComment}=await import('../server/connectors.mjs');const channel=get('connections','instagram-comments'),previous=globalThis.fetch,calls=[];
+ globalThis.fetch=async(url,options)=>{calls.push({url:String(url),options});return options.method==='DELETE'?Response.json({success:true}):Response.json({id:'ig-reply'});};
+ try{const result=await sendMessage(channel,{kind:'comment',externalCommentId:'ig-comment'},'Cảm ơn bạn');assert.equal(result.id,'ig-reply');assert.equal(calls[0].url,'https://graph.facebook.com/v25.0/ig-comment/replies');assert.deepEqual(JSON.parse(calls[0].options.body),{message:'Cảm ơn bạn'});await deleteComment(channel,'ig-comment');assert.equal(calls[1].url,'https://graph.facebook.com/v25.0/ig-comment');assert.equal(calls[1].options.method,'DELETE');}finally{globalThis.fetch=previous;}
+});
+
 test('DEV.to comments are imported with author, post context and nested reply identity',async()=>{
  const channel=put('connections',{id:'dev-comments',provider:'devto',accountId:'author',name:'DEV.to',mode:'api',status:'connected'});saveSecret(channel.id,{token:'dev-key'});
  const request=async url=>url.includes('/articles/me')?[{id:11,title:'Article',url:'https://dev.to/a/article',published_at:'2026-10-14T01:00:00Z'}]:[{id_code:'dev-root',body_html:'<p>Hello</p>',created_at:'2026-10-14T02:00:00Z',user:{user_id:7,name:'Reader',username:'reader',profile_image_90:'https://example.com/a.png'},children:[{id_code:'dev-child',body_html:'<p>Nested</p>',created_at:'2026-10-14T03:00:00Z',user:{user_id:8,name:'Second reader',username:'second'},children:[]}]}];

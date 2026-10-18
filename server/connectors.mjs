@@ -6,7 +6,7 @@ import { publicMediaUrl } from './public-media.mjs';
 
 export const providers = {
   facebook: { label: 'Facebook Page', publish: true, message: true, oauth: true, update: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth để chọn Facebook Page bạn quản lý; ảnh/video cần URL HTTPS công khai.' },
-  instagram: { label: 'Instagram', publish: true, message: false, oauth: true, formats: ['image', 'video'], hint: 'Kết nối OAuth qua Facebook Page đã liên kết Instagram Professional.' },
+  instagram: { label: 'Instagram', publish: true, message: false, oauth: true, formats: ['image', 'video'], hint: 'Kết nối OAuth qua Facebook Page đã liên kết Instagram Professional. Meta không hỗ trợ sửa hoặc xóa bài Instagram đã xuất bản qua API.' },
   threads: { label: 'Threads', publish: true, message: false, oauth: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth Threads với quyền đọc hồ sơ và xuất bản.' },
   x: { label: 'X', publish: true, message: false, oauth: true, delete: true, formats: ['text'], hint: 'Kết nối OAuth 2.0 với quyền đọc tài khoản và đăng bài.' },
   devto: { label: 'DEV.to', publish: true, message: false, update: true, delete: true, deleteMode: 'unpublish', formats: ['text', 'image', 'video', 'audio'], hint: 'API key DEV.to. Ảnh được nhúng bằng Markdown; video/âm thanh được đính kèm bằng liên kết công khai.' },
@@ -88,7 +88,7 @@ function graphVersion(c) { const version = c.apiVersion || process.env.META_GRAP
 export async function testConnection(c) {
   const s = secret(c.id); if (!s.token) throw new Error('Chưa có access token / API key.'); const id = encodeURIComponent(c.accountId || '');
   if (c.provider === 'facebook') { const info = await remote(`https://graph.facebook.com/${graphVersion(c)}/${id}?fields=id,name`, { headers: { Authorization: `Bearer ${s.token}` } }); try { await remote(`https://graph.facebook.com/${graphVersion(c)}/${id}/subscribed_apps?subscribed_fields=feed,messages,message_echoes,message_reactions`, { method: 'POST', headers: { Authorization: `Bearer ${s.token}` } }); } catch { } return info; }
-  if (c.provider === 'instagram') return remote(`https://graph.instagram.com/${graphVersion(c)}/${id}?fields=id,username`, { headers: { Authorization: `Bearer ${s.token}` } });
+  if (c.provider === 'instagram') return remote(`https://graph.facebook.com/${graphVersion(c)}/${id}?fields=id,username`, { headers: { Authorization: `Bearer ${s.token}` } });
   if (c.provider === 'threads') return remote(`https://graph.threads.net/v1.0/${id}?fields=id,username`, { headers: { Authorization: `Bearer ${s.token}` } });
   if (c.provider === 'devto') return remote('https://dev.to/api/users/me', { headers: { 'api-key': s.token, Accept: 'application/vnd.forem.api-v1+json' } });
   if (c.provider === 'blogger') return remote(`https://www.googleapis.com/blogger/v3/blogs/${id}`, { headers: { Authorization: `Bearer ${s.token}` } });
@@ -117,7 +117,7 @@ export async function publish(c, p) {
   }
   if (c.provider === 'threads' || c.provider === 'instagram') {
       if (p.type !== 'text' && !p.mediaItems?.length) await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
-    const threads = c.provider === 'threads'; if(threads)validateThreadsText(p.caption); const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.instagram.com/${graphVersion(c)}`;
+    const threads = c.provider === 'threads'; if(threads)validateThreadsText(p.caption); const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.facebook.com/${graphVersion(c)}`;
     let body = threads ? { media_type: p.type === 'text' ? 'TEXT' : p.type === 'image' ? 'IMAGE' : 'VIDEO', text: p.caption } : { caption: p.caption };
     if (p.mediaItems?.length > 1) { if (p.mediaItems.length > 10) throw new Error('Carousel tối đa 10 media trong connector này.'); const children = []; for (const item of p.mediaItems) { const child = await createMediaContainer(`${base}/${id}/${threads ? 'threads' : 'media'}`, json({ ...(threads || item.type === 'video' ? { media_type: item.type === 'video' ? 'VIDEO' : 'IMAGE' } : {}), is_carousel_item: true, ...(item.type === 'video' ? { video_url: validMediaURL(item.url) } : { image_url: validMediaURL(item.url) }) }, s.token)); children.push(child.id); } return { childContainerIds: children, processing: true, carouselPending: true }; }
     if (p.type === 'image') body.image_url = validMediaURL(p.mediaUrl);
@@ -135,7 +135,7 @@ export async function continuePublish(c, p) {
     if (!['PUBLISH_COMPLETE', 'SEND_TO_USER_INBOX'].includes(data.status)) return null;
     const externalId = String(data.publicaly_available_post_id?.[0] || data.publicly_available_post_id?.[0] || p.containerId); return { externalId, url: '' };
   }
-  const token = secret(c.id).token; const threads = c.provider === 'threads'; const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.instagram.com/${graphVersion(c)}`;
+  const token = secret(c.id).token; const threads = c.provider === 'threads'; const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.facebook.com/${graphVersion(c)}`;
   if (p.carouselPending) { for (const child of p.childContainerIds || []) { const state = await remote(`${base}/${encodeURIComponent(child)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: 'Bearer ' + token } }); const code = state.status_code || state.status; if (['ERROR', 'EXPIRED'].includes(code)) throw new Error('Media trong carousel bị lỗi: ' + (state.error_message || state.status || code)); if (code !== 'FINISHED') return null; } const container = await createMediaContainer(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads' : 'media'}`, json({ media_type: 'CAROUSEL', children: p.childContainerIds.join(','), ...(threads ? { text: p.caption } : { caption: p.caption }) }, token)); return { containerId: container.id, carouselPending: false, processing: true, container: true }; }
   const state = await remote(`${base}/${encodeURIComponent(p.containerId)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: `Bearer ${token}` } });
   const code = state.status_code || state.status;
@@ -197,9 +197,9 @@ export async function reactComment(c, externalCommentId, like = true) {
   const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}/likes`, { method: like ? 'POST' : 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error('Facebook chưa xác nhận thay đổi cảm xúc bình luận.'),{unknown:true});return result;
 }
 export async function deleteComment(c, externalCommentId) {
-  if (c.provider !== 'facebook') throw new Error('Kênh này chưa hỗ trợ xóa bình luận.');
+  if (!['facebook', 'instagram'].includes(c.provider)) throw new Error('Kênh này chưa hỗ trợ xóa bình luận.');
   const token = secret(c.id).token; if (!token) throw new Error('Chưa cấu hình token.');
-  const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error('Facebook chưa xác nhận xóa bình luận.'),{unknown:true});return result;
+  const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error(`${c.provider === 'instagram' ? 'Instagram' : 'Facebook'} chưa xác nhận xóa bình luận.`),{unknown:true});return result;
 }
 export async function sendMessage(c, conv, text, options = {}) {
   if (c.provider === 'zalo_personal') {
@@ -222,6 +222,14 @@ export async function sendMessage(c, conv, text, options = {}) {
     if(!container.id)throw Error('Threads chưa xác nhận tạo nội dung trả lời.');
     const result=await remote(root+'/threads_publish',json({creation_id:container.id},token));
     if(!result.id)throw Object.assign(Error('Threads chưa xác nhận đăng trả lời. Kiểm tra trên nền tảng trước khi thử lại.'),{unknown:true});
+    return result;
+  }
+  if(c.provider==='instagram'&&conv.kind==='comment'){
+    if(!conv.externalCommentId)throw Error('Thiếu ID bình luận Instagram.');
+    if(options.assetRefs?.length)throw Error('Instagram chỉ hỗ trợ trả lời bình luận bằng văn bản qua API.');
+    if(!String(text||'').trim())throw Error('Nhập nội dung trả lời bình luận Instagram.');
+    const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(conv.externalCommentId)}/replies`,json({message:text},token));
+    if(!result.id)throw Object.assign(Error('Instagram chưa xác nhận trả lời bình luận. Kiểm tra trên nền tảng trước khi thử lại.'),{unknown:true});
     return result;
   }
   if(c.provider==='devto'&&conv.kind==='comment'){

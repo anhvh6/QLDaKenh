@@ -40,6 +40,7 @@ test('OAuth providers generate state-bound official authorization URLs',()=>{
    assert.ok(url.searchParams.get('code_challenge'));
   }
   if(provider==='threads')assert.ok(url.searchParams.get('scope').split(',').includes('threads_delete'));
+  if(provider==='instagram')assert.ok(url.searchParams.get('scope').split(',').includes('instagram_manage_comments'));
  }
 });
 
@@ -59,6 +60,15 @@ test('Meta keeps every authorized Facebook Page and linked Instagram account',()
 
 test('OAuth upgrades publishing platforms out of demo mode',()=>{
  for(const provider of ['facebook','instagram','threads','x','blogger','youtube','tiktok'])assert.equal(oauthMode(provider,'demo'),'api');
+});
+
+test('Instagram publishing with Facebook Login uses the Facebook Graph host',async()=>{
+ const original=globalThis.fetch,calls=[];saveSecret('instagram-publish',{token:'page-token'});
+ try{
+  globalThis.fetch=async(url,options)=>{calls.push({url:String(url),options});if(String(url)==='https://media.example.test/photo.jpg')return new Response('',{status:206,headers:{'Content-Type':'image/jpeg'}});return Response.json({id:'ig-container'});};
+  const result=await publish({id:'instagram-publish',provider:'instagram',accountId:'ig-user',apiVersion:'v25.0'},{type:'image',caption:'Caption',mediaUrl:'https://media.example.test/photo.jpg'});
+  assert.equal(result.containerId,'ig-container');assert.equal(calls.length,2);assert.equal(calls[1].url,'https://graph.facebook.com/v25.0/ig-user/media');
+ }finally{globalThis.fetch=original;}
 });
 
 test('Blogger deletion targets the published post and requires API success',async()=>{

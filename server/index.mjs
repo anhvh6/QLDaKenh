@@ -189,16 +189,16 @@ async function dispatch(req, res, url, user, input) {
 }
 
 async function webhook(req, res, url) {
-  const routeId = url.pathname.split('/').pop(); const channels = routeId === 'meta' ? all('connections').filter(c => c.provider === 'facebook' && c.mode === 'api') : [get('connections', routeId)].filter(c => c?.provider === 'facebook'); if (!channels.length) domain.fail('Webhook không tồn tại.', 404);
+  const routeId = url.pathname.split('/').pop(); const channels = routeId === 'meta' ? all('connections').filter(c => ['facebook', 'instagram'].includes(c.provider) && c.mode === 'api') : [get('connections', routeId)].filter(c => ['facebook', 'instagram'].includes(c?.provider)); if (!channels.length) domain.fail('Webhook không tồn tại.', 404);
   const verifyTokens = [process.env.META_WEBHOOK_VERIFY_TOKEN, secret('meta-webhook').verifyToken, ...channels.map(c => secret(c.id).verifyToken)].filter(Boolean);
   if (req.method === 'GET') { if (verifyTokens.includes(url.searchParams.get('hub.verify_token'))) { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end(url.searchParams.get('hub.challenge') || ''); return; } domain.fail('Verify token không hợp lệ.', 403); }
   const { raw, value } = await body(req); const signature = req.headers['x-hub-signature-256'] || ''; const appSecrets = [...new Set([process.env.META_APP_SECRET, ...channels.map(c => secret(c.id).appSecret)].filter(Boolean))]; if (!appSecrets.length) domain.fail('Chưa có META_APP_SECRET.', 403); const validSignature = appSecrets.some(appSecret => { const expected = 'sha256=' + createHmac('sha256', appSecret).update(raw).digest('hex'); return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected)); }); if (!validSignature) domain.fail('Chữ ký không hợp lệ.', 403);
-  for(const c of channels)put('facebook_webhook_status',{id:c.id,lastReceivedAt:now(),eventCount:(value.entry||[]).reduce((n,e)=>n+(e.messaging||[]).length,0)});
+  for(const c of channels)put('facebook_webhook_status',{id:c.id,lastReceivedAt:now(),eventCount:(value.entry||[]).reduce((n,e)=>n+(e.messaging||[]).length+(e.changes||[]).length,0)});
   transaction(() => {
     for (const c of channels) {
-      ingestFacebookEvents(c, value.entry); care.ingestComments(c, value.entry);
+      if(c.provider==='facebook')ingestFacebookEvents(c, value.entry);care.ingestComments(c, value.entry);
     }
-  }); for (const c of channels) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
+  }); for (const c of channels.filter(c=>c.provider==='facebook')) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
 }
 const systemMonitor=createSystemMonitor({onSlowSample:sample=>console.warn('[http-performance]',JSON.stringify(sample))});
 const server = http.createServer(async (req, res) => {
