@@ -162,3 +162,5 @@ test('confirmed bank receipts map to transfer money; planned transfers never cou
  assert.equal(body(0).cash,0);assert.equal(body(0).transfer_money,0);
  assert.equal(body(100000).transfer_money,100000);assert.equal(body(300000).cash,40000);
 });
+
+test('POS customer name stays separate from shipment recipient name',()=>{const body=orderBody({status:'confirmed',receiverName:'Thu',phone:'0901234567'}, {name:'Hoàng Anh'},[],{shopId:10});assert.equal(body.bill_full_name,'Hoàng Anh');assert.equal(body.shipping_address.full_name,'Thu');});
