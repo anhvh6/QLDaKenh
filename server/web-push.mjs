@@ -51,7 +51,7 @@ export function eventFor(kind,r,user,p){
  if(r.conversationId){if(!c||c.deletedAt)return null;try{assertChannel(user,c.connectionId);}catch{return null;}}
  if(c){const state=studentCareState();if(!channelConnected(get('connections',c.connectionId))||!canReadCare(state,c,user)||kind==='messages'&&!receivesCare(state,c,user))return null;}
  const type=kind==='messages'?'message':kind==='staff_handoffs'?'handoff':r.id.startsWith('chat-reminder:')?'reminder':'notification';
- let title={message:'Có tin nhắn mới',handoff:'Yêu cầu nhân viên xử lý',reminder:'Đến giờ nhắc hẹn',notification:'Có thông báo mới'}[type],body='Mở MeGa Phương để xem nội dung.';
+ let title={message:c?.kind==='comment'?'Có bình luận mới':'Có tin nhắn mới',handoff:'Yêu cầu nhân viên xử lý',reminder:'Đến giờ nhắc hẹn',notification:'Có thông báo mới'}[type],body='Mở MeGa Phương để xem nội dung.';
  if(kind==='notifications'&&p.preview!==false){title=String(r.title||title).slice(0,100);body=String(r.body||body).slice(0,350);}
  if(type==='message'&&p.preview!==false){const name=(c?.customerId?get('customers',c.customerId)?.name:null)||c?.title||'Khách hàng';title=(c?.threadType===1?(r.senderName||'Thành viên')+' · '+(c.title||'Nhóm'):name).slice(0,100);body=String(r.contactCard?'Đã gửi danh thiếp':r.sticker?'Đã gửi sticker':r.text||((r.attachments||[]).length?'Đã gửi tệp hoặc hình ảnh':'Bạn có tin nhắn mới.')).slice(0,350);}
  const route=['dashboard','inbox','comments','calendar','content','handoffs','orders','phacdo','shipping','campaigns'].includes(r.route)?r.route:'inbox';

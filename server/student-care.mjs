@@ -29,7 +29,7 @@ export function notifyCareMessage(conversation,message){
   const user=db.prepare('SELECT id,role,active FROM users WHERE id=?').get(id);if(!user?.active||!['owner','manager','support'].includes(user.role))continue;
   if(user.role==='support'){const teams=new Set(all('team_members').filter(m=>m.userId===id).map(m=>m.teamId));if(!all('channel_teams').some(m=>m.connectionId===conversation.connectionId&&teams.has(m.teamId)))continue;}
   const notificationId='care-message:'+message.id+':'+id;if(get('notifications',notificationId))continue;
-  put('notifications',{id:notificationId,recipientId:id,conversationId:conversation.id,messageId:message.id,title:'Tin nhắn mới · '+(conversation.threadType===1?conversation.title||conversation.group?.name||'Nhóm':get('customers',conversation.customerId)?.name||'Khách hàng'),body:String(message.text||'Khách gửi tệp hoặc hình ảnh').slice(0,350),route:'inbox',read:false});
+  put('notifications',{id:notificationId,recipientId:id,conversationId:conversation.id,messageId:message.id,title:(conversation.kind==='comment'?'Bình luận mới · ':'Tin nhắn mới · ')+(conversation.threadType===1?conversation.title||conversation.group?.name||'Nhóm':get('customers',conversation.customerId)?.name||'Khách hàng'),body:String(message.text||'Khách gửi tệp hoặc hình ảnh').slice(0,350),route:conversation.kind==='comment'?'comments':'inbox',read:false});
  }
 }
 export function staffIds(input,label){

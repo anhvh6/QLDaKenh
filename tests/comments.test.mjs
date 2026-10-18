@@ -149,3 +149,13 @@ test('existing comment refresh never parses unrelated comment conversations',()=
  try{assert.equal(upsertComment(c,{id:'target-perf',message:'Updated target',from:{id:'target-perf'}}).id,message.id);}finally{JSON.parse=parse;}
  assert.equal(reads,0);db.prepare("DELETE FROM records WHERE kind='conversations' AND id LIKE 'unrelated-comment-%'").run();
 });
+
+
+test('new comments alert while initial history pagination is unfinished',async()=>{
+ const channel=put('connections',{id:'backfill-live',provider:'facebook',accountId:'backfill-page',name:'Backfill',mode:'api',status:'connected'});saveSecret(channel.id,{token:'test'});
+ put('comment_sync',{id:channel.id,startedAt:new Date(Date.now()-60000).toISOString(),queue:[{id:'backfill-post'}]});
+ await syncComments(channel,async()=>({data:[{id:'during-backfill',message:'Fresh',from:{id:'fresh'},created_time:new Date().toISOString()},{id:'old-backfill',message:'Old',from:{id:'old'},created_time:'2020-01-01T00:00:00Z'}],paging:{next:'next',cursors:{after:'next'}}}));
+ const fresh=all('messages').find(m=>m.externalId==='during-backfill'),old=all('messages').find(m=>m.externalId==='old-backfill');
+ assert.equal(fresh.history,false);assert.ok(fresh.pushReceivedAt);assert.equal(old.history,true);assert.equal(old.pushReceivedAt,undefined);
+ assert.ok(all('notifications').some(n=>n.messageId===fresh.id));assert.ok(!get('comment_sync',channel.id).completedAt);
+});

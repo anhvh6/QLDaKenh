@@ -46,7 +46,7 @@ export function upsertComment(channel,item,post={},live=false){
  const created=Date.parse(item.created_time||item.timestamp||'');const createdAt=Number.isFinite(created)?new Date(created).toISOString():existing?.createdAt||now();
  const text=String(item.message??item.text??''),attachments=commentAttachments(item);
  if(existing&&existing.externalId===String(item.id)&&existing.parentCommentId===parent&&existing.likeCount===(item.like_count??existing.likeCount)&&existing.text===text&&JSON.stringify(existing.attachments||[])===JSON.stringify(attachments)&&(item.user_likes===undefined||existing.liked===item.user_likes))return existing;
- const msg=put('messages',{...existing,conversationId:conv.id,externalId:String(item.id),direction:own?'outgoing':'incoming',senderName:own?channel.name:name,text,attachments,liked:item.user_likes??existing?.liked,status:own?'accepted':'received',createdAt,permalink:safeUrl(item.permalink_url||item.permalink),parentCommentId:parent,likeCount:item.like_count??existing?.likeCount??null});
+ const msg=put('messages',{...existing,conversationId:conv.id,externalId:String(item.id),direction:own?'outgoing':'incoming',senderName:own?channel.name:name,text,attachments,liked:item.user_likes??existing?.liked,status:own?'accepted':'received',history:existing?.history??(!own&&!live),createdAt,permalink:safeUrl(item.permalink_url||item.permalink),parentCommentId:parent,likeCount:item.like_count??existing?.likeCount??null});
  const newest=Date.parse(createdAt)>=Date.parse(conv.lastAt||'1970-01-01');
  put('conversations',{...get('conversations',conv.id),...(newest?{lastAt:createdAt,lastMessage:text||(attachments[0]?.type==='video'?'Video':'Ảnh')}:{}),...(!own&&live?{unread:true,status:'open'}:{})});
  if(!own&&!existing&&live){observeCareMessage(get('conversations',conv.id),msg);notification('Bình luận mới trên '+channel.name,text.slice(0,120),'comments',{conversationId:conv.id,messageId:msg.id});}
@@ -55,7 +55,7 @@ export function upsertComment(channel,item,post={},live=false){
 }
 
 const authHeaders=token=>({Authorization:'Bearer '+token});
-const newerThan=(value,state)=>!!state.completedAt&&Date.parse(value||0)>Date.now()-3600000;
+const newerThan=(value,state)=>Date.parse(value||0)>=(state.completedAt?Date.now()-3600000:Date.parse(state.startedAt||state.createdAt||''));
 async function syncInstagram(channel,state,request){
  const token=secret(channel.id).token,headers=authHeaders(token),root=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`;
  const media=await request(`${root}/${encodeURIComponent(channel.accountId)}/media?`+new URLSearchParams({fields:'id,caption,timestamp,permalink',limit:'25'}),{headers});
@@ -92,6 +92,7 @@ export function ingestCommentEvents(channel,entries){for(const entry of entries|
 export async function syncComments(channel,request=remote){
  if(locks.has(channel.id))return locks.get(channel.id);
  const job=(async()=>{let state=get('comment_sync',channel.id)||{id:channel.id};try{
+ if(!state.startedAt)state=put('comment_sync',{...state,startedAt:state.createdAt||now()});
  const token=secret(channel.id).token;if(!token)throw Error('Chưa có token kết nối.');
  if(!['facebook','threads'].includes(channel.provider)){await syncProviderComments(channel,state,request);state=put('comment_sync',{...state,queue:[],after:'',status:'ready',error:'',syncedAt:now(),completedAt:now()});return state;}
  const headers={Authorization:'Bearer '+token};const read=async(path,params)=>{const url=base(channel)+'/'+encodeURIComponent(path.split('/')[0])+'/'+path.split('/').slice(1).join('/')+'?'+new URLSearchParams(params);try{return await request(url,{headers});}catch(error){if(!error.retryable&&!error.unknown)throw error;return request(url,{headers});}};
@@ -100,7 +101,7 @@ export async function syncComments(channel,request=remote){
  for(const post of queue.slice(0,5)){
   const key=channel.id+':'+post.id,p=get('comment_post_sync',key)||{},cursor=p.after||'';
   const page=await read(post.id+'/'+(channel.provider==='threads'?'replies':'comments'),{fields:channel.provider==='threads'?'id,text,timestamp,username,media_type,media_url,permalink,is_reply_owned_by_me,replied_to,root_post':'id,message,created_time,from{id,name,picture},attachment,parent,user_likes,like_count,permalink_url',limit:'50',...(channel.provider==='facebook'?{filter:'stream'}:{}),...(cursor?{after:cursor}:{})});
-  const initial=!!state.completedAt;for(const item of [...(page.data||[])].sort((a,b)=>Date.parse(a.created_time||a.timestamp)-Date.parse(b.created_time||b.timestamp))){upsertComment(channel,item,post,initial&&Date.parse(item.created_time||item.timestamp)>Date.now()-3600000);await yieldIO();}
+  for(const item of [...(page.data||[])].sort((a,b)=>Date.parse(a.created_time||a.timestamp)-Date.parse(b.created_time||b.timestamp))){upsertComment(channel,item,post,newerThan(item.created_time||item.timestamp,state));await yieldIO();}
   const next=page.paging?.next?page.paging?.cursors?.after||'':'';put('comment_post_sync',{id:key,after:next});processed++;if(next){queue=[post,...queue.slice(processed)];processed=0;break;}
  }
  queue=queue.slice(processed);state=put('comment_sync',{...state,queue,after,status:'ready',error:'',syncedAt:now(),...(!queue.length&&!after?{completedAt:now()}:{})});return state;

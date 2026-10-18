@@ -85,3 +85,25 @@ test('current app acknowledges a notification deep link without reloading or ope
  const self={location:{origin:'https://hub.test'},addEventListener:(n,fn)=>listeners[n]=fn,clients:{matchAll:async()=>[client],openWindow:async()=>{throw Error('must reuse current app');}}};
  vm.runInNewContext(readFileSync('public/sw.js','utf8'),{self,URL,MessageChannel:Channel,setTimeout,clearTimeout});let waiting;listeners.notificationclick({notification:{close(){},data:{url}},waitUntil:p=>waiting=p});await waiting;assert.deepEqual(calls,['focus']);assert.equal(messages[0].type,'hub-open-notification');assert.equal(messages[0].url,url);
 });
+
+
+test('live comment import alerts once with comment deep link; history and own replies stay silent',async()=>{
+ const {upsertComment}=await import('../server/comments.mjs');
+ const channel=put('connections',{id:'push-comment-channel',provider:'facebook',accountId:'page',name:'Page QA',status:'connected',mode:'api'});
+ await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);
+ await new Promise(r=>setTimeout(r,5));
+ const item={id:'push-comment-live',message:'New customer comment',from:{id:'customer',name:'Comment customer'},created_time:'2020-01-01T00:00:00Z'};
+ const m=upsertComment(channel,item,{id:'post'},true);
+ upsertComment(channel,item,{id:'post'},true);
+ const history=upsertComment(channel,{...item,id:'push-comment-history'},{id:'post'},false);
+ upsertComment(channel,{id:'push-comment-own',message:'Staff reply',from:{id:'page'},parent:{id:item.id}},{id:'post'},true);
+ assert.equal(history.history,true);assert.equal(history.pushReceivedAt,undefined);
+ const receipts=all('notifications').filter(n=>n.messageId===m.id&&n.recipientId===user.id);
+ assert.equal(receipts.length,1);assert.equal(receipts[0].route,'comments');assert.match(receipts[0].title,/Bình luận mới/);
+ const delivered=[];await pushTick(async(s,p)=>delivered.push(p));await pushTick(async(s,p)=>delivered.push(p));
+ assert.equal(delivered.length,1);assert.equal(delivered[0].body,item.message);
+ assert.equal(delivered[0].url,'/?conversation='+m.conversationId+'&message='+m.id+'#comments');
+ assert.equal(eventFor('messages',m,user,{...prefs,preview:false}).title,'Có bình luận mới');
+ assert.equal(eventFor('messages',m,outsider,prefs),null);
+ await pushRoute('/api/push/unsubscribe','POST',{endpoint:sub.endpoint},user);
+});

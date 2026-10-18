@@ -1,5 +1,5 @@
 {
-  "version": "ede601968a97",
+  "version": "bac8587ff334",
   "compiler": "0.25.12",
   "files": {
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
@@ -42,7 +42,7 @@
     "public/student-care-settings.js": "eb49cec69a149ab2faf4d82cb5d48ca2825bb59ff18d88978ee48ab1b3c1785c",
     "public/quick-replies.js": "cf1eb5fad7323c570b7cdc9eabd545aa292468697e5ace88f24c736772c5bd03",
     "public/products-management.js": "e7d08013cafe81a244bc0acf98a96c0be6d9e2e33c016add0e930136db1572d1",
-    "public/device-notifications.js": "d8dde5ce781c13cf599a129c19c2551b0288d57d95e79ddc248571805a4a045a",
+    "public/device-notifications.js": "3529619b13b8bc40bcf989d0947b8c6eae8a228856555ed408deb3f69d2412e4",
     "public/conversation-tags.js": "644e4cd45868a44eb3b0490029d85c09cabb8444ac0439469b9ca928bf49fadb",
     "public/chat-connection-state.js": "81e885e80b8e0485c6a91bd9af0552b9eae2a3fdbb93be1a3c1ab6d606eaea21",
     "public/inbox-model.js": "ca16376e9e3fd57786f95af7a574d533888733e37fac5a9f066a51a737ca58bb",
@@ -81,6 +81,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
     "public/app.js": "25c5798d66ca4051bbba17e42ad593914c23dd3e8c149eb515b552a59d449bdc",
-    "public/app.bundle.js": "ede601968a97b639561c325f74e20e176937627b4a0f9a9c22f87ae15ca5422f"
+    "public/app.bundle.js": "bac8587ff334d3e203aed2bc71786a06600bc5b60a70079261752863887cb497"
   }
 }
