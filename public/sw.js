@@ -5,6 +5,7 @@ self.addEventListener('fetch',()=>{});
 self.addEventListener('push',event=>{event.waitUntil((async()=>{
  let payload={};try{payload=event.data?.json()||{};}catch{}
  await self.registration.showNotification(payload.title||'Có thông báo mới',{body:payload.body||'Mở ứng dụng để xem nội dung.',icon:'/icons/app-192.png',badge:'/icons/badge-96.png',tag:payload.tag||'hub-notification',renotify:true,silent:payload.silent===true,data:{url:payload.url||'/#inbox'}});
+ if(payload.testId&&typeof fetch==='function')try{const session=await (await fetch('/api/bootstrap',{credentials:'same-origin'})).json();if(session.user?.csrf)await fetch('/api/push/receipt',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':session.user.csrf},body:JSON.stringify({testId:payload.testId})});}catch{}
  if(self.navigator.setAppBadge)await self.navigator.setAppBadge(Math.max(1,Number(payload.badge)||1)).catch(()=>{});
 })());});
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{

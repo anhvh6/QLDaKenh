@@ -107,3 +107,32 @@ test('live comment import alerts once with comment deep link; history and own re
  assert.equal(eventFor('messages',m,outsider,prefs),null);
  await pushRoute('/api/push/unsubscribe','POST',{endpoint:sub.endpoint},user);
 });
+
+
+test('test receipt is scoped to its user and idempotently acknowledges the selected device',async()=>{
+ await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);
+ const s=all('push_subscriptions').find(s=>s.userId===user.id);put('push_subscriptions',{...s,lastTestId:'receipt-qa'});
+ put('push_tests',{id:'receipt-qa',userId:user.id,subscriptionId:s.id});
+ await assert.rejects(pushRoute('/api/push/receipt','POST',{testId:'receipt-qa'},staff),/Không tìm thấy/);
+ await pushRoute('/api/push/receipt','POST',{testId:'receipt-qa'},user);
+ const status=await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user);assert.ok(status.lastTestDisplayedAt);assert.equal(status.deviceId,s.id.slice(0,12));assert.equal(status.pushService,'fcm.googleapis.com');
+ const v=get('push_subscriptions',s.id).version;await pushRoute('/api/push/receipt','POST',{testId:'receipt-qa'},user);assert.equal(get('push_subscriptions',s.id).version,v);
+ await pushRoute('/api/push/subscribe','POST',{subscription:sub},user);assert.equal((await pushRoute('/api/push/status','POST',{endpoint:sub.endpoint},user)).lastTestDisplayedAt,status.lastTestDisplayedAt);
+});
+
+test('service worker acknowledges test only after showNotification succeeds using session CSRF',async()=>{
+ const listeners={},calls=[];let failure=false;
+ const self={location:{origin:'https://hub.test'},addEventListener:(n,f)=>listeners[n]=f,registration:{showNotification:async()=>{calls.push('shown');if(failure)throw Error('OS rejected');}},navigator:{}};
+ const fetch=async(url,options)=>{calls.push({url,options});return {json:async()=>({user:{csrf:'test-session-csrf'}})};};
+ vm.runInNewContext(readFileSync('public/sw.js','utf8'),{self,URL,fetch});let waiting;
+ const fire=()=>listeners.push({data:{json:()=>({testId:'receipt-qa',title:'Test'})},waitUntil:p=>waiting=p});fire();await waiting;
+ assert.equal(calls[0],'shown');assert.equal(calls[1].url,'/api/bootstrap');assert.equal(calls[2].url,'/api/push/receipt');assert.equal(calls[2].options.headers['X-CSRF-Token'],'test-session-csrf');assert.equal(JSON.parse(calls[2].options.body).testId,'receipt-qa');
+ calls.length=0;failure=true;fire();await assert.rejects(waiting,/OS rejected/);assert.equal(calls.length,1);
+});
+
+
+test('permission diagnostics keep only bounded states for the authenticated device',async()=>{
+ const result=await pushRoute('/api/push/diagnostics','POST',{deviceId:'android-device-qa',web:'denied',browser:'denied',push:'prompt',platform:'Android',standalone:true,endpoint:'must-not-store'},user);
+ const row=all('push_permission_checks').find(r=>r.id.startsWith(result.code));assert.equal(row.userId,user.id);assert.equal(row.web,'denied');assert.equal(row.endpoint,undefined);
+ await assert.rejects(pushRoute('/api/push/diagnostics','POST',{deviceId:'bad<script>'},user),/không hợp lệ/);
+});

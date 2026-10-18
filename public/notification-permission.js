@@ -11,6 +11,6 @@ export async function pushPermission(registration){
  try{return await registration.pushManager.permissionState({userVisibleOnly:true});}catch{return 'unknown';}
 }
 export function permissionHelp(permission){
- return permission==='denied'?'Website đang bị chặn thông báo. Mở quanlydakenh.vercel.app trong trình duyệt đã cài ứng dụng → Cài đặt trang web → Thông báo → Cho phép. Quyền của ứng dụng trong Cài đặt Android là một quyền riêng.':
+ return permission==='denied'?'Trình duyệt đang trả quyền thông báo denied. Nếu website đã được Cho phép, hãy kiểm tra Android → Ứng dụng → Chrome → Thông báo (quyền tổng và danh mục website), cùng quyền của MeGa Phương; đóng hẳn rồi mở lại Chrome và ứng dụng.':
  'Trình duyệt chưa xác nhận quyền thông báo cho website. Mở quanlydakenh.vercel.app trong Chrome hoặc trình duyệt đã cài ứng dụng → biểu tượng cạnh địa chỉ → Quyền / Cài đặt trang web → Thông báo → Cho phép; sau đó mở lại ứng dụng và nhấn Bật thông báo.';
 }
