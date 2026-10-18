@@ -8,7 +8,7 @@ export function learnerOrders(customer,{orders=[],shipments=[],links=[],carrierO
  for(const o of local){
   const s=newest(shipments.filter(s=>s.orderId===o.id&&s.status!=='cancelled'));
   const link=newest(links.filter(l=>l.kind==='orders'&&l.localId===o.id)),r=link?.remote||{},a=r.shipping_address||{},p=r.partner||{};
-  const tracking=s?.tracking||o.posTracking||p.extend_code||p.order_number_vtp||'';
+  const tracking=s?.tracking||o.posTracking||p.order_number_vtp||p.extend_code||'';
   const carrier=carrierOrders.find(c=>c.tracking===tracking&&tracking&&((s?.accountId&&c.accountId===s.accountId)||(!s?.accountId&&o.posTracking===tracking)));
   if(carrier)used.add(carrier.id);
   const status=carrier?.status||s?.status||o.status;
