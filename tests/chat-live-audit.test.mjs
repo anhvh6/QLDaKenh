@@ -20,3 +20,14 @@ test('chronological rendering ignores edit time, keeps stable ties and never mut
 test('message action menu remains within small screens at all four corners',()=>{
  for(const anchor of [{top:1,bottom:20,right:10},{top:1,bottom:20,right:390},{top:700,bottom:720,right:10},{top:700,bottom:720,right:390}]){const p=menuPosition(anchor,{width:260,height:300},{width:390,height:740});assert.ok(p.left>=8&&p.left+p.width<=382);assert.ok(p.top>=8&&p.top+300<=732);}
 });
+
+test('comment live window is bounded, conditional and retains channel permission checks',async()=>{
+ put('conversations',{id:'comment-live',kind:'comment',connectionId:'audit-demo',customerId:'audit-customer'});
+ for(let i=0;i<70;i++)put('messages',{id:'comment-live-'+i,conversationId:'comment-live',text:'Comment '+i,createdAt:new Date(1700000000000+i*1000).toISOString()});
+ const path='/api/chat/conversations/comment-live/live',url=new URL('https://example.test/?limit=60');
+ const first=await chatRoute(path,'GET',{},owner,url);assert.equal(first.messages.length,60);assert.equal(first.hasMore,true);
+ url.searchParams.set('since',first.revision);assert.equal((await chatRoute(path,'GET',{},owner,url)).unchanged,true);
+ await assert.rejects(chatRoute(path,'GET',{}, {id:'viewer',role:'viewer'},url),{status:403});
+ await assert.rejects(chatRoute(path,'GET',{}, {id:'limited',role:'support',channelIds:['other-channel']},url),{status:403});
+ put('conversations',{...get('conversations','comment-live'),remoteDeleted:true});await assert.rejects(chatRoute(path,'GET',{},owner,url),{status:404});
+});

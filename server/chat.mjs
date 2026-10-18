@@ -72,8 +72,11 @@ export async function chatRoute(path,method,input,user,url){
  if(unpin&&method==='DELETE'){const c=chatConversation(user,unpin[1]);await changeZaloPin(c,null,false,decodeURIComponent(unpin[2]));audit(user.id,'zalo_message_unpinned',c.id,{topicId:unpin[2]});return get('conversations',c.id);}
  const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
  if(live&&method==='GET'){
-  const conversation=chatConversation(user,live[1]);
-  void refreshZaloPins(conversation);void syncFacebookConversation(get('connections',conversation.connectionId),conversation).catch(()=>{});
+  permission(user,'inbox');const candidate=get('conversations',live[1]);
+  const conversation=candidate?.kind==='comment'?candidate:chatConversation(user,live[1]);
+  if(conversation.deletedAt||conversation.remoteDeleted)fail('Không tìm thấy hội thoại.',404);
+  assertChannel(user,conversation.connectionId);
+  if(conversation.kind!=='comment'){void refreshZaloPins(conversation);void syncFacebookConversation(get('connections',conversation.connectionId),conversation).catch(()=>{});}
   // Check a covering index before loading potentially large media/quote payloads.
   const rows=db.prepare("SELECT id,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY id").all(conversation.id);
   const revision=createHash('sha256').update(JSON.stringify(conversation)).update(JSON.stringify(rows.map(r=>[r.id,r.version]))).update(url?.searchParams.get('limit')||'full').update(url?.searchParams.get('before')||'').digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
