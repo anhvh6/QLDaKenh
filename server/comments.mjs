@@ -6,6 +6,7 @@ import {assertChannel,observeCareMessage} from './taophacdo.mjs';
 import {setImmediate as yieldIO} from 'node:timers/promises';
 
 // Resolve comments in SQLite rather than parsing the entire chat history per item.
+// CROSS JOIN fixes join order; unary + removes TEXT affinity so the JSON index is searchable.
 db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_external ON records(json_extract(data,'$.externalId')) WHERE kind='messages';
 CREATE INDEX IF NOT EXISTS idx_comment_channel ON records(json_extract(data,'$.connectionId'),json_extract(data,'$.kind'),json_extract(data,'$.externalCommentId')) WHERE kind='conversations';`);
 const stored=row=>row?{...JSON.parse(row.data),id:row.id,version:row.version}:null;
@@ -13,7 +14,7 @@ function commentMessage(channelId,externalId){
  const row=db.prepare(`SELECT m.id,m.data,m.version FROM records m INDEXED BY idx_messages_external JOIN records c ON c.kind='conversations' AND c.id=json_extract(m.data,'$.conversationId')
  WHERE m.kind='messages' AND json_extract(m.data,'$.externalId')=? AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment' ORDER BY m.updated_at DESC LIMIT 1`).get(externalId,channelId);
  if(row)return stored(row);
- return stored(db.prepare(`SELECT m.id,m.data,m.version FROM records c INDEXED BY idx_comment_channel CROSS JOIN records m INDEXED BY idx_messages_conversation ON m.kind='messages' AND json_extract(m.data,'$.conversationId')=c.id
+ return stored(db.prepare(`SELECT m.id,m.data,m.version FROM records c INDEXED BY idx_comment_channel CROSS JOIN records m INDEXED BY idx_messages_conversation ON m.kind='messages' AND json_extract(m.data,'$.conversationId')=+c.id
  WHERE c.kind='conversations' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment'
  AND EXISTS(SELECT 1 FROM json_each(m.data,'$.externalMessages') e WHERE json_extract(e.value,'$.id')=?) ORDER BY m.updated_at DESC LIMIT 1`).get(channelId,externalId));
 }
@@ -34,7 +35,7 @@ export function upsertComment(channel,item,post={},live=false){
  if(existing?.deletedAt)return existing;
  const own=existing?.direction==='outgoing'||item.is_reply_owned_by_me===true||String(item.from?.id||'')===String(channel.accountId);
  const parent=String(item.parent?.id||item.replied_to?.id||'');
- if(own&&!existing)existing=stored(db.prepare(`SELECT m.id,m.data,m.version FROM records c INDEXED BY idx_comment_channel CROSS JOIN records m INDEXED BY idx_messages_conversation ON m.kind='messages' AND json_extract(m.data,'$.conversationId')=c.id WHERE c.kind='conversations' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment' AND json_extract(m.data,'$.status')='sending' AND json_extract(m.data,'$.replyToExternalId')=? ORDER BY m.updated_at DESC LIMIT 1`).get(channel.id,parent));
+ if(own&&!existing)existing=stored(db.prepare(`SELECT m.id,m.data,m.version FROM records c INDEXED BY idx_comment_channel CROSS JOIN records m INDEXED BY idx_messages_conversation ON m.kind='messages' AND json_extract(m.data,'$.conversationId')=+c.id WHERE c.kind='conversations' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.kind')='comment' AND json_extract(m.data,'$.status')='sending' AND json_extract(m.data,'$.replyToExternalId')=? ORDER BY m.updated_at DESC LIMIT 1`).get(channel.id,parent));
  let conv=existing&&get('conversations',existing.conversationId)||existingConvs.find(c=>c.externalCommentId===String(own?parent:item.id));
  const standaloneOwnReply=channel.provider==='threads'&&own&&!conv;
  if(own&&!conv&&!standaloneOwnReply)return null;
