@@ -145,3 +145,11 @@ test('order address writes the provider input field and reads address aliases wi
 });
 
 test('order addresses prefer complete provider address over street segment',()=>{assert.equal(orderAddress({shipping_address:{address:'50 Kim Mã',full_address:'50 Kim Mã, Ngọc Hà, Hà Nội'}}),'50 Kim Mã, Ngọc Hà, Hà Nội');});
+
+test('confirmed bank receipts map to transfer money; planned transfers never count as received',()=>{
+ const base={status:'confirmed',bankTransfer:true,transferAmount:260000};
+ const body=paid=>orderBody({...base,paid},{name:'QA'},[],{shopId:10});
+ assert.equal(body(260000).cash,0);assert.equal(body(260000).transfer_money,260000);
+ assert.equal(body(0).cash,0);assert.equal(body(0).transfer_money,0);
+ assert.equal(body(100000).transfer_money,100000);assert.equal(body(300000).cash,40000);
+});
