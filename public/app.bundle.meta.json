@@ -1,5 +1,5 @@
 {
-  "version": "25c48feb3577",
+  "version": "19c482215cdb",
   "compiler": "0.25.12",
   "files": {
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
@@ -34,7 +34,7 @@
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
     "public/copy-layout-model.js": "1fb8deff67667b988bf4cc43932323675affca23c7b6e79c8ad42693060a9027",
     "public/copy-automation.js": "6976d2d53c05b458fa46e1182281ecfea9ce5001d3045be78daded9f87b92880",
-    "public/social-copy.js": "254334a3f1e63b6dec466f9def439b46967304fe4d6084c2497629aa014c8b58",
+    "public/social-copy.js": "c2220caa3b11f9425e80b604081d2cda632845f2ce55d13f46b23f2c5fe945b7",
     "public/group-learner.js": "b05abac67afcab33565401e14e1d5b6c0fdd8f132b49584a83cf376c05d34ab3",
     "public/care-staff-ui.js": "6d14d8e5c007fe48ab90e23d7ed29ba82cdfe377ed15159d02a6357d50bc4754",
     "public/chat-names.js": "e8a312c009f289e40a4b57fd40ab5a3345fa9c56b019610846a4d7a13fca75cd",
@@ -80,7 +80,7 @@
     "public/inbox.js": "650413d3baf679d6a18ecf42c2268dfc1420725fdeccccb30f99c2bbee15e6f7",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "2c03ca32ec35dc9b0f11f4dedddc72fb35960ee4b36b5c0dfab27f239a35b147",
-    "public/app.js": "6ef2f548260ad289c63827d4535f8051f2455ce98c59e3b1d1872ba248cfd5e1",
-    "public/app.bundle.js": "25c48feb3577e6002dcfc763dc114246c259794cf1a7225989c7176cf14bf817"
+    "public/app.js": "25c5798d66ca4051bbba17e42ad593914c23dd3e8c149eb515b552a59d449bdc",
+    "public/app.bundle.js": "19c482215cdbdb8c313faf88c09e5c88297bc0533cad80d1aa1a38baaff8ed33"
   }
 }

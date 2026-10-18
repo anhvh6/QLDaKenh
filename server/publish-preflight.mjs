@@ -1,3 +1,4 @@
+import {reupText} from '../public/reup-text.js';
 import {formatHint,formatLabels} from '../public/composer-format.js';
 import {copySourceBlock} from './copy-history.mjs';
 import { all, get } from './store.mjs';
@@ -22,7 +23,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     try { assertChannel(user, id); } catch (error) { add(ch, error.message); continue; }
     if(checkHistory){const block=copySourceBlock(content,id);if(block)add(ch,block);}
     const variant = content.variants?.[id] || {}, type = variant.type || content.type;
-    const caption = String(variant.caption || content.caption || ''), title = String(variant.title || content.title || 'Video');
+    const {caption,title}=reupText(content,ch.provider,variant);
     const api = ['youtube', 'tiktok'].includes(ch.provider) && ch.status === 'connected' || ch.mode === 'api';
     if (ch.status === 'disconnected' || api && ch.status !== 'connected') add(ch, 'Kênh chưa kết nối thành công.');
     if (publications.some(p => p.connectionId === id && ['published', 'demo_published', 'manually_confirmed'].includes(p.status))) add(ch, 'Bài đã đăng trên kênh này. Bỏ chọn kênh để tránh đăng trùng.');

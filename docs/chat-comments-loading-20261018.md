@@ -33,3 +33,11 @@ The composer incorrectly defaulted to text when a Reup source had media but no l
 Per-channel settings now expose supported format choices alongside caption overrides, and save existing variant properties instead of dropping them. Compatibility hints update when the common format, channel selection or override changes. Instagram and YouTube errors explain the media required; unsupported formats are still rejected server-side. Caption-only channel variants omit copy media and album checks; media variants retain actual media validation. No source images are implicitly converted into a YouTube video.
 
 Validation: 615 Node tests passed; dedicated composer browser test passed for pending source video, a stale text draft, persisted channel overrides, read-only preflight, and mobile overflow. Tested only local fixtures and read-only checks; no real social post was sent.
+
+## Reup first-line title rule
+
+Reup now derives destination text from the full source caption or its channel-specific caption override. YouTube, Blogger and DEV.to use the first nonblank line as the title and the exact remainder as description/body. Caption-only destinations retain the entire original text, including the first line. Source captions and Drive packages are not destructively rewritten. Ordinary posts retain their separately entered title and caption.
+
+Preflight and frozen publication payloads use the same mapper; automatic-plan previews also identify the source so title/description limits are checked against the actual output. New frozen jobs carry a mapping marker to avoid splitting the body again; unsent legacy Reup jobs are mapped once before dispatch. Unicode, CRLF/LF, blank lines, single-line posts and channel-specific variants are covered by regression tests. Existing published posts are not rewritten automatically.
+
+Mapped Reup publications preserve the exact full source caption for retry. The retry draft restores that snapshot before mapping again, so an already separated description cannot lose its first body line. Validation included the full 621-test suite and a subsequent 83-test focused run covering final snapshot/retry changes; the composer browser test and syntax/bundle checks passed. No real publication was sent by tests.
