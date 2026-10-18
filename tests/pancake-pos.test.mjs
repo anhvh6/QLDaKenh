@@ -106,6 +106,12 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');assert.equal(get('orders',draft.id).posTracking,'PKE-AUTO-QA');const ship=all('shipments').find(s=>s.orderId===draft.id);assert.equal(ship.fee,23519);assert.equal(ship.status,'pickup_pending');
   const r=remote.orders.find(r=>r.custom_id===draft.code);r.partner.total_fee=25000;r.partner.partner_status='out_for_delivery';await applyPosRow(account,'orders',copy(r));assert.equal(get('shipments',ship.id).fee,25000);assert.equal(get('shipments',ship.id).status,'in_transit');const version=get('shipments',ship.id).version;await applyPosRow(account,'orders',copy(r));assert.equal(get('shipments',ship.id).version,version);
  });
+ await t.test('provider address segmentation and casing preserve a complete matching address without false conflict',async()=>{
+  const draft=put('orders',{...order,id:'address-segments',code:'ADDRESS-SEGMENTS',status:'confirmed',address:'50 ngõ 192 Kim Mã, phường ngọc hà, hà nội',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
+  await route('/api/pos/orders/'+draft.id+'/dispatch','POST');
+  await posTick(async(key,path,options={})=>{const result=await request(key,path,options);if(options.method==='POST'&&path.endsWith('/orders')&&options.body.custom_id===draft.code){const r=remote.orders.find(r=>r.custom_id===draft.code);r.shipping_address.address='50 ngõ 192 Kim Mã';r.shipping_address.full_address='50 ngõ 192 Kim Mã, Phường Ngọc Hà, Hà Nội';}return result;});
+  assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');
+ });
  await t.test('chat order IDs are decoded for dispatch and readback without creating duplicate jobs',async()=>{
   const draft=put('orders',{...order,id:'chat-order:encoded-qa',code:'CHAT-ENCODED-QA',status:'confirmed',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
   const path='/api/pos/orders/'+encodeURIComponent(draft.id)+'/dispatch';
@@ -120,3 +126,5 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
 test('order address writes the provider input field and reads address aliases without hiding a real difference',()=>{
  const body=orderBody({status:'draft',code:'QA',address:'01 ngõ 191 Khương Thượng'}, {name:'QA',phone:'0901234567'},[],{shopId:'10',warehouseId:'w'});assert.equal(body.shipping_address.address,'01 ngõ 191 Khương Thượng');assert.equal(orderAddress({shipping_address:{address:body.shipping_address.address,full_address:''}}),body.shipping_address.address);assert.equal(orderAddress({shipping_address:{full_address:'Legacy'}}),'Legacy');assert.equal(orderAddress({shipping_address:{new_full_address:'New'}}),'New');assert.notEqual(orderAddress({shipping_address:{address:'Different address'}}),body.shipping_address.address);
 });
+
+test('order addresses prefer complete provider address over street segment',()=>{assert.equal(orderAddress({shipping_address:{address:'50 Kim Mã',full_address:'50 Kim Mã, Ngọc Hà, Hà Nội'}}),'50 Kim Mã, Ngọc Hà, Hà Nội');});

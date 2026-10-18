@@ -12,7 +12,7 @@ export function fields(kind,row){
 }
 export function fromProduct(v){const product=v.product||{};return {name:[product.name||v.name||v.display_id,...(v.fields||[]).map(f=>f.value)].filter(Boolean).join(' · '),sku:String(v.custom_id||v.display_id||v.barcode||v.id),price:Number(v.retail_price||0),cost:Number(v.last_imported_price||v.average_imported_price||0),weight:Math.max(1,Number(v.weight||product.weight||500)),active:v.is_hidden!==true&&v.is_removed!==true&&product.is_published!==false,productType:product.type==='service'?'service':'physical',images:v.images||[]};}
 export function customerAddresses(c){return c.shop_customer_addresses||c.shop_customer_address||[];}
-export function orderAddress(row){const a=row?.shipping_address||{};return String(a.address||a.full_address||a.new_full_address||'').trim();}
+export function orderAddress(row){const a=row?.shipping_address||{};return String(a.new_full_address||a.full_address||a.address||'').trim();}
 export const orderCode=row=>String(row.custom_id||row.id||'');
 // Send only writable OpenAPI fields; GET responses include server-only fields and nulls.
 export function writableProduct(product){

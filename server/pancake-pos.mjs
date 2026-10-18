@@ -36,10 +36,11 @@ function job(a,kind,id,patch={}){const current=get(kind,id);if(!current)return;c
 function trackedStock(a,v){const w=(v.variations_warehouses||[]).find(w=>String(w.warehouse_id)===a.warehouseId);return Number(w?.remain_quantity??0);}
 function snapshot(a,kind,row){const id=linkId(a,kind,remoteId(kind,row));if(hash(get('pos_remote',id)?.data)!==hash(row))put('pos_remote',{id,accountId:a.id,kind,data:row});}
 function rowsIn(data){const row=data?.data??data;return Array.isArray(row)?row[0]:row;}
+function equivalentOrderAddress(remote,local){const canonical=v=>String(v||'').normalize('NFC').toLocaleLowerCase('vi').replace(/\s*,\s*/g,',').replace(/\s+/g,' ').trim();return canonical(remote)===canonical(local)?local:remote;}
 function comparable(a,kind,row,current){
  if(kind==='products')return fields(kind,fromProduct({...row,weight:row.weight??row.product?.weight??current?.weight}));
  if(kind==='customers')return fields(kind,fromCustomer(row));
- return fields(kind,{...current,receiverName:row.shipping_address?.full_name||row.bill_full_name||'',phone:row.shipping_address?.phone_number||row.bill_phone_number||'',email:row.bill_email||'',address:orderAddress(row),items:(row.items||[]).map(i=>({productId:findRemote(a,'products',i.variation_id)?.localId||'unmapped:'+i.variation_id,quantity:i.quantity,price:i.variation_info?.retail_price||0})),surcharge:Number(row.surcharge||0),discount:row.total_discount||0,shippingFee:row.shipping_fee||0,paid:paidAmount(row),status:localStatus(row.status),note:row.note||'',printNote:row.note_print||'',posTracking:row.partner?.extend_code||row.partner?.order_number_vtp||'',posCarrier:row.partner?.partner_name||''});
+ return fields(kind,{...current,receiverName:row.shipping_address?.full_name||row.bill_full_name||'',phone:row.shipping_address?.phone_number||row.bill_phone_number||'',email:row.bill_email||'',address:equivalentOrderAddress(orderAddress(row),current.address),items:(row.items||[]).map(i=>({productId:findRemote(a,'products',i.variation_id)?.localId||'unmapped:'+i.variation_id,quantity:i.quantity,price:i.variation_info?.retail_price||0})),surcharge:Number(row.surcharge||0),discount:row.total_discount||0,shippingFee:row.shipping_fee||0,paid:paidAmount(row),status:localStatus(row.status),note:row.note||'',printNote:row.note_print||'',posTracking:row.partner?.extend_code||row.partner?.order_number_vtp||'',posCarrier:row.partner?.partner_name||''});
 }
 
 // Inbound values only touch mapped fields. Learner plans, chat identity and permissions stay local.
