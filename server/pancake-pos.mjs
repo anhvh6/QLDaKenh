@@ -71,6 +71,7 @@ export async function applyPosRow(a,kind,row,{force=false}={}){
  snapshot(a,kind,row);
  if(kind==='products'&&link&&current&&current.posAvailableStock!==trackedStock(a,row)&&!get('pos_jobs',linkId(a,kind,current.id))?.inventory){current=inbound(()=>put('products',{...current,stock:Math.max(0,trackedStock(a,row))+Number(current.reserved||0),posAvailableStock:trackedStock(a,row),posStockUpdatedAt:now()}));}
  if(kind==='orders'&&current&&link&&!force&&printChanged(kind,current,link)){if(String(row.note_print||'')!==String(link.remote?.note_print||'')&&String(row.note_print||'')!==String(current.printNote||'')){job(a,kind,current.id,{state:'conflict',error:'Ghi chú in đã thay đổi ở cả hai bên. Chọn bên cần giữ.'});return {conflict:true};}mapped.printNote=current.printNote||'';}
+ if(kind==='orders'&&current){if(current.conversationId)mapped.customerId=current.customerId;mapped.address=equivalentOrderAddress(mapped.address,current.address);}
  const incoming=fields(kind,mapped),local=current?fields(kind,current):null;
  if(current&&!force&&hash(incoming)!==hash(local)&&(!link||link.localHash!==hash(local)&&link.remoteHash!==hash(incoming))){
   saveLink(a,kind,current.id,row,{localHash:link?.localHash,remoteHash:link?.remoteHash});job(a,kind,current.id,{state:'conflict',error:'Dữ liệu hai bên khác nhau. Chọn bên cần giữ trước khi ghi đè.',remoteTarget:incoming});return {conflict:true};

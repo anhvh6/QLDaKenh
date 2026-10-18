@@ -112,6 +112,15 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
   await posTick(async(key,path,options={})=>{const result=await request(key,path,options);if(options.method==='POST'&&path.endsWith('/orders')&&options.body.custom_id===draft.code){const r=remote.orders.find(r=>r.custom_id===draft.code);r.shipping_address.address='50 ngõ 192 Kim Mã';r.shipping_address.full_address='50 ngõ 192 Kim Mã, Phường Ngọc Hà, Hà Nội';}return result;});
   assert.equal(all('pos_jobs').find(j=>j.localId===draft.id).state,'done');
  });
+ await t.test('POS recipient customer does not replace the chat customer identity on an originating order',async()=>{
+  const draft=put('orders',{...order,id:'chat-recipient-qa',code:'CHAT-RECIPIENT-QA',conversationId:'conversation-origin',status:'confirmed',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
+  await route('/api/pos/orders/'+draft.id+'/dispatch','POST');await posTick(request);
+  const other=put('customers',{id:'recipient-other',name:'Recipient',phone:'0999999999'});
+  const row=copy(remote.orders.find(r=>r.custom_id===draft.code));row.customer={id:'other-pos-customer'};
+  put('pos_links',{id:account.id+':customers:'+other.id,accountId:account.id,kind:'customers',localId:other.id,remoteId:'other-pos-customer',remote:{id:'other-pos-customer'}});
+  await applyPosRow(account,'orders',row);assert.equal(get('orders',draft.id).customerId,draft.customerId);
+  assert.notEqual(all('pos_jobs').find(j=>j.localId===draft.id).state,'conflict');
+ });
  await t.test('chat order IDs are decoded for dispatch and readback without creating duplicate jobs',async()=>{
   const draft=put('orders',{...order,id:'chat-order:encoded-qa',code:'CHAT-ENCODED-QA',status:'confirmed',fulfillmentTarget:'pos:'+account.id,posDispatchRequested:false});
   const path='/api/pos/orders/'+encodeURIComponent(draft.id)+'/dispatch';
