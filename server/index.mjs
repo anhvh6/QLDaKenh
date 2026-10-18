@@ -108,7 +108,7 @@ async function dispatch(req, res, url, user, input) {
   const genericObject = path.match(/^\/api\/records\/(customers|contents)\/([^/]+)$/); if (genericObject) { const r = get(genericObject[1], genericObject[2]); if (r) { if (genericObject[1] === 'customers') care.assertCustomer(user, r.id); else for (const id of r.channels || []) care.assertChannel(user, id); } }
 
   if (path === '/api/state' && method === 'GET') {
-    const snapshotView=['dashboard','inbox'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
+    const snapshotView=['dashboard','inbox','workspace'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
     const users = db.prepare('SELECT id,name,email,role,active FROM users').all();
     const revision = createHash('sha256').update(stateRevision() + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
@@ -129,7 +129,7 @@ async function dispatch(req, res, url, user, input) {
     state.settings = get('settings', 'general') || { id: 'general', name: 'Mộc Workspace', timezone: 'Asia/Ho_Chi_Minh' };
     if (user.role !== 'owner') state.connections = state.connections.map(({ accountId, apiVersion, ...c }) => c);
     state.orderWorkspace=orderWorkspaceState(user);state.orders=orderPOSFields(state.orders);state.orderRouting=orderRoutingState();state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
-    state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; return stateCache.set(cacheKey, revision, scopeCareChats(care.scopeState(state, user), user));
+    state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; const scoped=scopeCareChats(care.scopeState(state,user),user);if(snapshotView==='workspace'){const ids=new Set(scoped.conversations.map(c=>c.id));scoped.messageSummaries=dashboardMessages().filter(m=>ids.has(m.conversationId));}return stateCache.set(cacheKey,revision,scoped);
   }
   if(path==='/api/order-routing'&&method==='POST')return saveOrderRouting(user,input);
   if(path==='/api/system/metrics'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được xem chỉ số hệ thống.',403);return systemMonitor.snapshot();}

@@ -2,7 +2,7 @@ import {activeAppointmentTask} from './reminder-model.js';
 const day=86400000;
 export const dashboardLabels={prepared:'Nội dung đã chuẩn bị',pending:'Chờ đăng',failed:'Đăng lỗi 48h',messages:'Tin nhắn mới',comments:'Bình luận mới',tasks:'Nhiệm vụ',orders:'Đơn mới'};
 export function dashboardData(S,time=Date.now()){
- const latest=new Map();for(const m of S.messages||[]){if(m.deletedAt||['failed','cancelled'].includes(m.status))continue;const old=latest.get(m.conversationId);if(!old||String(m.createdAt)>String(old.createdAt)||m.createdAt===old.createdAt&&m.id>old.id)latest.set(m.conversationId,m);}
+ const latest=new Map();for(const m of [...(S.messageSummaries||[]),...(S.messages||[])]){if(m.deletedAt||['failed','cancelled'].includes(m.status))continue;const old=latest.get(m.conversationId);if(!old||String(m.createdAt)>String(old.createdAt)||m.createdAt===old.createdAt&&m.id>old.id)latest.set(m.conversationId,m);}
  const unanswered=(S.conversations||[]).filter(c=>{const m=latest.get(c.id),at=Date.parse(m?.createdAt);return !c.deletedAt&&!c.careHidden&&!['resolved','closed','done'].includes(c.status)&&m?.direction==='incoming'&&at>=time-7*day&&at<=time;});
  const destinations=new Map();for(const p of S.publications||[]){const key=p.contentId+':'+p.connectionId,old=destinations.get(key);if(!old||String(p.updatedAt||p.createdAt)>String(old.updatedAt||old.createdAt))destinations.set(key,p);}
  const pending=(S.contents||[]).filter(c=>[...destinations.values()].some(p=>p.contentId===c.id&&['scheduled','awaiting_manual','dispatching','processing'].includes(p.status)));
