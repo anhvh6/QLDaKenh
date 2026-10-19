@@ -85,3 +85,8 @@ test('multiple images upload concurrently, send as one album and reuse cached Fa
  const messages=await facebookMessageMedia(ch,assets,request,'token');assert.equal(messages.length,1);assert.equal(messages[0].attachments.length,2);assert.equal(calls,2);
  assert.deepEqual(await facebookMessageMedia(ch,assets,request,'token'),messages);assert.equal(calls,2);
 });
+
+test('active Instagram conversation polling uses the Instagram platform and imports customer replies',async()=>{
+ const {syncFacebookConversation}=await import('../server/facebook-chat.mjs');const channel=put('connections',{id:'ig-live',provider:'instagram',accountId:'ig-business',mode:'api',status:'connected'});saveSecret(channel.id,{token:'mock'});const customer=put('customers',{name:'IG customer'}),c=put('conversations',{id:'ig-live-chat',kind:'message',connectionId:channel.id,customerId:customer.id,externalUserId:'ig-person'});let platforms=[];
+ await syncFacebookConversation(channel,c,async url=>{if(url.includes('/conversations?')){platforms.push(new URL(url).searchParams.get('platform'));return {data:[{id:'ig-thread'}]};}return {data:[{id:'ig-response',created_time:'2026-10-19T12:00:00Z',message:'IG reply',from:{id:'ig-person'},to:{data:[{id:'ig-business'}]}}]};});assert.deepEqual(platforms,['instagram']);assert.equal(all('messages').find(m=>m.externalId==='ig-response').conversationId,c.id);assert.ok(get('conversations',c.id).lastInboundAt);
+});

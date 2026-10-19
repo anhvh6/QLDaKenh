@@ -65,14 +65,14 @@ export function ingestFacebookEvents(channel, entries = []) {
 
 // Active chats refresh independently of the slower historical import queue.
 export async function syncFacebookConversation(channel,conversation,request=remote){
- if(channel?.provider!=='facebook'||channel.status!=='connected'||channel.mode!=='api'||!conversation.externalUserId)return;
+ if(!['facebook','instagram'].includes(channel?.provider)||channel.status!=='connected'||channel.mode!=='api'||!conversation.externalUserId)return;
  const key=channel.id+':'+conversation.id,prior=liveJobs.get(key);
  if(prior&&(prior.running||Date.now()-prior.at<3000))return;
  liveJobs.set(key,{running:true,at:Date.now()});
  const base=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`,headers={Authorization:'Bearer '+secret(channel.id).token};
  try{
   let threadId=conversation.facebookThreadId;
-  if(!threadId){const threads=await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=messenger&user_id=${encodeURIComponent(conversation.externalUserId)}&fields=id&limit=1`,{headers});threadId=threads.data?.[0]?.id;if(threadId){const current=get('conversations',conversation.id);if(!current?.deletedAt)put('conversations',{...current,facebookThreadId:threadId});}}
+  if(!threadId){const threads=await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=${channel.provider==='instagram'?'instagram':'messenger'}&user_id=${encodeURIComponent(conversation.externalUserId)}&fields=id&limit=1`,{headers});threadId=threads.data?.[0]?.id;if(threadId){const current=get('conversations',conversation.id);if(!current?.deletedAt)put('conversations',{...current,facebookThreadId:threadId});}}
   if(!threadId)return;
   const page=await request(`${base}/${encodeURIComponent(threadId)}/messages?limit=25&fields=id,created_time,message,from,to,attachments,sticker`,{headers});
   for(const item of [...(page.data||[])].reverse())ingestFacebookMessage(channel,item,{history:Date.parse(item.created_time)<Date.now()-120000,participant:{id:conversation.externalUserId}});
@@ -82,14 +82,14 @@ export async function syncFacebookConversation(channel,conversation,request=remo
 // Bounded pages and cursors keep initial imports out of the UI request path.
 export async function syncFacebookChat(channel, request = remote) {
  if (running.has(channel.id)) return { running: true };
- if (channel.provider !== 'facebook' || channel.status !== 'connected' || channel.mode !== 'api') return { supported: false };
+ if (!['facebook','instagram'].includes(channel.provider) || channel.status !== 'connected' || channel.mode !== 'api') return { supported: false };
  running.add(channel.id);
  const state = get('facebook_chat_sync', channel.id) || {}, base = `https://graph.facebook.com/${channel.apiVersion || process.env.META_GRAPH_VERSION || 'v25.0'}`;
  const headers = { Authorization: 'Bearer ' + secret(channel.id).token };
  let imported = 0; const startedAt = state.startedAt || now();
  try {
-  const conversations = await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=messenger&limit=10&fields=id,updated_time,participants&${state.after ? 'after=' + encodeURIComponent(state.after) : ''}`, { headers });
-  const latest = state.after ? await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=messenger&limit=10&fields=id,updated_time,participants`, { headers }) : conversations;
+  const conversations = await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants&${state.after ? 'after=' + encodeURIComponent(state.after) : ''}`, { headers });
+  const latest = state.after ? await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants`, { headers }) : conversations;
   const threads = [...new Map([...(latest.data || []), ...(conversations.data || [])].map(t => [t.id,t])).values()];
   for (const thread of threads) {
    const participant = thread.participants?.data?.find(p => String(p.id) !== String(channel.accountId));
@@ -115,7 +115,7 @@ export async function syncFacebookChat(channel, request = remote) {
 }
 
 export async function facebookChatTick() {
- for (const channel of all('connections').filter(c => c.provider === 'facebook' && c.status === 'connected' && c.mode === 'api')) {
+ for (const channel of all('connections').filter(c => ['facebook','instagram'].includes(c.provider) && c.status === 'connected' && c.mode === 'api')) {
   const state = get('facebook_chat_sync', channel.id);
   if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.after && state.status !== 'error' ? 5000 : state.status==='error'?60000:10000)) continue;
   try { await syncFacebookChat(channel); } catch { /* Error is stored for the channel's diagnostic UI. */ }

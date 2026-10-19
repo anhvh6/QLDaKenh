@@ -18,8 +18,8 @@ export async function sendCommentPrivateReply(channel,conv,text,options,request,
  const prior=db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.direction')='outgoing' AND json_extract(data,'$.status') IN ('accepted','sent','unknown') LIMIT 1").get(conv.id);
  if(prior||conv.privateReplySentAt)throw Error('Đã gửi hoặc chưa xác định kết quả tin nhắn riêng cho bình luận này. Cần chờ khách phản hồi trước khi gửi tiếp.');
  const base='https://graph.facebook.com/'+(channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0');
- const url=channel.provider==='instagram'?base+'/'+encodeURIComponent(channel.accountId)+'/messages':base+'/'+encodeURIComponent(conv.privateReplyCommentId)+'/private_replies';
- const body=channel.provider==='instagram'?{recipient:{comment_id:conv.privateReplyCommentId},message:{text}}:{message:text};
+ const url=base+'/'+encodeURIComponent(channel.accountId)+'/messages';
+ const body={recipient:{comment_id:conv.privateReplyCommentId},message:{text}};
  const result=await request(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
  if(!result.message_id&&!result.id)throw Object.assign(Error('Nền tảng chưa xác nhận gửi tin nhắn riêng. Kiểm tra ứng dụng gốc trước khi thử lại.'),{unknown:true});
  return {...result,privateReply:true};

@@ -11,7 +11,7 @@ for(const provider of ['facebook','instagram'])test(provider+' opens a private d
  const before=all('messages').length,draft=openCommentPrivateChat(owner,source.id);assert.equal(all('messages').length,before);assert.equal(openCommentPrivateChat(owner,source.id).id,draft.id);assert.equal(draft.connectionId,source.connectionId);assert.equal(draft.customerId,source.customerId);
  let call;const send=async(url,options)=>{call={url,body:JSON.parse(options.body)};return {message_id:provider+'-receipt',recipient_id:'peer-'+provider};};
  const result=await sendCommentPrivateReply(channel,draft,'Hello',{},send,'secret',time);assert.equal(result.privateReply,true);
- if(provider==='instagram'){assert.match(call.url,/instagram-page\/messages$/);assert.deepEqual(call.body.recipient,{comment_id:source.externalCommentId});}else{assert.match(call.url,/facebook-comment\/private_replies$/);assert.equal(call.body.message,'Hello');}
+ assert.ok(call.url.endsWith('/'+provider+'-page/messages'));assert.deepEqual(call.body,{recipient:{comment_id:source.externalCommentId},message:{text:'Hello'}});
  await assert.rejects(()=>sendCommentPrivateReply(channel,{...draft,privateReplyCommentAt:'2026-09-01'},'Late',{},send,'secret',time),/7 ngày/);
  await assert.rejects(()=>sendCommentPrivateReply(channel,draft,'Media',{assetRefs:[{}]},send,'secret',time),/văn bản/);
  await assert.rejects(()=>sendCommentPrivateReply(channel,draft,'Unknown',{},async()=>({}),'secret',time),{unknown:true});

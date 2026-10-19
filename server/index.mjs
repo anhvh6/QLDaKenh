@@ -1,3 +1,4 @@
+import {updateConversationTags} from './conversation-tag-update.mjs';
 import {commentPresentation} from './comment-presentation.mjs';
 import {trackingNotificationTick,recoverTrackingNotifications} from './order-tracking-notifications.mjs';
 import {backfillCopyHistory} from './copy-history.mjs';
@@ -168,6 +169,7 @@ async function dispatch(req, res, url, user, input) {
   if (path.match(/^\/api\/messages\/[^/]+\/react$/) && method === 'POST') return domain.reactMessage(user, path.split('/')[3], input);
   if (path.match(/^\/api\/messages\/[^/]+$/) && method === 'DELETE') return domain.deleteCommentMessage(user, path.split('/')[3]);
   if (path === '/api/conversations/demo' && method === 'POST') return domain.ingestDemo(user, input);
+  const tagUpdate=path.match(/^\/api\/conversations\/([^/]+)\/tags$/);if(tagUpdate&&method==='POST')return updateConversationTags(user,tagUpdate[1],input.changes);
   if (path.match(/^\/api\/conversations\/[^/]+$/) && method === 'PATCH') { domain.permission(user, 'inbox'); const c = get('conversations', path.split('/')[3]); if (!c || c.deletedAt) domain.fail('Không tìm thấy.', 404); if (input.status && !['open', 'pending', 'resolved'].includes(input.status)) domain.fail('Trạng thái không hợp lệ.'); const p = { ...c }; care.assertChannel(user, c.connectionId); for (const key of ['status', 'assignee', 'unread', 'tags']) if (input[key] !== undefined) p[key] = input[key]; return put('conversations', p, input.version); }
   if (path.match(/^\/api\/connections\/[^/]+\/test$/) && method === 'POST') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const c = get('connections', path.split('/')[3]); if (!c) domain.fail('Không tìm thấy kênh.', 404); if (c.mode !== 'api') domain.fail('Kênh này không ở chế độ API.'); const r = await testConnection(c); put('connections', { ...c, status: 'connected', verifiedAt: now(), remoteName: r.name || r.username || r.data?.name || c.name }); return { ok: true, message: 'Token đọc được thông tin tài khoản. Quyền xuất bản/nhắn tin vẫn được API kiểm tra ở từng thao tác.' }; }
   if (path.match(/^\/api\/connections\/[^/]+\/oauth\/start$/) && method === 'POST') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const c = get('connections', path.split('/')[3]); if (!c) domain.fail('Không tìm thấy kênh.', 404); return startOAuth(user, c, req); }
