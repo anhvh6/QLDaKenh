@@ -1,5 +1,5 @@
 {
-  "version": "f7645614c94f",
+  "version": "001b080e6686",
   "compiler": "0.25.12",
   "files": {
     "public/tag-save-queue.js": "bd497b71a48afa3318f22d8a2c1d4da5775daf758361d2f9f60e836e7d2d51c0",
@@ -73,7 +73,7 @@
     "public/chat-forward.js": "b93787e8cddf3c64ac6a031edb7a108cec276939711bcc030fa16585059c4f05",
     "public/chat-reaction-display.js": "05c2c396ef0e8dc72c0f2f6059476495b1dfb7a485ac25af0c4adc136a6977ea",
     "public/chat-contact-data.js": "16598ec8014c4b80ecc353d827af839369df4386052ee7748949adea707757a5",
-    "public/zalo-phone-chat.js": "6a6da907ca7373a4e8bd131a35abe176d1c30a0a1243801de0dbe53b2b599b12",
+    "public/zalo-phone-chat.js": "21b10908b2f28a291af21381d93c749ee16fe7df42c13135d140305a926f9f14",
     "public/chat-menu-layout.js": "d57ccd7e7abf53f8b94951f86837f4c16c26ede2578b269cc9c8133a24d31b98",
     "public/quick-order.js": "0dfc6c70d168db277bd4128ab690df0858bb30f796b4a493e12a442f13ac8c4c",
     "public/chat-interactions.js": "bb60641298b20ad104c646c87506f709852ec994916984cf5d37ac162a65297b",
@@ -89,6 +89,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "3108d884a4b70c29824eed71bdbdfe8c04d35513eff906e31d0b6b08a7bb11be",
-    "public/app.bundle.js": "f7645614c94f922b7e0d46b5e69a22b9592491e419fad71003113c46b2477164"
+    "public/app.bundle.js": "001b080e6686ddfcd8cfafe3531acafcc9a03b924322277f21908c9c4a62656d"
   }
 }

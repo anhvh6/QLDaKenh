@@ -19,6 +19,9 @@ export function enhanceZaloPhoneChats(host,conversation){H=host;
 }
 document.addEventListener('click',async event=>{const b=event.target.closest('[data-zalo-phone-chat]');if(!b||!H)return;event.preventDefault();event.stopImmediatePropagation();if(b.disabled)return;b.disabled=true;try{
  const result=await H.api('/chat/zalo-phone/open',{method:'POST',body:{messageId:b.dataset.zaloPhoneChat,phone:b.dataset.phone,connectionId:b.dataset.connection}}),c=result.conversation;
+ // Adopt a snapshot taken after creation before opening: a pre-creation
+ // background response must not replace the new conversation with an old chat.
+ await H.refresh(false);
  const previous=H.state.conversations.find(v=>v.id===c.id);if(previous)Object.assign(previous,c);else H.state.conversations.push(c);
  if(result.customer){const p=H.state.customers.find(p=>p.id===result.customer.id);if(p)Object.assign(p,result.customer);else H.state.customers.push(result.customer);}
  H.openConversation(c.id);
