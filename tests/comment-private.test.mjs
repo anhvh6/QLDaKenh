@@ -1,4 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
+import {privateChatWaitMessage} from '../public/private-chat-state.js';
+test('private chat explains waiting for customer and unlocks on incoming reply',()=>{const c={privateReplyCommentId:'comment',privateReplySentAt:'2026-10-19'};assert.match(privateChatWaitMessage(c),/chờ khách/);assert.equal(privateChatWaitMessage({...c,lastInboundAt:'2026-10-19'}),'');assert.equal(privateChatWaitMessage({privateReplyCommentId:'new'}),'');});
 import {mkdirSync,mkdtempSync} from 'node:fs';import {join,resolve} from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'comment-private-'));
 const {put,get,all}=await import('../server/store.mjs');

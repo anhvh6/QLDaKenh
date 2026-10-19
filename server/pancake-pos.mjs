@@ -1,4 +1,6 @@
 import {refreshPosShipment} from './pos-shipment-data.mjs';
+import {posStatusOptions} from '../public/order-status-policy.js';
+import {updatePosOrderStatus} from './order-status-update.mjs';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {db,all,get,put,remove,saveSecret,secret,transaction,audit,now,uid} from './store.mjs';
 import {inbound,changeSequence,phoneExpression} from './pancake-storage.mjs';
@@ -10,6 +12,7 @@ import {assertCustomer} from './taophacdo.mjs';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const refreshShip=(...args)=>inbound(()=>refreshPosShipment(...args));
 const shippingOptionCache=new Map();
+const statusUpdates=new Set();
 const kinds=['products','customers','orders'];
 const printChanged=(kind,row,link)=>kind==='orders'&&Object.hasOwn(row,'printNote')&&String(row.printNote||'')!==String(link?.remote?.note_print||'');
 const acceptsOrder=(a,o)=>!o.awaitingProducts&&(!o.autoDraft||o.posDispatchRequested===true)&&(!o.fulfillmentTarget||o.fulfillmentTarget==='pos:'+a.id&&o.posDispatchRequested===true);
@@ -144,7 +147,7 @@ async function push(a,j,request){
   const customerLink=linkFor(a,'customers',c.id),customerJob=get('pos_jobs',linkId(a,'customers',c.id));
   if(!customerLink||customerLink.localHash!==hash(fields('customers',c))){if(['unknown','conflict','sending'].includes(customerJob?.state))fail('Khách hàng của đơn đang chờ đối soát POS.',409);await push(a,{id:linkId(a,'customers',c.id),accountId:a.id,kind:'customers',localId:c.id,state:'queued'},request);}
   const items=[];for(const i of current.items||[]){let p=linkFor(a,'products',i.productId);if(!p){await push(a,{id:linkId(a,'products',i.productId),accountId:a.id,kind:'products',localId:i.productId,state:'queued'},request);p=linkFor(a,'products',i.productId);}if(!p)fail('Chưa liên kết được sản phẩm của đơn.',422);items.push({product_id:p.remote.product_id,variation_id:p.remoteId,quantity:i.quantity,variation_info:{name:i.name,retail_price:i.price},discount_each_product:0});}
-  const shipment=all('shipments').find(s=>s.orderId===current.id&&s.status!=='cancelled');body=orderBody(current,c,items,a,shipment);if(current.posDispatchRequested&&!current.deletedAt&&current.status==='confirmed'&&current.requiresShipping!==false&&!shipment?.tracking&&!remote?.partner?.extend_code){const result=await r(root(a)+'/partners'),partners=(result.data||result.partners||[]).filter(p=>p.accounts?.length===1);if(partners.length===1){body.partner={partner_id:partners[0].id};body.shop_partner_id=partners[0].accounts[0].id;body.is_linked_partner=true;body.customer_pay_fee=current.freeShipping!==true;}}if(link){body.transfer_money=Math.max(Number(remote.transfer_money||0),body.transfer_money);const other=body.transfer_money+['charged_by_card','charged_by_momo','charged_by_vnpay','charged_by_qrpay','charged_by_fundiin','charged_by_kredivo'].reduce((n,k)=>n+Number(remote[k]||0),0);if(current.paid<other)fail('Khoản hoàn tiền liên quan thanh toán POS. Đối soát thanh toán trên POS trước.',409);body.cash=current.paid-other;if(!Object.hasOwn(current,'printNote'))body.note_print=remote.note_print||'';if(body.partner)body.partner={...remote.partner,...body.partner};}path=root(a)+'/orders'+(link?'/'+encodeURIComponent(link.remoteId):'');
+  const shipment=all('shipments').find(s=>s.orderId===current.id&&s.status!=='cancelled');body=orderBody(current,c,items,a,shipment);if(link&&!current.deletedAt&&localStatus(remote.status)===current.status)body.status=Number(remote.status);if(current.posDispatchRequested&&!current.deletedAt&&current.status==='confirmed'&&current.requiresShipping!==false&&!shipment?.tracking&&!remote?.partner?.extend_code){const result=await r(root(a)+'/partners'),partners=(result.data||result.partners||[]).filter(p=>p.accounts?.length===1);if(partners.length===1){body.partner={partner_id:partners[0].id};body.shop_partner_id=partners[0].accounts[0].id;body.is_linked_partner=true;body.customer_pay_fee=current.freeShipping!==true;}}if(link){body.transfer_money=Math.max(Number(remote.transfer_money||0),body.transfer_money);const other=body.transfer_money+['charged_by_card','charged_by_momo','charged_by_vnpay','charged_by_qrpay','charged_by_fundiin','charged_by_kredivo'].reduce((n,k)=>n+Number(remote[k]||0),0);if(current.paid<other)fail('Khoản hoàn tiền liên quan thanh toán POS. Đối soát thanh toán trên POS trước.',409);body.cash=current.paid-other;if(!Object.hasOwn(current,'printNote'))body.note_print=remote.note_print||'';if(body.partner)body.partner={...remote.partner,...body.partner};}path=root(a)+'/orders'+(link?'/'+encodeURIComponent(link.remoteId):'');
  }
  const version=current.version;j={...j,target:local};put('pos_jobs',{...j,state:'sending',attempts:(j.attempts||0)+1,startedAt:now()});let acknowledged=false;
  try{
@@ -178,9 +181,9 @@ function capture(a){
  if(changes.length)setAccount(a,{changeCursor:changes.at(-1).seq});
 }
 let running=false;
-export function recoverPosJobs(){for(const j of all('pos_jobs').filter(j=>j.state==='sending'))put('pos_jobs',{...j,state:'unknown',error:'Máy chủ khởi động lại trong lúc gửi. Đối soát POS trước khi thử lại.'});}
+export function recoverPosJobs(){for(const op of all('pos_status_requests').filter(op=>op.state==='sending'))put('pos_status_requests',{...op,state:'unknown',error:'Máy chủ khởi động lại. Đọc lại POS trước khi thử lại.'});for(const j of all('pos_jobs').filter(j=>j.state==='sending'))put('pos_jobs',{...j,state:'unknown',error:'Máy chủ khởi động lại trong lúc gửi. Đối soát POS trước khi thử lại.'});}
 export async function posTick(request){
- if(running)return;running=true;
+ if(running||statusUpdates.size)return;running=true;
  try{for(const draft of all('pos_setup_drafts').filter(d=>d.expiresAt<Date.now()))transaction(()=>{db.prepare('DELETE FROM secrets WHERE id=?').run(draft.id);remove('pos_setup_drafts',draft.id);});for(const original of all('pos_accounts').filter(active)){
   let a=account(original.id);
   for(const j of all('pos_jobs').filter(j=>j.accountId===a.id&&j.kind==='customers'&&['queued','failed'].includes(j.state)))if(!posCustomerEligible(get('customers',j.localId)))skipCustomer(j);
@@ -201,6 +204,21 @@ export function posState(user){if(user?.role!=='owner')return null;return {accou
 export function receivePosWebhook(id,headers,payload,schedule=()=>void posTick().catch(e=>console.error('POS webhook worker:',e.message))){const a=account(id),expected=secret(keyFor(id)).webhookToken,supplied=String(headers['x-api-key']||'');if(!active(a)||!expected||supplied.length>512||Buffer.byteLength(supplied)!==Buffer.byteLength(expected)||!timingSafeEqual(Buffer.from(supplied),Buffer.from(expected)))fail('Webhook POS không hợp lệ.',403);const shop=payload?.shop_id??payload?.data?.record?.shop_id;if(shop!==undefined&&String(shop)!==String(a.shopId))fail('Webhook không thuộc shop.',403);if(!payload||typeof payload!=='object'||Array.isArray(payload))fail('Nội dung webhook không hợp lệ.');const eventId=id+':'+hash(payload);if(get('pos_hook_events',eventId))return {ok:true,duplicate:true};transaction(()=>{put('pos_hook_events',{id:eventId,accountId:id,receivedAt:now()});setAccount(a,{forcePull:true,lastWebhookAt:now()});});schedule();return {ok:true};}
 export async function posRoute(path,method,input,user,url,request=pancakeRequest){
  if(!path.startsWith('/api/pos/'))return undefined;
+ const statusRoute=path.match(/^\/api\/pos\/orders\/([^/]+)\/status$/);
+ if(statusRoute&&['GET','POST'].includes(method)){
+  permission(user,'orders');const id=decodeURIComponent(statusRoute[1]),o=get('orders',id);if(!o||o.deletedAt)fail('Không tìm thấy đơn hàng.',404);assertCustomer(user,o.customerId);
+  const ls=all('pos_links').filter(l=>l.kind==='orders'&&l.localId===id);if(ls.length!==1)fail('Đơn chưa liên kết duy nhất với POS. Mở chi tiết để gửi / đối soát.',409);
+  const l=ls[0],a=account(l.accountId),r=reqFor(a,request),read=()=>remoteCurrent(a,'orders',l,r),directCarrier=all('shipments').some(s=>s.orderId===id&&s.carrier==='viettelpost'&&s.tracking&&s.status!=='cancelled');
+  if(statusUpdates.has(id)||method==='POST'&&running)fail('Đang đồng bộ POS. Vui lòng thử lại sau vài giây.',409);
+  statusUpdates.add(id);
+  try{
+   const pending=get('pos_jobs',linkId(a,'orders',id));if(method==='POST'&&pending&&!['done','skipped'].includes(pending.state))fail('Đơn có thay đổi đang chờ đồng bộ / đối soát POS. Xử lý trong chi tiết trước.',409);
+   if(method==='GET'){const remote=await read();if(!remote)fail('Không tìm thấy đơn POS.',404);return {status:Number(remote.status),options:posStatusOptions(remote,{directCarrier}),operation:get('pos_status_requests',id),carrierStatus:remote.partner?.partner_status||null};}
+   if(input.version!==o.version)fail('Đơn vừa thay đổi. Tải lại trước khi chuyển trạng thái.',409);
+   const result=await updatePosOrderStatus({input,read,directCarrier,write:status=>r(root(a)+'/orders/'+encodeURIComponent(l.remoteId),{method:'PUT',body:{status}}),commit:async remote=>{if(get('orders',id).version!==o.version){await applyPosRow(a,'orders',remote);fail('Đơn đã được chỉnh sửa trong khi POS xử lý. Mở lại để đối soát.',409);}await applyPosRow(a,'orders',remote,{force:true});},journal:{get:()=>get('pos_status_requests',id),set:op=>put('pos_status_requests',{...op,id,actor:user.id,updatedAt:now()})}});
+   audit(user.id,'pos_order_status_changed',id,result);return result;
+  }finally{statusUpdates.delete(id);}
+ }
  const shippingOptions=path.match(/^\/api\/pos\/accounts\/([^/]+)\/shipping-options$/);
  if(shippingOptions&&method==='GET'){permission(user,'orders');const a=account(shippingOptions[1]),cached=shippingOptionCache.get(a.id);if(cached&&Date.now()-cached.at<60000)return cached.data;const result=await reqFor(a,request)(root(a)+'/partners'),rows=result.data||result.partners||[];if(!Array.isArray(rows))fail('POS chưa trả danh sách vận chuyển hợp lệ.',502);const data={partners:rows.filter(p=>p.is_linked||Array.isArray(p.accounts)&&p.accounts.length).map(p=>({id:p.id,name:p.name||p.partner_name||'ĐVVC'}))};shippingOptionCache.set(a.id,{at:Date.now(),data});return data;}
  const deletion=path.match(/^\/api\/pos\/orders\/([^/]+)\/delete$/);

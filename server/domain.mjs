@@ -1,3 +1,4 @@
+import {privateChatWaitMessage} from '../public/private-chat-state.js';
 import {reupText} from '../public/reup-text.js';
 import {contentSourceKey,copySourceBlock} from './copy-history.mjs';
 import {chatOrderSource} from './chat-order-drafts.mjs';
@@ -212,6 +213,7 @@ export async function reply(user, id, input) {
   if (quoted && !nativeQuote) { const prefix = '> ' + quoted.text.slice(0, 1000) + '\n\n'; text = prefix + text; mentions = mentions.map(m => ({ ...m, pos: m.pos + prefix.length })); }
   if (text.length > 5000) fail('Nội dung kèm trích dẫn vượt 5000 ký tự.');
   if(!input.note&&ch.provider==='facebook'&&conv.kind!=='comment'&&Array.from(text).length>2000)fail('Messenger giới hạn 2000 ký tự mỗi tin nhắn. Rút gọn nội dung trước khi gửi.');
+  if(!input.note&&privateChatWaitMessage(conv))fail(privateChatWaitMessage(conv),409);
   const replyToExternalId=conv.kind==='comment'?await commentReplyTarget(user,conv,input.replyTarget):null;
   const options = { ...(mentions.length ? { mentions } : {}), ...(nativeQuote ? { quote: quoted.quoteSource } : {}), ...(assets.length ? { attachments: assets.map(a => join(dataDir, 'uploads', basename(a.url))), assetRefs: assets } : {}) };
   if (input.version !== get('conversations',id)?.version) fail('Hội thoại vừa thay đổi. Tải lại trước khi gửi.', 409);

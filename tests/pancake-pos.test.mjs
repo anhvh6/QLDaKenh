@@ -149,6 +149,14 @@ test('Pancake connect, import, outgoing updates, conflict handling and restart r
  await t.test('POS title casing of customer address does not create a false conflict',async()=>{
   const c=put('customers',{name:'Case test',phone:'0912345699',address:'01 ngõ a, phường b, hà nội',email:''});await posTick(request);const r=remote.customers.find(r=>r.phone_numbers.includes(c.phone));r.shop_customer_address[0].full_address='01 Ngõ A, Phường B, Hà Nội';r.updated_at=new Date().toISOString();await applyPosRow(account,'customers',r);assert.equal(get('customers',c.id).address,c.address);assert.notEqual(all('pos_jobs').find(j=>j.localId===c.id)?.state,'conflict');
  });
+ await t.test('status menu endpoint verifies POS writes, permission and preserves preparation state on later edits',async()=>{
+  const row={id:994,shop_id:10,status:1,custom_id:'STATUS-QA',bill_full_name:'Status QA',bill_phone_number:'0901112222',shipping_address:{full_address:'QA'},items:[],cash:0};remote.orders.push(row);await applyPosRow(account,'orders',row);const o=all('orders').find(o=>o.code==='STATUS-QA'),path='/api/pos/orders/'+encodeURIComponent(o.id)+'/status';
+  const menu=await route(path,'GET');assert.equal(menu.status,1);assert.ok(menu.options.some(o=>o.status===8));
+  await assert.rejects(posRoute(path,'POST',{status:8,expectedStatus:1,version:o.version},{id:'blocked',role:'viewer'},new URL('http://localhost'),request));
+  const before=calls.length;await route(path,'POST',{status:8,expectedStatus:1,version:get('orders',o.id).version});assert.equal(row.status,8);assert.equal(all('pos_links').find(l=>l.localId===o.id).remote.status,8);assert.deepEqual(calls.slice(before).find(c=>c.method==='PUT').body,{status:8});
+  const current=get('orders',o.id);await assert.rejects(route(path,'POST',{status:9,expectedStatus:8,version:current.version-1}),/vừa thay đổi/);
+  put('orders',{...current,note:'Preparation stays'});await posTick(request);assert.equal(row.status,8);assert.equal(row.note,'Preparation stays');
+ });
  await t.test('disconnect erases stored API credentials and preserves business data',async()=>{const before=all('orders').length;await route('/api/pos/accounts/'+account.id+'/disconnect','POST');assert.equal(secret('pancake:'+account.id).apiKey,undefined);assert.equal(all('orders').length,before);});
 });
 

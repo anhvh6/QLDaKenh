@@ -1,5 +1,5 @@
 {
-  "version": "a670e187bf34",
+  "version": "0a9b7c0ed296",
   "compiler": "0.25.12",
   "files": {
     "public/tag-save-queue.js": "bd497b71a48afa3318f22d8a2c1d4da5775daf758361d2f9f60e836e7d2d51c0",
@@ -23,8 +23,9 @@
     "public/order-editor-tools.js": "05c9b8299615dcfe5677f21b5a92f781d0694b7364de7b64670d7985002462d2",
     "public/chat-message-sync.js": "6c634b0bb2b40c91c20d4a11ea0dab98587f9089f7379d56e5336808ea550073",
     "public/order-linked-chat.js": "dfc29d8ef5374660d1c584cc9c186b17e5732eca17382d1a550d5d0a545e59c4",
-    "public/order-workspace-model.js": "4ce1bc815e830eeca86e5b454ab575fd32ee14c8711b6220c4ea79a41239e645",
-    "public/orders-grid.js": "e32c34b5ed0fe743d8611463b3906caad04bec5577438d33fec18432220a5148",
+    "public/order-workspace-model.js": "96951454925395c1843a8adc2b261d5961ed53780714f9a859140ff0addc5a2c",
+    "public/order-status-policy.js": "28740696cc63321ff70a5a442a311de0fa0a374b1e6763266c23089745be747a",
+    "public/orders-grid.js": "9e348d67b4df48e7c5eb3b93d3a12a5db62ac26e3f5d7e2c3a85717920758c43",
     "public/shipping-policy.js": "b850912a3bd7b2846bca9be7f4145812263303d53aacd1120d6866ba1c680f55",
     "public/shipping-address.js": "e04c05c0097466c0c38b510b9a387fc99b8eccf132c138d44a6d79407dc0a11c",
     "public/carrier-orders.js": "506973c6d9370ea44acc2cf6ac0ddadcf5a1129b1bd4e2fab898bcb375fe33ab",
@@ -56,6 +57,7 @@
     "public/handoff-card.js": "1da31938d1a0e8e06dd8a712a7917fbab74896a77ab0811fa0e86de9e848dec5",
     "public/chatbot-ui.js": "2be635f7663e609dea4d2379f54343628f9d5dc525a5b8d5df96c2e3f876c236",
     "public/media-library.js": "a8eec5e8e4ced54c94877678dd7c8eea3299585c9198b5133ffc3ce930add492",
+    "public/private-chat-state.js": "bbd52fe67a7561e4a2ffa4cd87bb8c161e6c6e41b5f5f1af81f45eeca3d89e88",
     "public/chat-appointments.js": "0e5fba10c507aa9c61daeaefbf6dd24403338a682717aa7b71c5a611fae9fc6b",
     "public/chat-timeline.js": "6b4852c200b2428b13602c8dab9f4abc3f2bf95b185f1681f1afc9357a7a1512",
     "public/chat-pins.js": "d989417f11444e1397982011796721833c7a78e998ceb37b21c65c7f200c21c5",
@@ -81,10 +83,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "650413d3baf679d6a18ecf42c2268dfc1420725fdeccccb30f99c2bbee15e6f7",
+    "public/inbox.js": "6326c77f39b6c1df8e3f2ff910e991db30035588f6d4d2edc0727087fa78c17f",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "fa7baa626f6f9046a26041819b57d0582e8353ab1008f31d7219bf95dce571a7",
-    "public/app.bundle.js": "a670e187bf3414de73067c3dd43ff983162e0a83daa3ab0738751fef2bb6d674"
+    "public/app.bundle.js": "0a9b7c0ed2965a4d06a0dffdbb0b964ac696ee45a608dfeff61bb2f157baa29b"
   }
 }
