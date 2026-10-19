@@ -13,8 +13,15 @@ export function dashboardData(S,time=Date.now()){
 }
 export function dashboardDays(S,time=Date.now()){
  const start=new Date(time+7*3600000).toISOString().slice(0,10),midnight=Date.parse(start+'T00:00:00+07:00');
- const posts=(S.contents||[]).filter(c=>(S.publications||[]).some(p=>p.contentId===c.id&&['scheduled','awaiting_manual','dispatching','processing'].includes(p.status))).map(c=>({...c,at:c.scheduleAt,type:'post'}));
- posts.push(...(S.copyPlanCalendar||[]).filter(p=>['scheduled','preparing','ready','publishing'].includes(p.state)).map(p=>({...p,at:p.scheduleAt,type:'copy'})));
- const calls=(S.chat_reminders||[]).filter(r=>r.status==='pending').map(r=>({...r,at:r.dueAt,type:'call',title:r.title||r.text||r.content||'Call khách hàng'}));
- return Array.from({length:3},(_,i)=>{const at=midnight+i*day;return {at,items:[...posts,...calls].filter(x=>Date.parse(x.at)>=at&&Date.parse(x.at)<at+day).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))};});
+ const groups=new Map(),latest=new Map();
+ for(const p of S.publications||[]){const key=p.contentId+':'+p.connectionId+':'+(p.scheduleAt||'');const previous=latest.get(key);if(!previous||String(p.updatedAt||p.createdAt||'')>=String(previous.updatedAt||previous.createdAt||''))latest.set(key,p);}
+ for(const p of latest.values()){
+  if(!['scheduled','awaiting_manual','dispatching','processing','publishing','accepted','published','manually_confirmed','failed','blocked','unknown'].includes(p.status))continue;
+  const c=(S.contents||[]).find(c=>c.id===p.contentId),at=p.scheduleAt||c?.scheduleAt;if(!at)continue;
+  const key=p.contentId+':'+at,group=groups.get(key)||{...c,id:c?.id||p.contentId,title:c?.title||p.title,at,scheduleAt:at,type:p.copyPlanId?'copy':'post',planId:p.copyPlanId,statuses:[]};group.statuses.push(p.status);groups.set(key,group);
+ }
+ const posts=[...groups.values()].map(({statuses,...p})=>({...p,status:statuses.some(s=>['failed','blocked','unknown'].includes(s))?'failed':statuses.every(s=>['published','manually_confirmed'].includes(s))?'published':'scheduled'}));
+ posts.push(...(S.copyPlanCalendar||[]).filter(p=>!['cancelled','draft','skipped'].includes(p.state||p.status)&&!(S.publications||[]).some(j=>j.copyPlanItemId===p.id&&j.status!=='cancelled')).map(p=>({...p,at:p.scheduleAt,type:'copy'})));
+ const calls=(S.chat_reminders||[]).filter(r=>['pending','done','completed','resolved'].includes(r.status)).map(r=>({...r,at:r.dueAt,type:'call',title:r.title||r.text||r.content||'Call khách hàng'}));
+ return [-1,0,1].map(offset=>{const at=midnight+offset*day;return {at,offset,items:[...posts,...calls].filter(x=>Date.parse(x.at)>=at&&Date.parse(x.at)<at+day).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))};});
 }

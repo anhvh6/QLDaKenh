@@ -1,7 +1,8 @@
 {
-  "version": "888f7fba004b",
+  "version": "d3339a8a2dbb",
   "compiler": "0.25.12",
   "files": {
+    "public/calendar-presentation.js": "354421d312cfcbffa077f195e8a40babdd92a01d68414cf378da376aab711508",
     "public/publish-review.js": "fff7ca3ddba269add82a97d130a997d3432a46c210acefd3d2fc676dcadb7e0b",
     "public/tag-save-queue.js": "bd497b71a48afa3318f22d8a2c1d4da5775daf758361d2f9f60e836e7d2d51c0",
     "public/learner-lookups.js": "8a1328bb6df7fc2de83c64681662c2667997876cc99f93fbea6f6fa12563402c",
@@ -20,7 +21,7 @@
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
-    "public/dashboard-model.js": "6de8b7c31d64e7c49c4153915137f9af0d765dea8f948a58cf35fe06a63c1b95",
+    "public/dashboard-model.js": "525baa0896776077477c273a9e7da4332ef8ad90743748e0c54b55f8d9785298",
     "public/order-editor-tools.js": "05c9b8299615dcfe5677f21b5a92f781d0694b7364de7b64670d7985002462d2",
     "public/chat-message-sync.js": "6c634b0bb2b40c91c20d4a11ea0dab98587f9089f7379d56e5336808ea550073",
     "public/order-linked-chat.js": "dfc29d8ef5374660d1c584cc9c186b17e5732eca17382d1a550d5d0a545e59c4",
@@ -70,7 +71,7 @@
     "public/learner-orders-ui.js": "708e6952bab5ac1f2d1dd7318b1ba81e3f7507235fe074a4a78c0acf4799f67f",
     "public/student-overview.js": "a18252d9d9b1e2732af8ac74f036207a590942f9e20c0fd5eb9a21498ea5c144",
     "public/learner-stage-form.js": "2f76c709503a6f75c1ed340b3575a7ae6a756c8329810806c09ce8c627a3d298",
-    "public/chat-tools.js": "ed7052e880aa5a1fce72fbf008d05059dd30f1ef8b855810c96f897fa4929252",
+    "public/chat-tools.js": "99781d693f09e170d6b362d162aaa1ba2fdd4a789a8dc3b93f07df244c2fca90",
     "public/learner-profile-ui.js": "e0ff5a55244342e1fe3678b86e1a3f63497a45be532f91a8333e28c75e8017af",
     "public/consultation-review.js": "7a4486c1110624c18ac856d7d18f3e54fac67e93ff1794db41f78adf238b2715",
     "public/chat-forward.js": "b93787e8cddf3c64ac6a031edb7a108cec276939711bcc030fa16585059c4f05",
@@ -91,7 +92,7 @@
     "public/inbox.js": "2defd5b188a9c11ed39dfa4c74898d939e2e8411d29b6a16b9fb75425464fd0c",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "7015ad71eda887451d654618d235347deff13ac5effaab96255935eaf8053b46",
-    "public/app.bundle.js": "888f7fba004b18dcb89d13597bc5b73481fee9585a8a5d6ce79284d53a7f3562"
+    "public/app.js": "fc90b762e4760639ec7f30e536fe05927a9589065024a81c9bdcef3dce1b9c3b",
+    "public/app.bundle.js": "d3339a8a2dbbe8915157a2a9d75008c298f8596defde88b2abab40f8481c59f4"
   }
 }

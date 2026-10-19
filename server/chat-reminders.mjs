@@ -7,13 +7,18 @@ import {assertChannel} from './taophacdo.mjs';
 import {createNativeReminder} from './zalo.mjs';
 import {reminderRecipients} from '../public/reminder-model.js';
 
+// Leave room for the 10-second scheduler and push delivery poll so the alert is
+// queued at least five minutes before the appointment during normal operation.
+export const staffReminderAdvanceMs=5*60000;
+const staffReminderBufferMs=30000;
+
 function notifyRecipients(r,event,title,body){
- const c=get('conversations',r.conversationId);if(!c||c.deletedAt)return;
+ const c=typeof r.conversationId==='string'?get('conversations',r.conversationId):null;if(!c||c.deletedAt)return;
  for(const id of reminderRecipients(r)){const u=db.prepare('SELECT id,role,active FROM users WHERE id=?').get(id);if(!u?.active)continue;try{permission(u,'inbox');assertChannel(u,c.connectionId);}catch{continue;}
  put('notifications',{id:event==='due'&&id===r.assignee?'chat-reminder:'+r.id:'chat-reminder:'+event+':'+r.id+':'+id,title,body,route:'inbox',conversationId:c.id,reminderId:r.id,recipientId:id,read:false});}
 }
 export function closeReminderTasks(id){for(const t of all('staff_handoffs').filter(t=>t.reminderId===id&&t.status!=='resolved'))put('staff_handoffs',{...t,status:'resolved',resolvedAt:now(),completedAt:now()});}
-function upcomingStaffAlert(r){if(r.staffAdvanceAlertedAt)return;const name=get('customers',r.customerId)?.name||'Khách hàng',time=new Date(r.dueAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'});transaction(()=>{notifyRecipients(r,'advance','Sắp đến giờ call cho khách',name+' · Giờ call: '+time);put('chat_reminders',{...get('chat_reminders',r.id),staffAdvanceAlertedAt:now()});});}
+function upcomingStaffAlert(r){if(get('chat_reminders',r.id)?.staffAdvanceAlertedAt)return;const name=(r.customerId?get('customers',r.customerId)?.name:null)||'Khách hàng',time=new Date(r.dueAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'});transaction(()=>{notifyRecipients(r,'advance','Sắp đến giờ nhắc hẹn',name+' · '+r.title+' · Lịch hẹn: '+time);put('chat_reminders',{...get('chat_reminders',r.id),staffAdvanceAlertedAt:now()});});}
 
 export async function createChatReminder(user,c,input,platform=createNativeReminder){
  const due=Date.parse(input.dueAt);if(!Number.isFinite(due)||due<=Date.now())fail('Chọn thời gian nhắc trong tương lai.');
@@ -39,7 +44,6 @@ export async function customerReminderTick(time=Date.now(),send=reply){
  if(customerTickRunning)return;customerTickRunning=true;
  try{for(const r of all('chat_reminders').filter(r=>r.status==='pending'&&r.customerReminder&&r.customerReminderStatus==='pending'&&Date.parse(r.customerReminderAt)<=time)){
   if(Date.parse(r.dueAt)<=time){put('chat_reminders',{...r,customerReminderStatus:'skipped',customerReminderError:'Đã qua giờ hẹn; không gửi nhắc muộn.'});continue;}
-  upcomingStaffAlert(r);
   try{
    const c=r.conversationId?get('conversations',r.conversationId):null,user=r.actor?db.prepare('SELECT id,role,active FROM users WHERE id=?').get(r.actor):null;
    if(!c||c.deletedAt||!user?.active)fail('Hội thoại hoặc nhân viên tạo lịch không còn hoạt động.');permission(user,'inbox');assertChannel(user,c.connectionId);
@@ -52,6 +56,7 @@ export async function customerReminderTick(time=Date.now(),send=reply){
 }
 export function recoverCustomerReminders(){for(const r of all('chat_reminders').filter(r=>r.customerReminderStatus==='sending')){put('chat_reminders',{...r,customerReminderStatus:'unknown',customerReminderError:'Máy chủ khởi động lại lúc gửi; kiểm tra hội thoại trước khi gửi lại.'});put('notifications',{id:'chat-reminder-error:'+r.id,title:'Cần kiểm tra nhắc hẹn',body:'Máy chủ khởi động lại lúc gửi nhắc khách. Kiểm tra hội thoại trước khi gửi lại.',route:'inbox',conversationId:r.conversationId,recipientId:r.actor,read:false});}}
 export function reminderTick(time=Date.now()){
+ for(const r of all('chat_reminders').filter(r=>r.status==='pending'&&!r.staffAdvanceAlertedAt&&Date.parse(r.dueAt)>time&&Date.parse(r.dueAt)-staffReminderAdvanceMs-staffReminderBufferMs<=time))upcomingStaffAlert(r);
  for(const t of all('staff_handoffs').filter(t=>t.taskType==='appointment'&&t.status!=='resolved')){const r=get('chat_reminders',t.reminderId);if(!r||r.status!=='pending'||Date.parse(r.dueAt)<=time)closeReminderTasks(t.reminderId);}
  return transaction(()=>{let count=0;for(const r of all('chat_reminders').filter(r=>r.status==='pending'&&!r.alertedAt&&Date.parse(r.dueAt)<=time)){
   notifyRecipients(r,'due','Đến giờ nhắc hẹn',r.title);

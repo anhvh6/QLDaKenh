@@ -19,10 +19,21 @@ test('message, receipt and SLA alert produce one meaningful customer push, not g
  const content=eventFor('notifications',{id:'posting',title:'Cần xử lý bài đăng',body:'Kênh chưa kết nối',route:'content'},staff,prefs);assert.equal(content.title,'Cần xử lý bài đăng');assert.equal(content.body,'Kênh chưa kết nối');assert.equal(content.url,'/#content');
 });
 test('appointment pushes show call details only to the recipient and respect preview privacy without a duplicate task push',()=>{
+ put('chat_reminders',{id:'qa',conversationId:'push-chat',status:'pending',assigneeIds:[staff.id]});
  const n={id:'chat-reminder:advance:qa',reminderId:'qa',recipientId:staff.id,conversationId:'push-chat',title:'Sắp đến giờ call cho khách',body:'Khách QA · Giờ call: 15:30'};
  assert.equal(eventFor('notifications',n,staff,prefs).body,n.body);assert.equal(eventFor('notifications',n,user,prefs),null);
  assert.ok(!eventFor('notifications',n,staff,{...prefs,preview:false}).body.includes('Khách QA'));
  assert.equal(eventFor('staff_handoffs',{...n,taskType:'appointment',assignedStaffId:staff.id,status:'open'},staff,prefs),null);
+});
+
+test('assigned reminders still notify when the social channel disconnects, retain chat links and stop after cancellation',()=>{
+ const n={id:'chat-reminder:advance:offline',reminderId:'offline',recipientId:staff.id,conversationId:'push-chat',title:'Sắp đến giờ nhắc hẹn',body:'Tư vấn QA'};
+ const reminder=put('chat_reminders',{id:'offline',conversationId:'push-chat',status:'pending',assigneeIds:[staff.id]});
+ const channel=get('connections','push-channel');put('connections',{...channel,status:'disconnected'});
+ const payload=eventFor('notifications',n,staff,prefs);assert.equal(payload.url,'/?conversation=push-chat#inbox');assert.equal(payload.body,n.body);
+ assert.equal(eventFor('notifications',n,user,prefs),null);assert.equal(eventFor('notifications',{...n,recipientId:outsider.id},outsider,prefs),null);
+ put('chat_reminders',{...reminder,status:'cancelled'});assert.equal(eventFor('notifications',n,staff,prefs),null);
+ put('connections',channel);
 });
 test('subscription validation rejects private networks, credentials, lookalike domains and invalid keys',()=>{
  assert.equal(validSubscription(sub),true);
@@ -135,4 +146,20 @@ test('permission diagnostics keep only bounded states for the authenticated devi
  const result=await pushRoute('/api/push/diagnostics','POST',{deviceId:'android-device-qa',web:'denied',browser:'denied',push:'prompt',platform:'Android',standalone:true,endpoint:'must-not-store'},user);
  const row=all('push_permission_checks').find(r=>r.id.startsWith(result.code));assert.equal(row.userId,user.id);assert.equal(row.web,'denied');assert.equal(row.endpoint,undefined);
  await assert.rejects(pushRoute('/api/push/diagnostics','POST',{deviceId:'bad<script>'},user),/không hợp lệ/);
+});
+
+test('staff-only appointment delivers advance and due push once to the assigned device with the same chat target',async()=>{
+ const {createChatReminder,reminderTick}=await import('../server/chat-reminders.mjs');
+ const staffSub={...sub,endpoint:'https://fcm.googleapis.com/fcm/send/assigned-reminder-qa'};
+ await pushRoute('/api/push/subscribe','POST',{subscription:staffSub,preferences:prefs},staff);
+ await pushRoute('/api/push/subscribe','POST',{subscription:sub,preferences:prefs},user);
+ await new Promise(r=>setTimeout(r,5));
+ const due=Date.now()+3600000,reminder=await createChatReminder(user,get('conversations','push-chat'),{title:'Appointment integration QA',dueAt:new Date(due).toISOString(),assigneeIds:[staff.id],customerReminder:false,platform:false});
+ const received=[],send=async(device,payload)=>received.push({userId:device.userId,...payload});
+ await pushTick(send);received.length=0;await new Promise(r=>setTimeout(r,5));
+ reminderTick(due-330000);await pushTick(send);await pushTick(send);
+ const advance=received.filter(p=>p.tag.includes(reminder.id));assert.equal(advance.length,1);assert.equal(advance[0].userId,staff.id);assert.match(advance[0].title,/Sắp đến giờ/);assert.equal(advance[0].url,'/?conversation=push-chat#inbox');
+ await new Promise(r=>setTimeout(r,5));reminderTick(due);await pushTick(send);await pushTick(send);
+ const both=received.filter(p=>p.tag.includes(reminder.id));assert.equal(both.length,2);assert.equal(both[1].title,'Đến giờ nhắc hẹn');assert.ok(both.every(p=>p.userId===staff.id&&p.url===advance[0].url));
+ await pushRoute('/api/push/unsubscribe','POST',{endpoint:staffSub.endpoint},staff);
 });

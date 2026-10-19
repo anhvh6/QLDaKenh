@@ -6,6 +6,7 @@ import {assertChannel} from './taophacdo.mjs';
 import {filterCareNotifications,studentCareState} from './student-care.mjs';
 import {canReadCare,receivesCare} from '../public/student-care.js';
 import {channelConnected} from '../public/chat-connection-state.js';
+import {reminderRecipients} from '../public/reminder-model.js';
 const preferences=p=>Object.fromEntries(['sound','preview','messages','reminders','handoffs'].map(k=>[k,p?.[k]!==false]));
 export function validSubscription(s){
  try{const u=new URL(s?.endpoint);return u.protocol==='https:'&&!u.username&&!u.password&&(!u.port||u.port==='443')&&['fcm.googleapis.com','updates.push.services.mozilla.com','push.services.mozilla.com','web.push.apple.com','notify.windows.com'].some(h=>u.hostname===h||u.hostname.endsWith('.'+h))&&s.endpoint.length<2048&&/^[A-Za-z0-9_-]{87}$/.test(s.keys?.p256dh)&&/^[A-Za-z0-9_-]{22}$/.test(s.keys?.auth);}catch{return false;}
@@ -60,8 +61,11 @@ export function eventFor(kind,r,user,p){
   if(!p.handoffs||r.assignedStaffId!==user.id||['done','resolved','completed','cancelled'].includes(r.status)||r.completedAt)return null;
  }else return null;
  const c=r.conversationId?get('conversations',r.conversationId):null;
+ const reminder=kind==='notifications'&&r.reminderId?get('chat_reminders',r.reminderId):null;
+ const assignedReminder=reminder?.status==='pending'&&reminder.conversationId===c?.id&&reminderRecipients(reminder).includes(user.id);
+ if(kind==='notifications'&&r.reminderId&&!assignedReminder)return null;
  if(r.conversationId){if(!c||c.deletedAt)return null;try{assertChannel(user,c.connectionId);}catch{return null;}}
- if(c){const state=studentCareState();if(!channelConnected(get('connections',c.connectionId))||!canReadCare(state,c,user)||kind==='messages'&&!receivesCare(state,c,user))return null;}
+ if(c){const state=studentCareState();if(!assignedReminder&&!channelConnected(get('connections',c.connectionId))||!canReadCare(state,c,user)||kind==='messages'&&!receivesCare(state,c,user))return null;}
  const type=kind==='messages'?'message':kind==='staff_handoffs'?'handoff':r.id.startsWith('chat-reminder:')?'reminder':'notification';
  let title={message:c?.kind==='comment'?'Có bình luận mới':'Có tin nhắn mới',handoff:'Yêu cầu nhân viên xử lý',reminder:'Đến giờ nhắc hẹn',notification:'Có thông báo mới'}[type],body='Mở MeGa Phương để xem nội dung.';
  if(kind==='notifications'&&p.preview!==false){title=String(r.title||title).slice(0,100);body=String(r.body||body).slice(0,350);}

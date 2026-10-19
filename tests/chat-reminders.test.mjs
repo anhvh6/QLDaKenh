@@ -19,7 +19,8 @@ test('multi-recipient appointments create isolated call tasks and one alert per 
  for(const id of r.assigneeIds)assert.equal(get('notifications','chat-reminder:created:'+r.id+':'+id).recipientId,id);
  finishMentionTasks(owner,c.id,'reply-qa');assert.ok(tasks.every(t=>get('staff_handoffs',t.id).status==='open'));
  let sent=0;await customerReminderTick(due-17*60000,async()=>{sent++;return{id:'qa-customer-reminder'};});await customerReminderTick(due-17*60000+1,async()=>{sent++;});assert.equal(sent,1);
- for(const id of r.assigneeIds){const n=get('notifications','chat-reminder:advance:'+r.id+':'+id);assert.equal(n.title,'Sắp đến giờ call cho khách');assert.match(n.body,/QA.*Giờ call/);}
+ assert.ok(!get('chat_reminders',r.id).staffAdvanceAlertedAt);reminderTick(due-330000);
+ for(const id of r.assigneeIds){const n=get('notifications','chat-reminder:advance:'+r.id+':'+id);assert.equal(n.title,'Sắp đến giờ nhắc hẹn');assert.match(n.body,/QA.*Lịch hẹn/);}
  assert.equal(activeAppointmentTask(tasks[0],due-1),true);assert.equal(activeAppointmentTask(tasks[0],due),false);reminderTick(due);assert.ok(tasks.every(t=>get('staff_handoffs',t.id).status==='resolved'));
 });
 test('invalid or unauthorized recipient rejects the entire appointment before saving tasks or notifications',async()=>{
@@ -74,4 +75,25 @@ test('customer reminder errors notify staff; expired, cancelled and crash-interr
  put('chat_reminders',{id:'late-auto',status:'pending',customerReminder:true,customerReminderStatus:'pending',customerReminderAt:new Date(due-1000).toISOString(),dueAt:new Date(due).toISOString()});
  put('chat_reminders',{id:'cancel-auto',status:'cancelled',customerReminder:true,customerReminderStatus:'pending',customerReminderAt:new Date(due-1000).toISOString(),dueAt:new Date(due+1000).toISOString()});
  let calls=0;await customerReminderTick(due,async()=>{calls++;});assert.equal(calls,0);assert.equal(get('chat_reminders','late-auto').customerReminderStatus,'skipped');
+});
+
+test('staff-only reminders alert every assignee before five minutes and again when due, once each',async()=>{
+ const due=Date.now()+4*3600000;
+ const r=await createChatReminder(owner,c,{title:'Nhắc nhân viên độc lập',dueAt:new Date(due).toISOString(),assigneeIds:['manager'],customerReminder:false,platform:false});
+ reminderTick(due-330001);assert.equal(get('chat_reminders',r.id).staffAdvanceAlertedAt,undefined);
+ reminderTick(due-330000);reminderTick(due-300000);
+ const advance=all('notifications').filter(n=>n.reminderId===r.id&&n.id.includes(':advance:'));
+ assert.equal(advance.length,1);assert.equal(advance[0].recipientId,'manager');assert.equal(advance[0].conversationId,c.id);assert.match(advance[0].body,/Nhắc nhân viên độc lập/);
+ assert.equal(get('chat_reminders',r.id).alertedAt,undefined);
+ reminderTick(due);reminderTick(due+1000);
+ const alerts=all('notifications').filter(n=>n.reminderId===r.id&&!n.id.includes(':created:'));
+ assert.equal(alerts.length,2);assert.ok(alerts.every(n=>n.recipientId==='manager'&&n.conversationId===c.id));
+ assert.ok(alerts.some(n=>n.title==='Đến giờ nhắc hẹn'));assert.equal(get('chat_reminders',r.id).customerReminderStatus,'disabled');
+});
+
+test('cancelled or completed reminders stay silent and a short-notice appointment alerts immediately',async()=>{
+ const time=Date.now(),due=time+4*3600000;
+ for(const status of ['cancelled','done']){const r=await createChatReminder(owner,c,{title:'Không nhắc '+status,dueAt:new Date(due).toISOString()});put('chat_reminders',{...r,status});reminderTick(due);assert.ok(!all('notifications').some(n=>n.reminderId===r.id&&!n.id.includes(':created:')));}
+ const r=await createChatReminder(owner,c,{title:'Lịch sát giờ',dueAt:new Date(time+120000).toISOString()});reminderTick(time);reminderTick(time+1000);
+ assert.equal(all('notifications').filter(n=>n.reminderId===r.id&&n.id.includes(':advance:')).length,1);
 });
