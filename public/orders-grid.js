@@ -11,6 +11,7 @@ const btn=(label,action,id='',extra='')=>`<button type="button" class="btn small
 let H,loadedUser='',prefs=cleanOrderWorkspace(),version=0,filters=emptyOrderFilters(),view='all',page=1,sort='createdAt',direction=-1,columnDraft=[],selectionMode=false;const selected=new Set();
 const statusFeedback=orderStatusFeedback();
 let statusMenu=null;
+function renderStatusChange(){const scroll=document.querySelector('.orders-table-scroll'),top=scroll?.scrollTop||0,left=scroll?.scrollLeft||0;H.render();const next=document.querySelector('.orders-table-scroll');if(next){next.scrollTop=top;next.scrollLeft=left;}}
 function restoreStatusMenu(){if(!statusMenu)return;const anchor=[...document.querySelectorAll('[data-orders-action="status-menu"]')].find(b=>b.dataset.id===statusMenu.key);if(!anchor){closeStatusMenu();return;}statusMenu.anchor=anchor;anchor.setAttribute('aria-expanded','true');statusMenu.position?.();}
 function closeStatusMenu(){if(!statusMenu)return;statusMenu.anchor.setAttribute('aria-expanded','false');statusMenu.box.remove();statusMenu=null;}
 async function openStatusMenu(anchor,key){
@@ -30,7 +31,7 @@ async function openStatusMenu(anchor,key){
    for(const option of data.options)add(option.label,async()=>{
     if(!confirm('Chuyển đơn '+row.code+' sang “'+option.label+'” trên POS?'))return;
     box.querySelectorAll('button').forEach(b=>b.disabled=true);
-    const pending=statusFeedback.start(row.id,option.status);closeStatusMenu();H.render();try{const result=await H.api('/pos/orders/'+encodeURIComponent(row.id)+'/status',{method:'POST',body:{status:option.status,expectedStatus:data.status,version:row.version}});if(result.order)H.state.orders=H.state.orders.map(o=>o.id===row.id?result.order:o);statusFeedback.finish(row.id,pending);H.render();H.toast(result.carrierPending?'POS đã hủy đơn. Đang chờ hãng xác nhận hủy vận đơn.':'POS đã xác nhận trạng thái mới.');void H.refresh(false).then(()=>H.render()).catch(()=>{});}catch(err){statusFeedback.finish(row.id,pending);H.render();H.toast(err.message,true);void H.refresh(false).then(()=>H.render()).catch(()=>{});}
+    const pending=statusFeedback.start(row.id,option.status);closeStatusMenu();renderStatusChange();try{const result=await H.api('/pos/orders/'+encodeURIComponent(row.id)+'/status',{method:'POST',body:{status:option.status,expectedStatus:data.status,version:row.version}});if(result.order)H.state.orders=H.state.orders.map(o=>o.id===row.id?result.order:o);statusFeedback.finish(row.id,pending);renderStatusChange();H.toast(result.carrierPending?'POS đã hủy đơn. Đang chờ hãng xác nhận hủy vận đơn.':'POS đã xác nhận trạng thái mới.');void H.refresh(false).then(()=>renderStatusChange()).catch(()=>{});}catch(err){statusFeedback.finish(row.id,pending);renderStatusChange();H.toast(err.message,true);void H.refresh(false).then(()=>renderStatusChange()).catch(()=>{});}
    },{reason:option.reason,danger:option.status===6});
    if(data.operation?.state==='unknown'&&!data.options.some(o=>o.status===data.operation.target))add('Đối soát lần đổi trước',async()=>{try{await H.api('/pos/orders/'+encodeURIComponent(row.id)+'/status',{method:'POST',body:{status:data.operation.target,expectedStatus:data.status,version:row.version}});closeStatusMenu();await H.refresh(false);H.render();H.toast('Đã đối soát POS.');}catch(err){H.toast(err.message,true);}});
    if(!data.options.length){const p=document.createElement('p');p.textContent='Trạng thái cuối. Mở POS để xử lý nghiệp vụ tiếp theo.';box.append(p);}
@@ -43,7 +44,7 @@ async function openStatusMenu(anchor,key){
   position();
  }catch(err){if(statusMenu!==menu)return;box.textContent=err.message;add('Chi tiết / xử lý đơn',detail);position();}
 }
-const posStatus=code=>({17:'awaiting_confirmation',20:'purchased',12:'waiting_print',13:'printed',16:'collected',11:'waiting_stock',8:'packing',9:'pickup_pending',2:'shipping'}[code]);
+const posStatus=code=>({0:'draft',1:'confirmed',3:'delivered',4:'returning',5:'returned',6:'cancelled',15:'partially_returned',17:'awaiting_confirmation',20:'purchased',12:'waiting_print',13:'printed',16:'collected',11:'waiting_stock',8:'packing',9:'pickup_pending',2:'shipping'}[code]);
 export function orderGridRows(state){
  const rows=(state.orders||[]).filter(o=>!o.deletedAt).map(o=>{const p=o.posDisplay||{},s=(state.shipments||[]).find(s=>s.orderId===o.id&&s.status!=='cancelled')||(state.shipments||[]).find(s=>s.orderId===o.id),c=(state.customers||[]).find(c=>c.id===o.customerId),carrier=(state.shippingAccounts||[]).find(a=>a.id===(s?.accountId||o.shippingAccountId));
  const status=['failed','unknown','sending'].includes(o.shippingState)?o.shippingState:s?.status==='cancelled'&&o.shippingState==='failed'?'failed':s&&s.carrier!=='pancake_pos'?s.status:posStatus(p.status)||s?.status||o.status;

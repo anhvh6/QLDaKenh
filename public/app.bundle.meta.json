@@ -1,5 +1,5 @@
 {
-  "version": "09e12ac5c5e3",
+  "version": "888f7fba004b",
   "compiler": "0.25.12",
   "files": {
     "public/publish-review.js": "fff7ca3ddba269add82a97d130a997d3432a46c210acefd3d2fc676dcadb7e0b",
@@ -28,7 +28,7 @@
     "public/order-column-resize.js": "d47cec118c7c3da990b4b00680e0070d66ff95bfffc4000a1d9202ea9eaa9e4e",
     "public/order-status-feedback.js": "3d8c17b16d6f56269f36883e8425b356aadf91a2aadbe69681c9897352706881",
     "public/order-status-policy.js": "28740696cc63321ff70a5a442a311de0fa0a374b1e6763266c23089745be747a",
-    "public/orders-grid.js": "43b2879aeeb72c276ddf70b4a10d5daaa513eaa02d3ba24964ecf6df394cfd3e",
+    "public/orders-grid.js": "3153a1c85007c6b7b8158b8d82162f70e9551fc06640ada28886134012bb0f7c",
     "public/shipping-policy.js": "b850912a3bd7b2846bca9be7f4145812263303d53aacd1120d6866ba1c680f55",
     "public/shipping-address.js": "e04c05c0097466c0c38b510b9a387fc99b8eccf132c138d44a6d79407dc0a11c",
     "public/carrier-orders.js": "506973c6d9370ea44acc2cf6ac0ddadcf5a1129b1bd4e2fab898bcb375fe33ab",
@@ -92,6 +92,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "7015ad71eda887451d654618d235347deff13ac5effaab96255935eaf8053b46",
-    "public/app.bundle.js": "09e12ac5c5e3ded5fca5add95cd929bee986af9bf0f970dc60708ec3dd1da85a"
+    "public/app.bundle.js": "888f7fba004b18dcb89d13597bc5b73481fee9585a8a5d6ce79284d53a7f3562"
   }
 }
