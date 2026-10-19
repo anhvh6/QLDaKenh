@@ -1,5 +1,5 @@
 {
-  "version": "2ded56393395",
+  "version": "f7645614c94f",
   "compiler": "0.25.12",
   "files": {
     "public/tag-save-queue.js": "bd497b71a48afa3318f22d8a2c1d4da5775daf758361d2f9f60e836e7d2d51c0",
@@ -72,10 +72,11 @@
     "public/consultation-review.js": "7a4486c1110624c18ac856d7d18f3e54fac67e93ff1794db41f78adf238b2715",
     "public/chat-forward.js": "b93787e8cddf3c64ac6a031edb7a108cec276939711bcc030fa16585059c4f05",
     "public/chat-reaction-display.js": "05c2c396ef0e8dc72c0f2f6059476495b1dfb7a485ac25af0c4adc136a6977ea",
-    "public/chat-menu-layout.js": "d57ccd7e7abf53f8b94951f86837f4c16c26ede2578b269cc9c8133a24d31b98",
     "public/chat-contact-data.js": "16598ec8014c4b80ecc353d827af839369df4386052ee7748949adea707757a5",
+    "public/zalo-phone-chat.js": "6a6da907ca7373a4e8bd131a35abe176d1c30a0a1243801de0dbe53b2b599b12",
+    "public/chat-menu-layout.js": "d57ccd7e7abf53f8b94951f86837f4c16c26ede2578b269cc9c8133a24d31b98",
     "public/quick-order.js": "0dfc6c70d168db277bd4128ab690df0858bb30f796b4a493e12a442f13ac8c4c",
-    "public/chat-interactions.js": "a7458418745fe27148ab2ae0afff709e9b357ab96fa7a18787b645d9d5c8dbcd",
+    "public/chat-interactions.js": "bb60641298b20ad104c646c87506f709852ec994916984cf5d37ac162a65297b",
     "public/group-mention-model.js": "48e05e550090427644d273e7c400b47f44e5d7208714bf15e9239805c90ec891",
     "public/group-mentions.js": "b9b68b98ca9a910f9ff289f0fead38fc65d1673dab6e949873882d7538d7711e",
     "public/chat-media-content.js": "776a23dd075ce74eae6a3e240d11ec8cdd08fb5f55a1784e240520d67bc48c68",
@@ -88,6 +89,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "3108d884a4b70c29824eed71bdbdfe8c04d35513eff906e31d0b6b08a7bb11be",
-    "public/app.bundle.js": "2ded56393395e7ebb48d2f2b857d686ee33e7097acd1199e3147c024253cbc64"
+    "public/app.bundle.js": "f7645614c94f922b7e0d46b5e69a22b9592491e419fad71003113c46b2477164"
   }
 }

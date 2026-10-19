@@ -1,4 +1,5 @@
 import {chatWindow} from './chat-window.mjs';
+import {zaloPhoneChatRoute} from './zalo-phone-chat.mjs';
 import {reminderRecipients,activeAppointmentTask} from '../public/reminder-model.js';
 import { syncFacebookChat, syncFacebookConversation } from './facebook-chat.mjs';
 import {createHash} from 'node:crypto';
@@ -44,6 +45,7 @@ export function patchChat(user,id,input){
  const result=put('conversations',next,input.version);audit(user.id,'chat_updated',id,{fields:Object.keys(input).filter(k=>k!=='version')});return result;
 }
 export async function chatRoute(path,method,input,user,url){
+ const phoneChat=await zaloPhoneChatRoute(path,method,input,user);if(phoneChat!==undefined)return phoneChat;
  if(path==='/api/chat/channel-status'&&method==='GET'){
   permission(user,'read');return all('connections').filter(c=>{try{assertChannel(user,c.id);return c.status==='connected';}catch{return false;}}).map(c=>({id:c.id,provider:c.provider,name:c.name,messaging:!!['facebook','zalo','zalo_personal'].includes(c.provider),sync:get('facebook_chat_sync',c.id)||null}));
  }

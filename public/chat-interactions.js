@@ -1,4 +1,5 @@
 import {reactionEmoji} from './chat-reaction-display.js';
+import {enhanceZaloPhoneChats} from './zalo-phone-chat.js';
 import {chatTimeParts,nearMessage} from './chat-timeline.js';
 import {initChatMenuLayout,closeMessageMenus} from './chat-menu-layout.js';
 import {messagePhones,contactAddress,latestContact} from './chat-contact-data.js';
@@ -47,7 +48,7 @@ export function enhanceMessageInteractions(){
   for(const [selector,glyph,label] of [['[data-chat=copy]','copy','Copy tin nhắn'],['[data-chat=pin-message]','tag',pin?.textContent],['[data-chat=remind-message]','calendar','Nhắc việc'],['[data-message-action=select]','checklist','Chọn nhiều tin nhắn'],['[data-message-action=recall]','refresh','Thu hồi tin nhắn']]){const button=tools.querySelector(selector);if(button)button.innerHTML=icon(glyph,18)+'<span>'+esc(label)+'</span>';}
   if(more.querySelector(':scope > div')&&!more.querySelector('[data-message-action=detail]'))more.querySelector(':scope > div').insertAdjacentHTML('beforeend',`<button type="button" data-message-action="detail" data-id="${esc(m.id)}">${icon('help',18)}<span>Xem chi tiết</span></button>`);
  }
- selectionBar();tick();
+ enhanceZaloPhoneChats(H,H.state.conversations.find(c=>c.id===id));selectionBar();tick();
 }
 export function initMessageInteractions(host){H=host;initChatMenuLayout();setInterval(tick,1000);initMessageHover();
  const placePalette=event=>{const selector=event.target.closest?.('.message-reaction-selector');if(!selector)return;const palette=selector.querySelector('.message-reaction-palette'),viewport=selector.closest('.chat-messages');if(!palette||!viewport)return;palette.style.transform='';const box=palette.getBoundingClientRect(),bounds=viewport.getBoundingClientRect(),shift=box.left<bounds.left+8?bounds.left+8-box.left:box.right>bounds.right-8?bounds.right-8-box.right:0;palette.style.transform=`translateX(${shift}px)`;};
