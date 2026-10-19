@@ -1,3 +1,4 @@
+import {commentPresentation} from './comment-presentation.mjs';
 import {trackingNotificationTick,recoverTrackingNotifications} from './order-tracking-notifications.mjs';
 import {backfillCopyHistory} from './copy-history.mjs';
 import {serveFrontendFile} from './frontend-files.mjs';
@@ -125,6 +126,7 @@ async function dispatch(req, res, url, user, input) {
     filterDeletedChats(state);
     Object.assign(state, botState(user, state));
     filterDisconnectedChats(state);
+    state.conversations=commentPresentation(state.conversations);
     state.mediaCategories = all('media_categories'); state.mediaFavorites = get('settings', 'media-favorites-' + user.id)?.ids || []; const assetUsage = mediaUsage(state.assets, state.messages, state.publications); state.assets = state.assets.map(a => ({ ...a, usage: assetUsage.get(a.id) }));
     state.chatNameSettings = get('settings', 'chat-names') || defaultNameSettings;
     state.chatPlanSummaries = all('study_plans').filter(p=>!p.registrationOnly||p.customer?.video_date||p.customer?.is_customized).map(p => { const o = get('orders', p.lastOrderId); return { customerId: p.customerId, startDate: p.customer?.start_date, endDate: p.customer?.end_date, link: p.customer?.link, status: studyPlanStatus(p, o) }; });

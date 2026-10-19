@@ -5271,3 +5271,19 @@ body.comments-route .comments-workspace:not(.has-selection) .comment-work-area{g
 body.comments-route .comments-workspace:not(.has-selection) .comment-detail{display:none}
 @media(min-width:761px){body.comments-route .comments-workspace{grid-template-columns:340px minmax(0,1fr)}}
 @media(max-width:760px){body.comments-route .comment-post-list .comment-toolbar{padding:10px 12px}body.comments-route .comment-post-list .comment-toolbar .tab{font-size:12px}}
+
+/* Minimal comment controls and a single original-post surface. */
+body.comments-route .comment-post-list .comment-toolbar .tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+body.comments-route .comment-channel-picker>summary,body.comments-route .comment-sync-button{border:0;border-radius:0;background:transparent;box-shadow:none}
+body.comments-route .comment-channel-picker>summary:hover,body.comments-route .comment-sync-button:hover{background:transparent;color:var(--green)}
+.comment-sync-control{flex:0 0 36px;display:flex;flex-direction:column;align-items:center;gap:1px}
+body.comments-route .comment-list-controls{align-items:flex-start}
+.comment-total{font-size:10px;line-height:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+body.comments-route .comment-person-card>b{background:#d83c45;color:#fff}
+body.comments-route .comment-original-post{position:relative;border:0;box-shadow:none;margin:0 0 16px;padding:14px 16px;border-radius:10px;background:#fff}
+body.comments-route .comment-original-heading{position:absolute;right:10px;top:7px}
+body.comments-route .comment-post-excerpt{padding-right:30px;margin:0 0 10px}
+body.comments-route .comment-original-heading .icon-btn{background:transparent;border:0;box-shadow:none}
+.comment-author-link{color:inherit;text-decoration:none;cursor:pointer}
+.comment-author-link:hover{text-decoration:underline;color:var(--green)}
+body.comments-route .comment-detail:empty{display:none}

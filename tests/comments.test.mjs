@@ -139,7 +139,7 @@ test('Threads context uses synchronized data instead of unsupported object looku
  assert.equal(called,false);assert.equal(data.post.text,'Thread text');assert.equal(data.current.text,'Threads reply');assert.deepEqual(data.errors,[]);
 });
 test('missing metrics render as unavailable and context HTML escapes social content',async()=>{
- const {commentContextHTML}=await import('../public/comment-detail.js');const html=commentContextHTML({post:{text:'<script>bad</script>',likes:null,shares:null,comments:0},parentId:'p',parent:{id:'p',text:'Parent',name:'Name',likes:2,dislikes:null}},'parent');assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes('Trả lời bình luận gốc'));assert.ok(html.includes('—'));assert.ok(html.includes('data-target="current"'));
+ const {commentContextHTML}=await import('../public/comment-detail.js');const html=commentContextHTML({post:{text:'<script>bad</script>',likes:null,shares:null,comments:0},parentId:'p',parent:{id:'p',text:'Parent',name:'Name',likes:2,dislikes:null}},'parent');assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes('Trả lời bình luận gốc'));assert.ok(html.includes('—'));assert.ok(html.includes('data-target="current"'));assert.ok(!html.includes('Bình luận đang xem'));assert.ok(!html.includes('Trả lời bình luận này'));assert.ok(!html.includes('<strong>Bài viết gốc</strong>'));
 });
 
 test('existing comment refresh never parses unrelated comment conversations',()=>{
@@ -173,4 +173,23 @@ test('late author details replace fallback names without changing attachments or
  upsertComment(channel,{id:'author-comment',message:'Same text',from:{id:'author-user',name:'Real author'},attachment:{media:{image:{src:'https://example.com/photo.jpg'}}}},{id:'post'},true);
  upsertComment(channel,{id:'author-comment',message:'Edited',from:{id:'author-user'}},{id:'post'},true);
  assert.equal(get('messages',m.id).senderName,'Real author');assert.equal(all('notifications').length,count);
+});
+
+test('pending comments use last delivered interaction, ignore notes/failures and isolate private chats by channel',async()=>{
+ const {commentPresentation}=await import('../server/comment-presentation.mjs');
+ const {commentAwaitingReply,commentPrivateChat,commentProfileURL}=await import('../public/comment-presentation.js');
+ const comment=put('conversations',{id:'pending-model',kind:'comment',connectionId:'fb',externalUserId:'123',externalCommentId:'post_comment',customerId:'person'});
+ const add=(id,direction,status,createdAt)=>put('messages',{id,conversationId:comment.id,direction,status,createdAt});
+ add('pending-in','incoming','received','2026-10-18T10:00:00Z');add('pending-note','note','internal','2026-10-18T11:00:00Z');add('pending-fail','outgoing','failed','2026-10-18T12:00:00Z');add('pending-unknown','outgoing','unknown','2026-10-18T13:00:00Z');
+ assert.equal(commentAwaitingReply(commentPresentation([comment])[0]),true);
+ add('pending-sent','outgoing','accepted','2026-10-18T14:00:00Z');assert.equal(commentAwaitingReply(commentPresentation([comment])[0]),false);
+ add('pending-next','incoming','received','2026-10-18T15:00:00Z');assert.equal(commentAwaitingReply(commentPresentation([comment])[0]),true);
+ const other={id:'other-dm',connectionId:'other',externalUserId:'123',kind:'message',customerId:'person'};
+ assert.equal(commentPresentation([comment,other])[0].privateConversationId,null);
+ const peer={...other,id:'same-dm',connectionId:'fb'},enriched=commentPresentation([comment,other,peer])[0];
+ assert.equal(commentPrivateChat(enriched,{provider:'facebook',status:'connected'},[other,peer]).id,peer.id);
+ assert.equal(commentPrivateChat(enriched,{provider:'youtube',status:'connected'},[peer]),null);
+ assert.equal(commentProfileURL(comment,{provider:'facebook'}),'https://www.facebook.com/profile.php?id=123');
+ assert.equal(commentProfileURL({...comment,externalUserId:'post_comment'},{provider:'facebook'}),'');
+ assert.equal(commentProfileURL({...comment,authorProfileUrl:'javascript:alert(1)',externalUserId:''},{provider:'facebook'}),'');
 });

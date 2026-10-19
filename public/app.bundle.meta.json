@@ -1,7 +1,8 @@
 {
-  "version": "907460341cd8",
+  "version": "df6f19b1de95",
   "compiler": "0.25.12",
   "files": {
+    "public/comment-presentation.js": "0933c9a3e9e2020249ae8a2acd66eae7d529a9f5c07c39e9d720f18c859c5db1",
     "public/comment-channel-filter.js": "f5ce64d24fe093ebe7e83af13bc8fb33ac8dca49f341eb6a63ef6f3f1ec157a1",
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
@@ -10,7 +11,7 @@
     "public/order-editor-tools.js": "05c9b8299615dcfe5677f21b5a92f781d0694b7364de7b64670d7985002462d2",
     "public/chat-message-sync.js": "6c634b0bb2b40c91c20d4a11ea0dab98587f9089f7379d56e5336808ea550073",
     "public/order-linked-chat.js": "dfc29d8ef5374660d1c584cc9c186b17e5732eca17382d1a550d5d0a545e59c4",
-    "public/icons.js": "99d1b8401fc6c1e2c1f8182d9278b6c62bffda8a80e5e666a57303ddc426428e",
+    "public/icons.js": "06978b5a0a1f514fcb2fb32aaa1d5485d23ba047de588c63bc23cd94dac5b8b8",
     "public/order-workspace-model.js": "4ce1bc815e830eeca86e5b454ab575fd32ee14c8711b6220c4ea79a41239e645",
     "public/orders-grid.js": "e32c34b5ed0fe743d8611463b3906caad04bec5577438d33fec18432220a5148",
     "public/shipping-policy.js": "b850912a3bd7b2846bca9be7f4145812263303d53aacd1120d6866ba1c680f55",
@@ -29,7 +30,7 @@
     "public/dashboard-overview.js": "4eaa9ebeb22dbd277665ef9e26f1e717724b92fd512b7887c3dc6fdb95244127",
     "public/calendar-filter.js": "176a3651497e43f7427575c86f6c4096149566ff255d3f392704b48274c0ec88",
     "public/pancake-pos.js": "a698b78a8f406f63594cb04bcdcc0acd1d43c5020e0421639726017db204f940",
-    "public/comment-detail.js": "6d57b175a5f0299765ad7ae47379f6141b580ffafb4bfeff6d140d71e06a383c",
+    "public/comment-detail.js": "895376d0774ba528245f4d67af8670adc76198687f5473582da97fe71399938c",
     "public/api-response.js": "fe1ca887d268d9c2d75fe47ff0068114cc15397a2e034f5e64137c44d28aea6c",
     "public/copy-job-table.js": "d2b77df49bee015014f672ad6fbdfbc2796e478963b7ab2cb4ece6d65a16ad73",
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
@@ -82,7 +83,7 @@
     "public/inbox.js": "650413d3baf679d6a18ecf42c2268dfc1420725fdeccccb30f99c2bbee15e6f7",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "c001957fa5b1e6ec3edaac86d429be300cdc0830b516284256e34199c6b96d4b",
-    "public/app.js": "29140897bb34745c3554ee5a065d63edf394d574133fa8371b3e342595d2b94a",
-    "public/app.bundle.js": "907460341cd80ea0ea8fcadca97663004230e2fe25317f98c81400a3f7739caf"
+    "public/app.js": "4edb5793e67714a2185e6bc8c613dd3e88e078a8b8c80d0f841744f04266f0a8",
+    "public/app.bundle.js": "df6f19b1de95bb1d0e98d51067faa3d8f05df36f02857a95a677fc31998c685d"
   }
 }
