@@ -35,7 +35,7 @@ export function startOAuth(user,connection,req){
  if(codeVerifier)saveSecret(`oauth:${state}`,{codeVerifier});
  const redirect=redirectUri(connection.provider,req);let url;
  if(['facebook','instagram'].includes(connection.provider)){
-  const scopes=['pages_show_list','pages_read_engagement','pages_read_user_content','pages_manage_posts','pages_manage_engagement','pages_manage_metadata','pages_messaging','instagram_basic','instagram_content_publish','instagram_manage_contents','instagram_manage_comments'];
+  const scopes=['pages_show_list','pages_read_engagement','pages_read_user_content','pages_manage_posts','pages_manage_engagement','pages_manage_metadata','pages_messaging','instagram_basic','instagram_content_publish','instagram_manage_contents','instagram_manage_comments','instagram_manage_messages'];
   url=`https://www.facebook.com/${graphVersion}/dialog/oauth?${encode({client_id:env('META_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:scopes.join(',')})}`;
  }else if(connection.provider==='threads'){
   url=`https://threads.net/oauth/authorize?${encode({client_id:env('THREADS_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:'threads_basic,threads_content_publish,threads_delete,threads_read_replies,threads_manage_replies,threads_manage_insights'})}`;
@@ -128,7 +128,7 @@ export async function finishOAuth(req,res,url){
     await hydrateCommentAuthors(target,500);
    }catch(error){audit(record.userId,'oauth_webhook_subscribe_failed',target.id,{error:error.message});}
    if(provider==='instagram')try{
-    await remote(`https://graph.facebook.com/${graphVersion}/${item.accountId}/subscribed_apps?subscribed_fields=comments`,{method:'POST',headers:{Authorization:`Bearer ${item.token}`}});
+    await remote(`https://graph.facebook.com/${graphVersion}/${item.accountId}/subscribed_apps?subscribed_fields=comments,messages`,{method:'POST',headers:{Authorization:`Bearer ${item.token}`}});
     audit(record.userId,'oauth_webhook_subscribed',target.id,{provider:'instagram'});
    }catch(error){audit(record.userId,'oauth_webhook_subscribe_failed',target.id,{provider:'instagram',error:error.message});}
   }

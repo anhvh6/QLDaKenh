@@ -205,7 +205,7 @@ async function webhook(req, res, url) {
   for(const c of channels)put('facebook_webhook_status',{id:c.id,lastReceivedAt:now(),eventCount:(value.entry||[]).reduce((n,e)=>n+(e.messaging||[]).length+(e.changes||[]).length,0)});
   transaction(() => {
     for (const c of channels) {
-      if(c.provider==='facebook')ingestFacebookEvents(c, value.entry);care.ingestComments(c, value.entry);
+      if(['facebook','instagram'].includes(c.provider))ingestFacebookEvents(c, value.entry);care.ingestComments(c, value.entry);
     }
   }); for (const c of channels.filter(c=>c.provider==='facebook')) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
 }

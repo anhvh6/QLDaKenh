@@ -24,6 +24,7 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  const createdAt = stamp(item.created_time), tombstone = get('chat_purge_tombstones', channel.id + ':0:' + peerId);
  if (tombstone && createdAt <= tombstone.cutoff) return null;
  let conv = all('conversations').find(c => c.connectionId === channel.id && c.kind === 'message' && String(c.externalUserId) === peerId);
+ if(!conv){const receipt=db.prepare(`SELECT c.id FROM records m JOIN records c ON c.kind='conversations' AND c.id=json_extract(m.data,'$.conversationId') WHERE m.kind='messages' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.privateReplySourceId') IS NOT NULL AND (json_extract(m.data,'$.externalId')=? OR json_extract(m.data,'$.externalId')=?) LIMIT 1`).get(channel.id,String(item.id),String(item.reply_to?.mid||''));if(receipt){conv=get('conversations',receipt.id);conv=put('conversations',{...conv,externalUserId:peerId});}}
  if (conv?.purgePending) return null;
  const duplicate = db.prepare("SELECT id FROM records WHERE kind='messages' AND (json_extract(data,'$.externalId')=? OR EXISTS(SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) e WHERE json_extract(e.value,'$.id')=?)) AND json_extract(data,'$.conversationId')=?").get(String(item.id), String(item.id), conv?.id || '');
  const attachments = facebookAttachments(item.attachments?.data || item.attachments || []);
@@ -58,7 +59,7 @@ export function ingestFacebookEvents(channel, entries = []) {
   if (!event.message?.mid) continue;
   const echo = event.message.is_echo || String(event.sender?.id) === String(channel.accountId);
   if (String((echo ? event.sender : event.recipient)?.id) !== String(channel.accountId)) continue;
-  ingestFacebookMessage(channel, { id: event.message.mid, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [],sticker_id:event.message.sticker_id });
+  ingestFacebookMessage(channel, { id: event.message.mid, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [],sticker_id:event.message.sticker_id,reply_to:event.message.reply_to });
  }
 }
 

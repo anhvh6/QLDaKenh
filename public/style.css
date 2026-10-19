@@ -5287,3 +5287,15 @@ body.comments-route .comment-original-heading .icon-btn{background:transparent;b
 .comment-author-link{color:inherit;text-decoration:none;cursor:pointer}
 .comment-author-link:hover{text-decoration:underline;color:var(--green)}
 body.comments-route .comment-detail:empty{display:none}
+
+.comment-name-line{display:flex;align-items:center;gap:8px;min-width:0}
+.comment-name-line .chat-header-tags{display:inline-block;flex-shrink:0;position:relative}
+.comment-name-line .chat-tag-popup{left:0;right:auto;max-width:calc(100vw - 40px)}
+.comment-card-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.comment-card-tags:empty{display:none}
+body.comments-route .comment-card-tags .chat-list-tag{font-size:10px;padding:2px 5px;border-radius:4px;line-height:1.3}
+body.comments-route .comment-chat-head{overflow:visible;position:relative;z-index:40}
+body.comments-route .comment-name-line .chat-header-tags>summary{display:flex;align-items:center;justify-content:center;list-style:none;cursor:pointer}
+body.comments-route .comment-name-line .chat-header-tags>summary::-webkit-details-marker{display:none}
+
+@media(max-width:760px){.comment-name-line>.chat-header-tags{position:static}.comment-name-line .chat-tag-popup{left:12px;right:12px;width:auto;max-width:none}}
