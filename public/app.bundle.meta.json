@@ -1,5 +1,5 @@
 {
-  "version": "001b080e6686",
+  "version": "d9f795068469",
   "compiler": "0.25.12",
   "files": {
     "public/tag-save-queue.js": "bd497b71a48afa3318f22d8a2c1d4da5775daf758361d2f9f60e836e7d2d51c0",
@@ -88,7 +88,7 @@
     "public/inbox.js": "2defd5b188a9c11ed39dfa4c74898d939e2e8411d29b6a16b9fb75425464fd0c",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "3108d884a4b70c29824eed71bdbdfe8c04d35513eff906e31d0b6b08a7bb11be",
-    "public/app.bundle.js": "001b080e6686ddfcd8cfafe3531acafcc9a03b924322277f21908c9c4a62656d"
+    "public/app.js": "84a384511aaed635113e55cb695572cf84e9ac0ac8690f105216948c7592b667",
+    "public/app.bundle.js": "d9f795068469e8db5f1e1d6f55eeb8ab86ba406394b3e81e193c940a989a780c"
   }
 }
