@@ -101,8 +101,9 @@ async function refreshLiveInbox() {
     const pinsChanged = JSON.stringify(c.platformPins || []) !== JSON.stringify(data.conversation.platformPins || []);
     Object.assign(c, data.conversation);
     if (pinsChanged) syncChatPins();
+    if(route==='inbox')enhanceLiveMessages();
     if (window && JSON.stringify(previous) === JSON.stringify(data.messages) && !liveInboxDeferred) return;
-    if(route==='comments'){render();return;}
+    if(route==='comments'){if(inboxInteractionActive()){liveInboxDeferred=true;return;}liveInboxDeferred=false;render();return;}
     if (inboxInteractionActive()) { syncIncomingWhileInteracting({ ...S, messages: [...S.messages.filter(m => m.conversationId !== id), ...data.messages] }); liveInboxDeferred = true; syncChatPins(); return; }
     liveInboxDeferred = false;
     S.messages = [...S.messages.filter(m => m.conversationId !== id), ...data.messages];
@@ -113,7 +114,7 @@ async function refreshLiveInbox() {
 setInterval(() => void refreshLiveInbox(), 2000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && route === 'inbox') void refreshInbox().catch(() => { }); });
 window.addEventListener('online', () => { if (route === 'inbox') void refreshInbox().catch(() => { }); });
-function queueInboxRefresh() { inboxRefreshPending = true; clearTimeout(inboxRefreshTimer); inboxRefreshTimer = setTimeout(() => { if (route === 'inbox') refreshInbox(true).catch(() => { }); }, 250); }
+function queueInboxRefresh() { inboxRefreshPending = true; clearTimeout(inboxRefreshTimer); inboxRefreshTimer = setTimeout(() => { if (['inbox','comments'].includes(route)) refreshInbox(true).catch(() => { }); }, 500); }
 async function refreshInbox(paintOnly = false) {
   if (!paintOnly) void refreshLiveInbox();
   if (!paintOnly) void checkConversationPresence();
@@ -671,7 +672,7 @@ initPlans({ get state() { return S; }, api, refresh, render, modal, closeModal, 
 initDeviceNotifications({ getS: () => S, api, toast, openSettings: () => { closeModal(); filter = 'notifications'; route = 'settings'; history.replaceState(null, '', '#settings'); document.body.classList.remove('menu-open'); render(); } });
 initQuickReplies({ get state() { return S; }, api, refresh, render, modal, closeModal, toast });
 initConversationTags({ get state() { return S; }, api, refresh, render, modal, closeModal, toast });
-initCare({ get state() { return S; }, api, refresh, refreshInbox, refreshBackground, render, modal, closeModal, toast, openConversation: id => { selectedConversation = id; route = 'inbox'; location.hash = 'inbox'; render(); } });
+initCare({ get state() { return S; }, api, refresh, refreshInbox, syncRealtimeState:()=>{void refreshLiveInbox();queueInboxRefresh();}, refreshBackground, render, modal, closeModal, toast, openConversation: id => { selectedConversation = id; route = 'inbox'; location.hash = 'inbox'; render(); } });
 initStudentCareSettings({ get state() { return S; }, api, refresh, toast, modal, closeModal });
 initCopy({ get state() { return S; }, api, refresh, render, modal, closeModal, toast, openContent: id => contentModal(id) });
 initProductsManagement({ get state() { return S; }, render });

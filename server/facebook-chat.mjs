@@ -23,7 +23,8 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  if (!peerId || !item.id) return null;
  const createdAt = stamp(item.created_time), tombstone = get('chat_purge_tombstones', channel.id + ':0:' + peerId);
  if (tombstone && createdAt <= tombstone.cutoff) return null;
- let conv = all('conversations').find(c => c.connectionId === channel.id && c.kind === 'message' && String(c.externalUserId) === peerId);
+ const peerRow=db.prepare("SELECT id FROM records INDEXED BY idx_zalo_conversation WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=? AND json_extract(data,'$.kind')='message' LIMIT 1").get(channel.id,peerId);
+ let conv=peerRow?get('conversations',peerRow.id):null;
  if(!conv){const receipt=db.prepare(`SELECT c.id FROM records m JOIN records c ON c.kind='conversations' AND c.id=json_extract(m.data,'$.conversationId') WHERE m.kind='messages' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.privateReplySourceId') IS NOT NULL AND (json_extract(m.data,'$.externalId')=? OR json_extract(m.data,'$.externalId')=?) LIMIT 1`).get(channel.id,String(item.id),String(item.reply_to?.mid||''));if(receipt){conv=get('conversations',receipt.id);conv=put('conversations',{...conv,externalUserId:peerId});}}
  if (conv?.purgePending) return null;
  const duplicate = db.prepare("SELECT id FROM records WHERE kind='messages' AND (json_extract(data,'$.externalId')=? OR EXISTS(SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) e WHERE json_extract(e.value,'$.id')=?)) AND json_extract(data,'$.conversationId')=?").get(String(item.id), String(item.id), conv?.id || '');

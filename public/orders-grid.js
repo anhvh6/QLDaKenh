@@ -36,7 +36,7 @@ async function openStatusMenu(anchor,key){
   add('Chi tiết / xử lý đơn',detail);
   if(row.orderLink){const a=document.createElement('a');a.textContent='Mở Pancake POS ↗';a.href=row.orderLink;a.target='_blank';a.rel='noopener';box.append(a);}
   if(row.tracking){const note=document.createElement('p');note.textContent='Trạng thái giao hàng cập nhật từ hãng → POS → hệ thống.';box.append(note);}
-  position();box.querySelector('button:not(:disabled)')?.focus();
+  position();
  }catch(err){if(statusMenu!==menu)return;box.textContent=err.message;add('Chi tiết / xử lý đơn',detail);position();}
 }
 const posStatus=code=>({17:'awaiting_confirmation',20:'purchased',12:'waiting_print',13:'printed',16:'collected',11:'waiting_stock',8:'packing',9:'pickup_pending',2:'shipping'}[code]);
@@ -69,7 +69,7 @@ function exportRows(){let rows=rowsFor(H.state);if(selected.size)rows=rows.filte
 export function initOrdersGrid(host){H=host;initOrderEditor(host);let dragged='';
  document.addEventListener('click',event=>{if(statusMenu&&!statusMenu.box.contains(event.target)&&!statusMenu.anchor.contains(event.target))closeStatusMenu();});
  document.addEventListener('keydown',event=>{if(!statusMenu)return;if(event.key==='Escape'){const anchor=statusMenu.anchor;closeStatusMenu();anchor.focus();}if(['ArrowDown','ArrowUp'].includes(event.key)){const buttons=[...statusMenu.box.querySelectorAll('button:not(:disabled),a')],i=buttons.indexOf(document.activeElement);event.preventDefault();buttons[(i+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}});
- window.addEventListener('hashchange',closeStatusMenu);window.addEventListener('resize',closeStatusMenu);document.addEventListener('scroll',event=>{if(statusMenu&&!statusMenu.box.contains(event.target))closeStatusMenu();},true);
+ window.addEventListener('hashchange',closeStatusMenu);window.addEventListener('resize',closeStatusMenu);document.addEventListener('scroll',event=>{if(statusMenu&&!statusMenu.box.contains(event.target)&&statusMenu.anchor.isConnected)statusMenu.position?.();},true);
  let hold=null,suppressedKey='',suppressUntil=0;
  const cancelHold=()=>{if(hold)clearTimeout(hold.timer);hold=null;};
  window.addEventListener('pointerdown',event=>{const row=event.target.closest('[data-order-row]');if(!row||event.button!==0||event.target.closest('input,select,textarea,a,button,summary'))return;cancelHold();const key=row.dataset.orderRow;hold={x:event.clientX,y:event.clientY,timer:setTimeout(()=>{selectionMode=true;selected.add(key);suppressedKey=key;suppressUntil=Date.now()+1200;cancelHold();H.render();},600)};});

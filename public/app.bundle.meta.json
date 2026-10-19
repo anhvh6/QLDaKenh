@@ -1,5 +1,5 @@
 {
-  "version": "6ee7473bbd32",
+  "version": "8915dede70d1",
   "compiler": "0.25.12",
   "files": {
     "public/tag-save-queue.js": "bd497b71a48afa3318f22d8a2c1d4da5775daf758361d2f9f60e836e7d2d51c0",
@@ -25,7 +25,7 @@
     "public/order-linked-chat.js": "dfc29d8ef5374660d1c584cc9c186b17e5732eca17382d1a550d5d0a545e59c4",
     "public/order-workspace-model.js": "96951454925395c1843a8adc2b261d5961ed53780714f9a859140ff0addc5a2c",
     "public/order-status-policy.js": "28740696cc63321ff70a5a442a311de0fa0a374b1e6763266c23089745be747a",
-    "public/orders-grid.js": "0a183ba4842dbb7885ab29633adaacb92e5b0bac4773b2de8136b9345821d437",
+    "public/orders-grid.js": "96fa2401f6fcff4e20436d23154d60ad6327203d8ae74c76b2f16adc5e8ec162",
     "public/shipping-policy.js": "b850912a3bd7b2846bca9be7f4145812263303d53aacd1120d6866ba1c680f55",
     "public/shipping-address.js": "e04c05c0097466c0c38b510b9a387fc99b8eccf132c138d44a6d79407dc0a11c",
     "public/carrier-orders.js": "506973c6d9370ea44acc2cf6ac0ddadcf5a1129b1bd4e2fab898bcb375fe33ab",
@@ -58,6 +58,7 @@
     "public/chatbot-ui.js": "2be635f7663e609dea4d2379f54343628f9d5dc525a5b8d5df96c2e3f876c236",
     "public/media-library.js": "a8eec5e8e4ced54c94877678dd7c8eea3299585c9198b5133ffc3ce930add492",
     "public/private-chat-state.js": "bbd52fe67a7561e4a2ffa4cd87bb8c161e6c6e41b5f5f1af81f45eeca3d89e88",
+    "public/chat-composer-state.js": "cf59f4cfd3b02b8b5b8c756d7071d8dce9e9fed81168bdc7bdb85e136bb05acc",
     "public/chat-appointments.js": "0e5fba10c507aa9c61daeaefbf6dd24403338a682717aa7b71c5a611fae9fc6b",
     "public/chat-timeline.js": "6b4852c200b2428b13602c8dab9f4abc3f2bf95b185f1681f1afc9357a7a1512",
     "public/chat-pins.js": "d989417f11444e1397982011796721833c7a78e998ceb37b21c65c7f200c21c5",
@@ -83,10 +84,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "6326c77f39b6c1df8e3f2ff910e991db30035588f6d4d2edc0727087fa78c17f",
+    "public/inbox.js": "2defd5b188a9c11ed39dfa4c74898d939e2e8411d29b6a16b9fb75425464fd0c",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "fa7baa626f6f9046a26041819b57d0582e8353ab1008f31d7219bf95dce571a7",
-    "public/app.bundle.js": "6ee7473bbd322761765b9c37c97a8e136e6ae2aea13e91180be7662c555611a9"
+    "public/app.js": "a15e8b68866e6b87ee27f99e527e38d80fdb5500c68e27106b188c8afe2d3662",
+    "public/app.bundle.js": "8915dede70d1f3559b8e8f5915620e157fae01c83f0ce700920796081ecc82f5"
   }
 }
