@@ -5299,3 +5299,5 @@ body.comments-route .comment-name-line .chat-header-tags>summary{display:flex;al
 body.comments-route .comment-name-line .chat-header-tags>summary::-webkit-details-marker{display:none}
 
 @media(max-width:760px){.comment-name-line>.chat-header-tags{position:static}.comment-name-line .chat-tag-popup{left:12px;right:12px;width:auto;max-width:none}}
+
+body.comments-route .comment-name-line .chat-header-tags{border:0;background:transparent;box-shadow:none;margin:0;padding:0}body.comments-route .comment-name-line .chat-header-tags>summary{border:0;border-radius:0;background:transparent;box-shadow:none;padding:4px;width:28px;height:28px}
