@@ -15,6 +15,7 @@
     "test:copy-automation-ui": "node scripts/test-copy-automation-ui.mjs",
     "test:ui": "node scripts/ui-check.mjs",
     "build:plan": "node scripts/build-plan.mjs",
+    "build:plan-management": "node scripts/build-plan-management.mjs",
     "test:zalo-ui": "node scripts/test-zalo-ui.mjs",
     "test:chat-ui": "node scripts/test-chat-ui.mjs",
     "test:chat-request-ui": "node scripts/test-chat-request-ui.mjs",

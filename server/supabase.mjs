@@ -1,3 +1,4 @@
+import {planProducts} from './product-catalog.mjs';
 import {publishPlan} from './plan-publish.mjs';
 import {saveRegistration} from './learner-registration.mjs';
 import { all,get,put,transaction,audit,now,secret,saveSecret,getSupabaseHeaders,SUPABASE_URL,SUPABASE_KEY } from './store.mjs';
@@ -26,15 +27,14 @@ async function config(user){
 async function remote(c,path,options={}){const r=await fetch(c.url+path,{...options,headers:{apikey:c.key,...(c.accessToken?{Authorization:'Bearer '+c.accessToken}:{}),'Content-Type':'application/json',...options.headers},signal:AbortSignal.timeout(20000)});const data=await r.json().catch(()=>null);if(!r.ok)fail(r.status===401?'Phiên Supabase hết hạn. Đăng nhập lại.':`Supabase từ chối (${r.status}). Kiểm tra schema và quyền RLS của tài khoản.`,r.status===401?400:422);return data;}
 let planCatalogCache=null,planCatalogPending=null;
 export async function readPlanCatalog(){
- const localProducts=all('products').filter(p=>p.active!==false).map(p=>({id_sp:p.id_sp||p.sku,ten_sp:p.name,gia_ban:p.price,gia_nhap:p.cost,trang_thai:1,productType:p.productType})),localTasks=all('master_video_tasks').filter(t=>!t.is_deleted);
+ const localProducts=planProducts(all('products')),localTasks=all('master_video_tasks').filter(t=>!t.is_deleted);
  if(process.env.PLAN_REMOTE_CATALOG==='0')return {products:localProducts,tasks:localTasks};
- if(planCatalogCache&&Date.now()-planCatalogCache.at<60000)return planCatalogCache.data;
- if(planCatalogPending)return planCatalogPending;
+ if(planCatalogCache&&Date.now()-planCatalogCache.at<60000)return {...planCatalogCache.data,products:localProducts};
+ if(planCatalogPending)return {...await planCatalogPending,products:planProducts(all('products'))};
  planCatalogPending=(async()=>{try{const c=await config();async function rows(table){const out=[];for(let offset=0;offset<20000;){const batch=await remote(c,`/rest/v1/${table}?select=*&order=id.asc&offset=${offset}&limit=500`);if(!Array.isArray(batch))fail('Danh mục phác đồ không hợp lệ.');out.push(...batch);offset+=batch.length;if(batch.length<500)return out;}fail('Danh mục quá lớn, cần phân trang thêm.');}
- const [products,tasks]=await Promise.all([rows('products'),rows('master_video_tasks')]);
- const mappedProducts=products.filter(p=>Number(p.trang_thai)===1).map(p=>({id_sp:p.id_sp,ten_sp:p.ten_sp,gia_ban:Number(p.gia_ban||0),gia_nhap:Number(p.gia_nhap||0),trang_thai:1,productType:p.productType||p.product_type}));
+ const tasks=await rows('master_video_tasks');
  const mappedTasks=tasks.filter(t=>!t.is_deleted).map(t=>({id:t.id,video_date:t.video_date||t.Video_date,day:Number(String(t.day??t.Day??t.N??0).match(/\d+/)?.[0]||0),title:t.title||t.Title||'',detail:t.detail||t.Detail||'',type:t.type||t.Type||'Bài bắt buộc',link:t.link||t.Link||'',nhom:t.nhom||t.Nhom||'',sort_order:Number(t.sort_order||0)}));
- const data={products:[...new Map([...localProducts,...mappedProducts].map(p=>[p.id_sp,p])).values()],tasks:[...new Map([...localTasks,...mappedTasks].map(t=>[t.id,t])).values()]};planCatalogCache={at:Date.now(),data};return data;
+ const data={products:planProducts(all('products')),tasks:[...new Map([...localTasks,...mappedTasks].map(t=>[t.id,t])).values()]};planCatalogCache={at:Date.now(),data};return data;
  }catch(err){return {products:localProducts,tasks:localTasks,warning:'Chưa tải được danh mục phác đồ từ Supabase: '+err.message+'. Đang hiển thị dữ liệu nội bộ; tải lại để thử lại.'};}finally{planCatalogPending=null;}})();return planCatalogPending;
 }
 export async function readPlanProfile(customerId){if(process.env.PLAN_REMOTE_CATALOG==='0')return null;const rows=await remote(await config(),'/rest/v1/customers?select=note,chewing_status,sidebar_blocks_json,app_title,app_slogan&customer_id=eq.'+encodeURIComponent(customerId)+'&limit=1');return rows[0]||null;}

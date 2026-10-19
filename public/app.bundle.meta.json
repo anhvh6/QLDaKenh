@@ -1,5 +1,5 @@
 {
-  "version": "8b446a69bebb",
+  "version": "554dc3c266cd",
   "compiler": "0.25.12",
   "files": {
     "public/publish-review.js": "fff7ca3ddba269add82a97d130a997d3432a46c210acefd3d2fc676dcadb7e0b",
@@ -76,7 +76,7 @@
     "public/chat-contact-data.js": "16598ec8014c4b80ecc353d827af839369df4386052ee7748949adea707757a5",
     "public/zalo-phone-chat.js": "21b10908b2f28a291af21381d93c749ee16fe7df42c13135d140305a926f9f14",
     "public/chat-menu-layout.js": "d57ccd7e7abf53f8b94951f86837f4c16c26ede2578b269cc9c8133a24d31b98",
-    "public/quick-order.js": "0dfc6c70d168db277bd4128ab690df0858bb30f796b4a493e12a442f13ac8c4c",
+    "public/quick-order.js": "eca227ea0eb9ea6531c3ada840354af7a72172eafb7baebd311384d991cf5a52",
     "public/chat-interactions.js": "bb60641298b20ad104c646c87506f709852ec994916984cf5d37ac162a65297b",
     "public/group-mention-model.js": "48e05e550090427644d273e7c400b47f44e5d7208714bf15e9239805c90ec891",
     "public/group-mentions.js": "b9b68b98ca9a910f9ff289f0fead38fc65d1673dab6e949873882d7538d7711e",
@@ -90,6 +90,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "7015ad71eda887451d654618d235347deff13ac5effaab96255935eaf8053b46",
-    "public/app.bundle.js": "8b446a69bebb900944d880eeb2b8a575992a8062b46db7759f253c76049bf514"
+    "public/app.bundle.js": "554dc3c266cd36a6a007f0bfd48870888d6e6d2cb975b2e37440f2f8b4b97d74"
   }
 }

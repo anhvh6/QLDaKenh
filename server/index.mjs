@@ -1,3 +1,4 @@
+import {planProducts} from './product-catalog.mjs';
 import {updateConversationTags} from './conversation-tag-update.mjs';
 import {commentPresentation} from './comment-presentation.mjs';
 import {trackingNotificationTick,recoverTrackingNotifications} from './order-tracking-notifications.mjs';
@@ -141,6 +142,13 @@ async function dispatch(req, res, url, user, input) {
   if(path==='/api/order-routing'&&method==='POST')return saveOrderRouting(user,input);
   if(path==='/api/system/metrics'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được xem chỉ số hệ thống.',403);return systemMonitor.snapshot();}
   if (path === '/api/logout' && method === 'POST') { db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id, user.csrf); res.setHeader('Set-Cookie', 'hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'); return { ok: true }; }
+  if(path==='/api/product-catalog'&&method==='GET'){domain.permission(user,'read');res.setHeader('Cache-Control','no-store');return planProducts(all('products'),{includeInactive:true});}
+  if(path==='/api/proxy/supabase/rest/v1/products'){
+    domain.permission(user,'read');
+    if(!['GET','HEAD'].includes(method))domain.fail('Danh mục dùng chung với Sản phẩm. Thêm, sửa hoặc ngừng bán tại mục Sản phẩm.',409);
+    res.setHeader('Cache-Control','no-store');
+    return planProducts(all('products'),{includeInactive:true}).sort((a,b)=>a.ten_sp.localeCompare(b.ten_sp,'vi'));
+  }
   if (path.startsWith('/api/proxy/supabase/')) {
     const targetUrl = 'https://aqtnzvqyljweppklblni.supabase.co' + req.url.substring('/api/proxy/supabase'.length);
     const sKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxdG56dnF5bGp3ZXBwa2xibG5pIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDg1MDc0NiwiZXhwIjoyMTA2NDI2NzQ2fQ.ccwHd3CyqQcFii9UKT0iKPGOUcw7AA467B4L2zhvee0';
