@@ -1,4 +1,6 @@
 import {reupText} from '../public/reup-text.js';
+import {createHash} from 'node:crypto';
+import {reviewPublishText,reviewRulesVersion} from './publish-content-review.mjs';
 import {formatHint,formatLabels} from '../public/composer-format.js';
 import {copySourceBlock} from './copy-history.mjs';
 import { all, get } from './store.mjs';
@@ -8,7 +10,7 @@ import {copyPlanHandoffReady} from './copy-plan-guard.mjs';
 
 // Read-only: validate every destination before any copy download or publication is queued.
 export function publicationPreflight(user, content, input = {}, { prepared = false, sourceMedia = null, checkHistory = true } = {}) {
-  const issues = [], add = (channel, message) => issues.push({ channelId: channel?.id || '', channel: channel?.name || 'Bài viết', message });
+  const issues = [],warnings=[],reviewed=[], add = (channel, message) => issues.push({ channelId: channel?.id || '', channel: channel?.name || 'Bài viết', message });
   if (!content) return { ok: false, issues: [{ channel: 'Bài viết', message: 'Không tìm thấy nội dung.' }] };
   const channels = content.channels || [];
   if (!channels.length) add(null, 'Chọn ít nhất một kênh.');
@@ -24,6 +26,8 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     if(checkHistory){const block=copySourceBlock(content,id);if(block)add(ch,block);}
     const variant = content.variants?.[id] || {}, type = variant.type || content.type;
     const {caption,title}=reupText(content,ch.provider,variant);
+    reviewed.push({channelId:id,provider:ch.provider,title,caption,type,media:content.sourceCopyId?{sourceCopyId:content.sourceCopyId}:{assets:content.assets||[],mediaUrl:variant.mediaUrl||content.mediaUrl||''}});
+    warnings.push(...reviewPublishText({provider:ch.provider,title,caption,reup:!!(content.sourceCopyId||content.sourceVideoKey||content.sourceURL||content.copyPlanId)}).map(w=>({...w,channelId:id,channel:ch.name||providers[ch.provider]?.label||ch.provider})));
     const api = ['youtube', 'tiktok'].includes(ch.provider) && ch.status === 'connected' || ch.mode === 'api';
     if (ch.status === 'disconnected' || api && ch.status !== 'connected') add(ch, 'Kênh chưa kết nối thành công.');
     if (publications.some(p => p.connectionId === id && ['published', 'demo_published', 'manually_confirmed'].includes(p.status))) add(ch, 'Bài đã đăng trên kênh này. Bỏ chọn kênh để tránh đăng trùng.');
@@ -49,11 +53,13 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     if (type !== 'text' && url && !['youtube', 'tiktok'].includes(ch.provider) && !/^https:\/\//i.test(url)) add(ch, 'Media cần đường dẫn HTTPS công khai.');
     if (['youtube', 'tiktok'].includes(ch.provider) && !source && !media.some(m => m.type === 'video')) add(ch, 'Cần đính kèm file video để hệ thống tải lên kênh này.');
   }
-  return { ok: issues.length === 0, issues };
+  const reviewToken=createHash('sha256').update(JSON.stringify({rules:reviewRulesVersion,contentId:content.id,reviewed,warnings})).digest('hex');
+  return { ok: issues.length === 0, issues,warnings,reviewToken,rulesVersion:reviewRulesVersion,requiresAcknowledgement:warnings.length>0&&input.warningAcknowledgement!==reviewToken };
 }
 
 export function assertPublicationPreflight(user, content, input, options) {
   const result = publicationPreflight(user, content, input, options);
   if (!result.ok) throw Object.assign(new Error(result.issues.map(i => `${i.channel}: ${i.message}`).join('\n')), { status: 400 });
+  if(input.reviewWarnings===true&&result.requiresAcknowledgement)throw Object.assign(new Error('Có cảnh báo nội dung cần xác nhận. Kiểm tra lại bài viết rồi chọn quay lại sửa hoặc vẫn tiếp tục đăng.'),{status:409});
   return result;
 }

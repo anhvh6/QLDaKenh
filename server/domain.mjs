@@ -75,7 +75,7 @@ export async function deleteRecord(user, kind, id, input = {}) {
 }
 export function schedule(user, id, input, { prepared = false } = {}) {
   permission(user, 'content'); const c = get('contents', id); if (!c) fail('Không tìm thấy nội dung.', 404); if (input.version !== c.version) fail('Nội dung đã thay đổi. Mở lại trước khi lên lịch.', 409);
-  assertPublicationPreflight(user, c, input, { prepared });
+  const contentReview=assertPublicationPreflight(user, c, input, { prepared });
   const channels = c.channels || []; if (!channels.length) fail('Chọn ít nhất một kênh.'); if (!String(c.caption||'').trim()&&!['video','image'].includes(c.type)) fail('Nhập nội dung bài đăng.');
   const scheduleAt = input.immediate ? now() : input.scheduleAt; if (!Number.isFinite(Date.parse(scheduleAt))) fail('Chọn lịch đăng hợp lệ.'); if (!input.immediate && Date.parse(scheduleAt) < Date.now() + (prepared ? 0 : 10 * 60000) && !(prepared&&copyPlanHandoffReady(c,scheduleAt))) fail(prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
   const active = all('publications').filter(p => p.contentId === id && ['scheduled', 'dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status));
@@ -98,7 +98,7 @@ export function schedule(user, id, input, { prepared = false } = {}) {
     }
     if (mode === 'api' && mediaItems.length > 1 && !['facebook', 'instagram', 'threads'].includes(ch.provider)) fail('Kênh này chưa hỗ trợ tự động đăng nhiều media. Chọn chế độ hỗ trợ đăng.');
     if (mode === 'api' && ch.provider === 'facebook' && mediaItems.length > 1 && mediaItems.some(item => item.type !== 'image')) fail('Facebook API hiện hỗ trợ album ảnh; bài nhiều video cần đăng hỗ trợ.');
-    return { sourceVideoKey:contentSourceKey(c),contentId: id, connectionId: cid, title:text.title,caption:text.caption,copySourceCaption:(v.caption||c.caption),copyTextMapped:!!(c.sourceCopyId||c.sourceVideoKey||c.sourceURL||c.copyPlanId),type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, mediaItems, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
+    return { ...(input.reviewWarnings?{contentReview:{rulesVersion:contentReview.rulesVersion,reviewToken:contentReview.reviewToken,warnings:contentReview.warnings.filter(w=>w.channelId===cid),acknowledgedBy:contentReview.warnings.length?user.id:null,reviewedAt:now()}}:{}),sourceVideoKey:contentSourceKey(c),contentId: id, connectionId: cid, title:text.title,caption:text.caption,copySourceCaption:(v.caption||c.caption),copyTextMapped:!!(c.sourceCopyId||c.sourceVideoKey||c.sourceURL||c.copyPlanId),type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, mediaItems, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
   }); return transaction(() => { const jobs = frozen.map(next => { const prev = active.find(p => p.connectionId === next.connectionId); return put('publications', { ...prev, ...next, ...(prev ? { id: prev.id } : {}) }); }); for (const p of active.filter(p => !channels.includes(p.connectionId))) put('publications', { ...p, status: 'cancelled' }); put('contents', { ...c, status: 'scheduled', scheduleAt, approval: 'approved' }); audit(user.id, active.length ? 'reschedule' : 'schedule', id, { targets: jobs.length }); return jobs; });
 }
 export async function publicationAction(user, id, input) {

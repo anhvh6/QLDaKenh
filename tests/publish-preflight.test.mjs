@@ -7,6 +7,8 @@ process.env.DATA_DIR = mkdtempSync(join(resolve('test-data'), 'preflight-'));
 process.env.PLAN_REMOTE_CATALOG = '0';
 const { put, all, get } = await import('../server/store.mjs');
 const { publicationPreflight } = await import('../server/publish-preflight.mjs');
+const {assertPublicationPreflight}=await import('../server/publish-preflight.mjs');
+const {publishReviewHTML}=await import('../public/publish-review.js');
 const { schedule } = await import('../server/domain.mjs');
 const { scheduleCopied } = await import('../server/social-copy.mjs');
 const owner = { id: 'qa', role: 'owner' };
@@ -54,4 +56,28 @@ test('pending source video supports Instagram and YouTube before download; per-c
  const post=put('copy_posts',{id:'format-source',userId:owner.id,media:[{type:'video'}]});const c=content({sourceCopyId:post.id,type:'video',channels:['instagram','youtube']});assert.equal(publicationPreflight(owner,c,{immediate:true}).ok,true);
  const imagePost=put('copy_posts',{id:'format-images',userId:owner.id,media:[{type:'image'},{type:'image'}]});const textOnly=content({sourceCopyId:imagePost.id,type:'image',channels:['threads','youtube'],variants:{threads:{type:'text'},youtube:{type:'video'}}});const review=publicationPreflight(owner,textOnly,{immediate:true});assert.equal(review.issues.some(i=>i.channelId==='threads'),false);assert.ok(review.issues.some(i=>i.channelId==='youtube'&&/Thiếu media/.test(i.message)));
  const bad=publicationPreflight(owner,content({channels:['instagram','youtube']}),{immediate:true});assert.ok(bad.issues.some(i=>/Instagram cần ảnh hoặc video/.test(i.message)));assert.ok(bad.issues.some(i=>/YouTube cần video/.test(i.message)));
+});
+
+test('manual immediate and scheduled posts pause for warnings and store explicit review acknowledgement',()=>{
+ for(const immediate of [true,false]){
+  const c=put('contents',content({id:'warning-'+immediate,channels:['facebook'],caption:'Cam kết hiệu quả 100% cho mọi người.'})),input={version:c.version,immediate,reviewWarnings:true,scheduleAt:new Date(Date.now()+3600000).toISOString()},before=all('publications').length;
+  const review=publicationPreflight(owner,c,input);assert.equal(review.ok,true);assert.ok(review.warnings.some(w=>w.code==='absolute_claim'));assert.equal(review.requiresAcknowledgement,true);
+  assert.throws(()=>schedule(owner,c.id,input),/cảnh báo/);assert.equal(all('publications').length,before);
+  const publications=schedule(owner,c.id,{...input,warningAcknowledgement:review.reviewToken});assert.equal(publications.length,1);assert.equal(publications[0].contentReview.acknowledgedBy,owner.id);assert.equal(publications[0].contentReview.reviewToken,review.reviewToken);
+ }
+});
+test('reviews destination variants and actual reup title/body, invalidates changed text and never overrides hard errors',()=>{
+ const c=content({id:'review-variants',channels:['youtube','facebook'],sourceURL:'https://source.example/post',caption:'Cam kết hiệu quả 100%\nNội dung thường',type:'video',variants:{facebook:{caption:'Bài bình thường'}}}),video=put('assets',{type:'video',active:true});c.assets=[video.id];
+ const review=publicationPreflight(owner,c,{immediate:true});assert.ok(review.warnings.some(w=>w.channelId==='youtube'&&w.field==='title'&&w.code==='absolute_claim'));assert.equal(review.warnings.some(w=>w.channelId==='facebook'&&w.code==='absolute_claim'),false);assert.ok(review.warnings.some(w=>w.code==='reup_rights'));
+ const edited={...c,variants:{...c.variants,facebook:{caption:'Cam kết hiệu quả 100%'}}};assert.throws(()=>assertPublicationPreflight(owner,edited,{immediate:true,reviewWarnings:true,warningAcknowledgement:review.reviewToken}),/cảnh báo/);
+ const invalid={...c,title:'t'.repeat(101),sourceURL:null,caption:'Mô tả',variants:{}};const errors=publicationPreflight(owner,invalid,{immediate:true});assert.throws(()=>assertPublicationPreflight(owner,invalid,{immediate:true,reviewWarnings:true,warningAcknowledgement:errors.reviewToken}),/101\/100/);
+});
+test('manual reup blocks download before warning acknowledgement and acknowledgement survives preparation',async()=>{
+ const source=put('copy_posts',{userId:owner.id,media:[{type:'video',url:'https://example.com/v.mp4'}]}),c=put('contents',content({id:'review-reup',type:'video',channels:['facebook'],sourceCopyId:source.id})),input={version:c.version,immediate:true,reviewWarnings:true},before=all('copy_jobs').length,review=publicationPreflight(owner,c,input);
+ await assert.rejects(()=>scheduleCopied(owner,c.id,input),/cảnh báo/);assert.equal(all('copy_jobs').length,before);
+ const asset=put('assets',{type:'video',active:true}),ready={...c,version:c.version+1,copyReady:true,assets:[asset.id]};assert.doesNotThrow(()=>assertPublicationPreflight(owner,ready,{...input,warningAcknowledgement:review.reviewToken},{prepared:true}));
+});
+test('review UI escapes excerpts, offers both choices for warnings, and forbids continuing on errors',()=>{
+ const review={issues:[],warnings:[{channel:'Facebook',field:'caption',message:'Kiểm tra',excerpt:'<script>alert(1)</script>'}]},html=publishReviewHTML(review,'now');assert.ok(html.includes('Quay lại sửa'));assert.ok(html.includes('Vẫn đăng ngay'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));
+ assert.ok(publishReviewHTML(review,'schedule').includes('Vẫn lên lịch'));assert.ok(!publishReviewHTML({...review,issues:[{channel:'YouTube',message:'Thiếu video'}]},'now').includes('data-publish-continue'));
 });
