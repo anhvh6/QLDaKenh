@@ -1,5 +1,5 @@
 {
-  "version": "554dc3c266cd",
+  "version": "09e12ac5c5e3",
   "compiler": "0.25.12",
   "files": {
     "public/publish-review.js": "fff7ca3ddba269add82a97d130a997d3432a46c210acefd3d2fc676dcadb7e0b",
@@ -24,9 +24,11 @@
     "public/order-editor-tools.js": "05c9b8299615dcfe5677f21b5a92f781d0694b7364de7b64670d7985002462d2",
     "public/chat-message-sync.js": "6c634b0bb2b40c91c20d4a11ea0dab98587f9089f7379d56e5336808ea550073",
     "public/order-linked-chat.js": "dfc29d8ef5374660d1c584cc9c186b17e5732eca17382d1a550d5d0a545e59c4",
-    "public/order-workspace-model.js": "96951454925395c1843a8adc2b261d5961ed53780714f9a859140ff0addc5a2c",
+    "public/order-workspace-model.js": "dc40d51d6a201df9d0ab9d907ab49d63d1b5808c41fce6833a394525cd3b3438",
+    "public/order-column-resize.js": "d47cec118c7c3da990b4b00680e0070d66ff95bfffc4000a1d9202ea9eaa9e4e",
+    "public/order-status-feedback.js": "3d8c17b16d6f56269f36883e8425b356aadf91a2aadbe69681c9897352706881",
     "public/order-status-policy.js": "28740696cc63321ff70a5a442a311de0fa0a374b1e6763266c23089745be747a",
-    "public/orders-grid.js": "96fa2401f6fcff4e20436d23154d60ad6327203d8ae74c76b2f16adc5e8ec162",
+    "public/orders-grid.js": "43b2879aeeb72c276ddf70b4a10d5daaa513eaa02d3ba24964ecf6df394cfd3e",
     "public/shipping-policy.js": "b850912a3bd7b2846bca9be7f4145812263303d53aacd1120d6866ba1c680f55",
     "public/shipping-address.js": "e04c05c0097466c0c38b510b9a387fc99b8eccf132c138d44a6d79407dc0a11c",
     "public/carrier-orders.js": "506973c6d9370ea44acc2cf6ac0ddadcf5a1129b1bd4e2fab898bcb375fe33ab",
@@ -90,6 +92,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "7015ad71eda887451d654618d235347deff13ac5effaab96255935eaf8053b46",
-    "public/app.bundle.js": "554dc3c266cd36a6a007f0bfd48870888d6e6d2cb975b2e37440f2f8b4b97d74"
+    "public/app.bundle.js": "09e12ac5c5e3ded5fca5add95cd929bee986af9bf0f970dc60708ec3dd1da85a"
   }
 }

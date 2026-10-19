@@ -1,3 +1,4 @@
+import {orderPOSFields} from './order-workspace.mjs';
 import {refreshPosShipment} from './pos-shipment-data.mjs';
 import {posStatusOptions} from '../public/order-status-policy.js';
 import {updatePosOrderStatus} from './order-status-update.mjs';
@@ -209,6 +210,7 @@ export async function posRoute(path,method,input,user,url,request=pancakeRequest
   permission(user,'orders');const id=decodeURIComponent(statusRoute[1]),o=get('orders',id);if(!o||o.deletedAt)fail('Không tìm thấy đơn hàng.',404);assertCustomer(user,o.customerId);
   const ls=all('pos_links').filter(l=>l.kind==='orders'&&l.localId===id);if(ls.length!==1)fail('Đơn chưa liên kết duy nhất với POS. Mở chi tiết để gửi / đối soát.',409);
   const l=ls[0],a=account(l.accountId),r=reqFor(a,request),read=()=>remoteCurrent(a,'orders',l,r),directCarrier=all('shipments').some(s=>s.orderId===id&&s.carrier==='viettelpost'&&s.tracking&&s.status!=='cancelled');
+  if(method==='GET'&&l.remote?.status!=null&&Number.isInteger(Number(l.remote.status))){const remote=l.remote;return {status:Number(remote.status),options:posStatusOptions(remote,{directCarrier}),operation:get('pos_status_requests',id),carrierStatus:remote.partner?.partner_status||null,cached:true};}
   if(statusUpdates.has(id)||method==='POST'&&running)fail('Đang đồng bộ POS. Vui lòng thử lại sau vài giây.',409);
   statusUpdates.add(id);
   try{
@@ -216,7 +218,7 @@ export async function posRoute(path,method,input,user,url,request=pancakeRequest
    if(method==='GET'){const remote=await read();if(!remote)fail('Không tìm thấy đơn POS.',404);return {status:Number(remote.status),options:posStatusOptions(remote,{directCarrier}),operation:get('pos_status_requests',id),carrierStatus:remote.partner?.partner_status||null};}
    if(input.version!==o.version)fail('Đơn vừa thay đổi. Tải lại trước khi chuyển trạng thái.',409);
    const result=await updatePosOrderStatus({input,read,directCarrier,write:status=>r(root(a)+'/orders/'+encodeURIComponent(l.remoteId),{method:'PUT',body:{status}}),commit:async remote=>{if(get('orders',id).version!==o.version){await applyPosRow(a,'orders',remote);fail('Đơn đã được chỉnh sửa trong khi POS xử lý. Mở lại để đối soát.',409);}await applyPosRow(a,'orders',remote,{force:true});},journal:{get:()=>get('pos_status_requests',id),set:op=>put('pos_status_requests',{...op,id,actor:user.id,updatedAt:now()})}});
-   audit(user.id,'pos_order_status_changed',id,result);return result;
+   audit(user.id,'pos_order_status_changed',id,result);return {...result,order:orderPOSFields([get('orders',id)])[0]};
   }finally{statusUpdates.delete(id);}
  }
  const shippingOptions=path.match(/^\/api\/pos\/accounts\/([^/]+)\/shipping-options$/);

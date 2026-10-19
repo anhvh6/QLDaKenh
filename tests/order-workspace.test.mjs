@@ -20,3 +20,16 @@ test('POS projection preserves sync display fields without raw credentials or cr
  put('pos_accounts',{id:'a',shopId:'123',shopName:'Shop QA',warehouseName:'Kho QA'});put('pos_links',{id:'l',kind:'orders',accountId:'a',localId:'o',remoteId:'r',remote:{status:8,status_name:'Đang đóng hàng',creator:{id:'u',name:'NV QA',phone:'private'},tags:[{name:'VIP'}],note_print:'In thử',privateToken:'secret',shipping_address:{address:'Không được lộ raw'}}});
  const [row]=orderPOSFields([{id:'o',code:'QA'}]);assert.equal(row.posDisplay.status,8);assert.equal(row.posDisplay.creatorName,'NV QA');assert.deepEqual(row.posDisplay.tags,['VIP']);assert.equal(row.posDisplay.printNote,'In thử');assert.ok(!JSON.stringify(row).includes('private'));assert.ok(!JSON.stringify(row).includes('secret'));assert.ok(row.posDisplay.orderLink.startsWith('https://pos.pancake.vn/shop/123/'));
 });
+
+test('column widths and hidden default tabs persist per account with bounds',()=>{
+ const user={id:'width-user',role:'owner'};
+ const saved=saveOrderWorkspace(user,{version:0,columnWidths:{code:400,phone:1,address:5000,invalid:100},hiddenViews:['attention','late','invalid']});
+ assert.deepEqual(saved.columnWidths,{code:400,phone:64,address:1000});assert.deepEqual(saved.hiddenViews,['attention','late']);
+ assert.deepEqual(orderWorkspaceState(user).columnWidths,saved.columnWidths);assert.deepEqual(orderWorkspaceState({id:'other-user'}).hiddenViews,[]);
+ assert.deepEqual(orderWorkspaceState({id:'other-user'}).columnWidths,{});
+});
+test('saved workflow tabs retain their predicate and old counter filters no longer hide online orders',()=>{
+ const rows=[{code:'A',displayStatus:'pickup_pending',online:true},{code:'B',displayStatus:'delivered',online:false}];
+ assert.deepEqual(filterOrderRows(rows,{workflow:'waiting'}).map(r=>r.code),['A']);
+ assert.equal(filterOrderRows(rows,{source:'counter'}).length,2);
+});
