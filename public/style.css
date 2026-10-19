@@ -5251,7 +5251,7 @@ body.comments-route .comment-channel-picker>summary{display:flex;align-items:cen
 body.comments-route .comment-channel-picker>summary::-webkit-details-marker{display:none}
 body.comments-route .comment-channel-picker>summary:after{content:none}
 .comment-filter-check{width:16px;height:16px;border:1.5px solid #92a398;border-radius:4px;display:grid;place-items:center;color:#fff;font-size:12px;line-height:1}
-.comment-filter-check.checked,.comment-filter-check.partial{background:var(--primary);border-color:var(--primary)}
+.comment-filter-check.checked,.comment-filter-check.partial{background:var(--green);border-color:var(--green)}
 .comment-filter-check.checked:after{content:'✓'}
 .comment-filter-check.partial:after{content:'−'}
 body.comments-route .comment-channel-options{top:calc(100% + 6px);left:0;width:310px;min-width:0;max-width:calc(100vw - 28px);max-height:min(420px,65dvh);padding:6px;border-radius:10px}
@@ -5262,7 +5262,7 @@ body.comments-route .comment-channel-options input{flex:0 0 16px;margin:2px 0 0}
 .comment-channel-option>.social{flex-shrink:0;margin-top:1px}
 .comment-channel-copy{display:flex;flex-direction:column;gap:3px;min-width:0;line-height:1.4;overflow-wrap:anywhere}
 .comment-channel-copy>span{font-weight:600}
-.comment-channel-copy small{font-size:11px;color:var(--text-muted);font-weight:400}
+.comment-channel-copy small{font-size:11px;color:var(--muted);font-weight:400}
 .comment-channel-copy small:empty{display:none}
 .comment-channel-copy small.error{color:#b54739}
 body.comments-route .comment-sync-button{flex:0 0 36px;width:36px;height:38px;border:1px solid var(--line);border-radius:8px;background:#fff}
