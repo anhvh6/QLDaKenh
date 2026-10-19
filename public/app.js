@@ -672,7 +672,7 @@ initPlans({ get state() { return S; }, api, refresh, render, modal, closeModal, 
 initDeviceNotifications({ getS: () => S, api, toast, openSettings: () => { closeModal(); filter = 'notifications'; route = 'settings'; history.replaceState(null, '', '#settings'); document.body.classList.remove('menu-open'); render(); } });
 initQuickReplies({ get state() { return S; }, api, refresh, render, modal, closeModal, toast });
 initConversationTags({ get state() { return S; }, api, refresh, render, modal, closeModal, toast });
-initCare({ get state() { return S; }, api, refresh, refreshInbox, syncRealtimeState:()=>{void refreshLiveInbox();queueInboxRefresh();}, refreshBackground, render, modal, closeModal, toast, openConversation: id => { selectedConversation = id; route = 'inbox'; location.hash = 'inbox'; render(); } });
+initCare({ get state() { return S; }, route:()=>route, api, refresh, refreshInbox, syncRealtimeState:()=>{void refreshLiveInbox();queueInboxRefresh();}, refreshBackground, render, modal, closeModal, toast, openConversation: id => { selectedConversation = id; route = 'inbox'; location.hash = 'inbox'; render(); } });
 initStudentCareSettings({ get state() { return S; }, api, refresh, toast, modal, closeModal });
 initCopy({ get state() { return S; }, api, refresh, render, modal, closeModal, toast, openContent: id => contentModal(id) });
 initProductsManagement({ get state() { return S; }, render });
