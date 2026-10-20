@@ -1,6 +1,15 @@
 # evondevKit — cài đặt, phạm vi thiết kế và khôi phục
 
-Trạng thái ngày 20/10/2026: người dùng đã chọn thiết kế lại toàn bộ và yêu cầu “Dựng luôn”. Đã triển khai bộ giao diện chung cho ứng dụng chính và các ứng dụng Phác đồ nhúng; các bản sao lưu bên dưới đã được kiểm tra.
+Trạng thái ngày 20/10/2026: theo phản hồi mới nhất, **toàn bộ phần Phác đồ đã trở về giao diện gốc** (quản lý, tạo/sửa, preview và trang học viên). Ứng dụng chính giữ giao diện mới; các bản sao lưu bên dưới vẫn được giữ.
+
+## Khôi phục giao diện Phác đồ theo yêu cầu
+
+- Gỡ toàn bộ import/token/font, đổi màu, bóng, bo góc và kiểu input của workspace khỏi `plan-design.css`. Các ứng dụng Phác đồ tiếp tục dùng chính các asset gốc trước redesign; không hoàn nguyên mã nghiệp vụ hay dữ liệu.
+- Khôi phục font Plus Jakarta Sans của trang quản lý; helper build không còn loại bỏ font gốc. Các script build tiếp tục giữ tách biệt giao diện Phác đồ với workspace.
+- Số lượng/giá trở lại input dạng dòng, không bị padding/chiều cao/viền hộp chung cắt nội dung. Đã thử nhập số lượng 2 và giá 2.300.000, xác nhận tổng đổi đúng, trả lại giá trị ban đầu và không lưu.
+- Khối sidebar biên tập và lịch trình 30 ngày trở lại style gốc; preview và trang học viên không còn các quy tắc đổi nền/chữ của workspace.
+- Chỉ giữ một chỉnh sửa đáp ứng: hai trường từ/đến ngày trên điện thoại ở chung một hàng. Đã đối chiếu ảnh 390px và kiểm tra tự động vị trí hai input.
+- 45 lượt route/kích thước và kiểm tra khối thống kê gốc đạt. Không sửa DB, gửi thông báo hay thay đơn/sản phẩm của học viên.
 
 ## Bản dựng
 

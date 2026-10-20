@@ -21,8 +21,10 @@ try{for(const width of [390,768,1440]){
    const frame=page.frameLocator('iframe'),card=frame.locator('[class*="bg-gradient"].cursor-pointer.shadow-sm').first();
    await card.waitFor();
    if(await card.evaluate(el=>getComputedStyle(el).boxShadow)==='none')throw Error('Learner cards lost their elevation');
-   const filter=frame.locator('[class*="border-current/20"]:has(input[type=date])').first();
-   if(await filter.evaluate(el=>getComputedStyle(el).borderTopWidth)!=='0px')throw Error('Date filter outer border remains');
+   if(await frame.locator('link[href*="workspace-design.css"]').count())throw Error('Workspace theme leaked into the original plan UI');
+   const dates=frame.locator('.items-end:has(input[placeholder="Tên, SĐT, Mã VD..."])>.grid input');
+   const bounds=await dates.evaluateAll(els=>els.map(el=>el.getBoundingClientRect().top));
+   if(width===390&&bounds.length===2&&Math.abs(bounds[0]-bounds[1])>12)throw Error('Mobile plan date filters split across rows');
   }
   const result=await page.evaluate(()=>({bodyWidth:document.documentElement.scrollWidth,viewport:innerWidth,style:!!document.querySelector('link[href*="workspace-design"]'),font:getComputedStyle(document.body).fontFamily,hasContent:document.querySelector('#page')?.textContent.trim().length>0||!!document.querySelector('#page iframe')}));
   const row={route,width,...result,errors:[...errors]};results.push(row);
@@ -37,8 +39,8 @@ try{for(const width of [390,768,1440]){
  if(width===1440){
   await page.goto(origin+'/plan-ui/index.html#/analytics');
   const insights=page.getByRole('heading',{name:'Thông tin nhanh',exact:true});await insights.waitFor();
-  const colors=await insights.evaluate(el=>({bg:getComputedStyle(el.parentElement).backgroundColor,fg:getComputedStyle(el).color}));
-  if(colors.bg!=='rgb(40, 100, 76)'||colors.fg!=='rgb(255, 255, 255)')throw Error('Analytics foreground/background pairing regressed');
+  const colors=await insights.evaluate(el=>({bg:getComputedStyle(el.parentElement).backgroundImage,fg:getComputedStyle(el).color}));
+  if(colors.bg==='none'||colors.fg!=='rgb(255, 255, 255)')throw Error('Original plan analytics gradient/foreground pairing regressed');
   await page.screenshot({path:`${output}/plan-analytics.png`,fullPage:true});
  }
  await context.close();
