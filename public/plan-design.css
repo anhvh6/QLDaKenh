@@ -216,3 +216,5 @@ body,
     padding: 10px 12px !important;
   }
 }
+/* Outrank the shared form-field rule only for date filters, never editors. */
+#root [class*="border-current/20"] input[type=date][class]{border:0!important;background:transparent!important;box-shadow:none!important;border-radius:4px!important}
