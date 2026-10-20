@@ -1,3 +1,4 @@
+import {applyWorkspaceDesign} from './apply-workspace-design.mjs';
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -9,3 +10,5 @@ if(sha!==expected)throw new Error('Source revision khác bản đã kiểm thử
 const source=resolve('integrations/plan-workspace'),target=join(checkout,'omni');mkdirSync(target,{recursive:true});
 for(const f of ['index.html','main.tsx','localServices.ts','ephemeralStorage.ts','aiDisabled.ts','style.css','vite.config.ts'])writeFileSync(join(target,f),readFileSync(join(source,f)));
 execFileSync(process.execPath,['node_modules/vite/bin/vite.js','build','--config','omni/vite.config.ts'],{cwd:checkout,stdio:'inherit',windowsHide:true});
+
+applyWorkspaceDesign('public/plan-editor/index.html',true);

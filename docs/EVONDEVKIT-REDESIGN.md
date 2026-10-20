@@ -1,6 +1,24 @@
 # evondevKit — cài đặt, phạm vi thiết kế và khôi phục
 
-Trạng thái ngày 20/10/2026: đã cài kỹ năng và kiểm tra các bản sao lưu. Chưa thay giao diện production; đang chờ duyệt brief U1/U2 trước khi vẽ các phương án.
+Trạng thái ngày 20/10/2026: người dùng đã chọn thiết kế lại toàn bộ và yêu cầu “Dựng luôn”. Đã triển khai bộ giao diện chung cho ứng dụng chính và các ứng dụng Phác đồ nhúng; các bản sao lưu bên dưới đã được kiểm tra.
+
+## Bản dựng
+
+- `public/workspace-design.css`: token màu, font Inter tự lưu, focus, điều khiển, bảng, popup, menu, lịch, chat, bình luận, thư viện và cài đặt. Giữ nhận diện xanh MeGa Phương và màu nghiệp vụ trạng thái.
+- Tổng quan đưa số liệu vận hành lên đầu, thao tác tạo đơn/bài viết và lịch ba ngày. Sidebar và thanh đầu trang gọn hơn.
+- Đơn hàng giữ bảng kéo độ rộng cột trên PC, ghim mã đơn khi cuộn; trên màn hình nhỏ chuyển sang thẻ có nhãn từng trường. Không thay đổi API chuyển trạng thái hay xử lý vận chuyển.
+- `public/plan-design.css` áp dụng cùng token, font và điều khiển cho Phác đồ quản lý/biên tập/xem trước. Các script build Phác đồ tự gắn lại stylesheet sau mỗi lần build.
+- Không đổi DB/schema, tài khoản, quyền, webhook hay cấu hình gửi tin/đơn hàng.
+
+## Xác minh
+
+- Build frontend và `npm run check`: đạt; bundle khớp nguồn.
+- 15 route × 390/768/1440px: 45/45 có nội dung, stylesheet chung, không tràn ngang toàn trang và không có lỗi JavaScript. Script: `scripts/test-workspace-design.mjs`, chỉ đăng nhập dữ liệu thử localhost từ biến môi trường.
+- 27 kiểm thử mô hình đơn hàng, lịch, tổng quan, bộ lọc/đếm chưa đọc chat và nhóm nội dung: đạt.
+- 18 kiểm thử HTTP/chăm sóc học viên/nén dữ liệu/OAuth: đạt khi chạy ngoài sandbox và không chiếm cổng thử. Lần chạy rộng ban đầu bị giới hạn khởi tạo server và xung đột cổng 4493 với bản xem trước; đã dừng và chạy lại các bài lỗi riêng. Không kết luận toàn bộ suite đã đạt.
+- Probe evondevKit tại 375/768/1280/1920px cho dashboard, 375/768/1280px cho đơn hàng: không còn mục mức “Hỏng”. Đã sửa tương phản, vùng bấm, wrap, viền và các lỗi tràn thực tế. Bộ lọc trạng thái ngang có dấu mờ mép; bảng PC vẫn cuộn ngang theo cấu hình cột người dùng.
+- Đã xem trực tiếp chat/bình luận, chi tiết trả lời, Phác đồ và bộ biên tập; kiểm tra nhập tiêu đề/nội dung trên mobile, đóng mà không đăng. Không gửi tin hay tạo đơn thật để thử giao diện.
+- Font Inter: @fontsource-variable/inter 5.3.0, giấy phép và nguồn được lưu cùng tệp font.
 
 ## Cài đặt
 
