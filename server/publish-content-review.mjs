@@ -1,5 +1,5 @@
 // Text signals for human review, not a decision that a platform will reject a post.
-export const reviewRulesVersion='2026-10-19.1';
+export const reviewRulesVersion='2026-10-20.1';
 export const policyLinks={facebook:'https://transparency.meta.com/policies/community-standards/',instagram:'https://transparency.meta.com/policies/community-standards/',threads:'https://transparency.meta.com/policies/community-standards/',youtube:'https://support.google.com/youtube/answer/2801973',tiktok:'https://www.tiktok.com/community-guidelines',x:'https://help.x.com/en/rules-and-policies/authenticity',blogger:'https://www.blogger.com/content-policy',devto:'https://dev.to/code-of-conduct'};
 export function reviewPublishText({provider,title='',caption='',reup=false}){
  const warnings=[],add=(code,field,message,excerpt='')=>warnings.push({code,field,message,excerpt:excerpt.slice(0,160),policyUrl:policyLinks[provider]||''});
@@ -12,6 +12,5 @@ export function reviewPublishText({provider,title='',caption='',reup=false}){
   signal('regulated_goods',/(?:mua|bán|cung cấp)[^.!?\n]{0,25}(?:ma tuý|ma túy|súng đạn|giấy tờ giả|tài khoản ngân hàng)/iu,'Có cụm từ liên quan hàng hóa / dịch vụ bị hạn chế. Kiểm tra ngữ cảnh và chính sách của nền tảng trước khi đăng.');
   const tags=text.match(/#[\p{L}\p{N}_]+/gu)||[],counts=new Map();for(const tag of tags)counts.set(tag.toLocaleLowerCase(),(counts.get(tag.toLocaleLowerCase())||0)+1);const repeated=[...counts].find(([,n])=>n>=3);if(repeated)add('repeated_hashtag',field,'Một hashtag lặp từ 3 lần; cân nhắc bỏ phần lặp để tránh nội dung giống spam.',repeated[0]);
  }
- if(reup)add('reup_rights','source','Bài sao chép/reup: xác nhận quyền sử dụng văn bản, hình ảnh, video và âm thanh. Ghi nguồn không thay thế quyền sử dụng.');
  return warnings;
 }

@@ -68,16 +68,40 @@ test('manual immediate and scheduled posts pause for warnings and store explicit
 });
 test('reviews destination variants and actual reup title/body, invalidates changed text and never overrides hard errors',()=>{
  const c=content({id:'review-variants',channels:['youtube','facebook'],sourceURL:'https://source.example/post',caption:'Cam kết hiệu quả 100%\nNội dung thường',type:'video',variants:{facebook:{caption:'Bài bình thường'}}}),video=put('assets',{type:'video',active:true});c.assets=[video.id];
- const review=publicationPreflight(owner,c,{immediate:true});assert.ok(review.warnings.some(w=>w.channelId==='youtube'&&w.field==='title'&&w.code==='absolute_claim'));assert.equal(review.warnings.some(w=>w.channelId==='facebook'&&w.code==='absolute_claim'),false);assert.ok(review.warnings.some(w=>w.code==='reup_rights'));
+ const review=publicationPreflight(owner,c,{immediate:true});assert.ok(review.warnings.some(w=>w.channelId==='youtube'&&w.field==='title'&&w.code==='absolute_claim'));assert.equal(review.warnings.some(w=>w.channelId==='facebook'&&w.code==='absolute_claim'),false);assert.equal(review.warnings.some(w=>w.code==='reup_rights'),false);
  const edited={...c,variants:{...c.variants,facebook:{caption:'Cam kết hiệu quả 100%'}}};assert.throws(()=>assertPublicationPreflight(owner,edited,{immediate:true,reviewWarnings:true,warningAcknowledgement:review.reviewToken}),/cảnh báo/);
  const invalid={...c,title:'t'.repeat(101),sourceURL:null,caption:'Mô tả',variants:{}};const errors=publicationPreflight(owner,invalid,{immediate:true});assert.throws(()=>assertPublicationPreflight(owner,invalid,{immediate:true,reviewWarnings:true,warningAcknowledgement:errors.reviewToken}),/101\/100/);
 });
 test('manual reup blocks download before warning acknowledgement and acknowledgement survives preparation',async()=>{
- const source=put('copy_posts',{userId:owner.id,media:[{type:'video',url:'https://example.com/v.mp4'}]}),c=put('contents',content({id:'review-reup',type:'video',channels:['facebook'],sourceCopyId:source.id})),input={version:c.version,immediate:true,reviewWarnings:true},before=all('copy_jobs').length,review=publicationPreflight(owner,c,input);
+ const source=put('copy_posts',{userId:owner.id,media:[{type:'video',url:'https://example.com/v.mp4'}]}),c=put('contents',content({id:'review-reup',type:'video',caption:'Cam kết hiệu quả 100%',channels:['facebook'],sourceCopyId:source.id})),input={version:c.version,immediate:true,reviewWarnings:true},before=all('copy_jobs').length,review=publicationPreflight(owner,c,input);
  await assert.rejects(()=>scheduleCopied(owner,c.id,input),/cảnh báo/);assert.equal(all('copy_jobs').length,before);
  const asset=put('assets',{type:'video',active:true}),ready={...c,version:c.version+1,copyReady:true,assets:[asset.id]};assert.doesNotThrow(()=>assertPublicationPreflight(owner,ready,{...input,warningAcknowledgement:review.reviewToken},{prepared:true}));
 });
 test('review UI escapes excerpts, offers both choices for warnings, and forbids continuing on errors',()=>{
  const review={issues:[],warnings:[{channel:'Facebook',field:'caption',message:'Kiểm tra',excerpt:'<script>alert(1)</script>'}]},html=publishReviewHTML(review,'now');assert.ok(html.includes('Quay lại sửa'));assert.ok(html.includes('Vẫn đăng ngay'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));
  assert.ok(publishReviewHTML(review,'schedule').includes('Vẫn lên lịch'));assert.ok(!publishReviewHTML({...review,issues:[{channel:'YouTube',message:'Thiếu video'}]},'now').includes('data-publish-continue'));
+});
+
+test('reup alone creates no rights accusation or acknowledgement gate',()=>{
+ const asset=put('assets',{type:'video',active:true});
+ const review=publicationPreflight(owner,content({id:'ordinary-reup',sourceURL:'https://example.test/reup/ordinary',channels:['facebook'],type:'video',assets:[asset.id],caption:'Một buổi sáng bình yên.'}),{immediate:true,reviewWarnings:true});
+ assert.equal(review.ok,true);assert.deepEqual(review.warnings,[]);assert.equal(review.requiresAcknowledgement,false);
+});
+
+test('same-content and source-history duplicate checks emit one blocking issue per channel',()=>{
+ const c=put('contents',content({id:'history-reup',sourceURL:'https://www.youtube.com/watch?v=preflight-history-qa',channels:['facebook','facebook']}));
+ put('publications',{contentId:c.id,connectionId:'facebook',status:'published'});
+ const review=publicationPreflight(owner,c,{immediate:true});
+ assert.equal(review.issues.filter(i=>i.code==='publication_history').length,1);assert.equal(review.issues.length,1);assert.equal(review.ok,false);
+});
+
+test('pending publication on one channel does not block other selected channels',()=>{
+ const c=content({id:'pending-scoped',channels:['threads','facebook']});put('publications',{contentId:c.id,connectionId:'threads',status:'processing'});
+ const review=publicationPreflight(owner,c,{immediate:true});assert.equal(review.issues.filter(i=>i.channelId==='facebook').length,0);assert.equal(review.issues.filter(i=>i.channelId==='threads').length,1);
+});
+
+test('identical warning messages are shown once with affected account names',()=>{
+ const item={code:'absolute_claim',field:'caption',message:'Kiểm tra cam kết',excerpt:'100%'};
+ const html=publishReviewHTML({issues:[],warnings:[{...item,channel:'Page A'},{...item,channel:'Page B'},{...item,channel:'Page A'}]},'now');
+ assert.equal((html.match(/Kiểm tra cam kết/g)||[]).length,1);assert.ok(html.includes('Page A, Page B'));assert.ok(html.includes('data-publish-continue'));
 });

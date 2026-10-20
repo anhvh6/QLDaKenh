@@ -10,9 +10,9 @@ import {copyPlanHandoffReady} from './copy-plan-guard.mjs';
 
 // Read-only: validate every destination before any copy download or publication is queued.
 export function publicationPreflight(user, content, input = {}, { prepared = false, sourceMedia = null, checkHistory = true } = {}) {
-  const issues = [],warnings=[],reviewed=[], add = (channel, message) => issues.push({ channelId: channel?.id || '', channel: channel?.name || 'Bài viết', message });
+  const issues = [],warnings=[],reviewed=[], add = (channel, message, code='') => {const issue={channelId:channel?.id||'',channel:channel?.remoteName||channel?.name||'Bài viết',message,...(code?{code}:{})};if(!issues.some(i=>i.channelId===issue.channelId&&(code?i.code===code:i.message===message)))issues.push(issue);};
   if (!content) return { ok: false, issues: [{ channel: 'Bài viết', message: 'Không tìm thấy nội dung.' }] };
-  const channels = content.channels || [];
+  const channels = [...new Set(content.channels || [])];
   if (!channels.length) add(null, 'Chọn ít nhất một kênh.');
   if (!String(content.caption || '').trim()&&!['video','image'].includes(content.type)) add(null, 'Nhập nội dung bài đăng.');
   if (!input.immediate && (!Number.isFinite(Date.parse(input.scheduleAt)) || Date.parse(input.scheduleAt) < Date.now() + (prepared ? 0 : 600000)) && !(prepared&&copyPlanHandoffReady(content,input.scheduleAt))) add(null, prepared ? 'Lịch đăng đã qua trong lúc tải. Chọn lại giờ đăng.' : 'Lịch đăng cần cách hiện tại tối thiểu 10 phút.');
@@ -23,15 +23,15 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     const ch = get('connections', id);
     if (!ch) { add(null, 'Kênh đã bị xóa. Hãy chọn lại kênh đăng.'); continue; }
     try { assertChannel(user, id); } catch (error) { add(ch, error.message); continue; }
-    if(checkHistory){const block=copySourceBlock(content,id);if(block)add(ch,block);}
+    const historyBlock=checkHistory?copySourceBlock(content,id):'';if(historyBlock)add(ch,historyBlock,'publication_history');
     const variant = content.variants?.[id] || {}, type = variant.type || content.type;
     const {caption,title}=reupText(content,ch.provider,variant);
     reviewed.push({channelId:id,provider:ch.provider,title,caption,type,media:content.sourceCopyId?{sourceCopyId:content.sourceCopyId}:{assets:content.assets||[],mediaUrl:variant.mediaUrl||content.mediaUrl||''}});
-    warnings.push(...reviewPublishText({provider:ch.provider,title,caption,reup:!!(content.sourceCopyId||content.sourceVideoKey||content.sourceURL||content.copyPlanId)}).map(w=>({...w,channelId:id,channel:ch.name||providers[ch.provider]?.label||ch.provider})));
+    warnings.push(...reviewPublishText({provider:ch.provider,title,caption,reup:!!(content.sourceCopyId||content.sourceVideoKey||content.sourceURL||content.copyPlanId)}).map(w=>({...w,channelId:id,channel:ch.remoteName||ch.name||providers[ch.provider]?.label||ch.provider})));
     const api = ['youtube', 'tiktok'].includes(ch.provider) && ch.status === 'connected' || ch.mode === 'api';
     if (ch.status === 'disconnected' || api && ch.status !== 'connected') add(ch, 'Kênh chưa kết nối thành công.');
-    if (publications.some(p => p.connectionId === id && ['published', 'demo_published', 'manually_confirmed'].includes(p.status))) add(ch, 'Bài đã đăng trên kênh này. Bỏ chọn kênh để tránh đăng trùng.');
-    if (publications.some(p => ['dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status))) add(ch, 'Bài đang được xử lý hoặc chờ đối soát; chưa thể đăng lại.');
+    if (!historyBlock&&publications.some(p => p.connectionId === id && ['published', 'demo_published', 'manually_confirmed'].includes(p.status))) add(ch, 'Bài đã đăng trên kênh này. Bỏ chọn kênh để tránh đăng trùng.','publication_history');
+    if (!historyBlock&&publications.some(p => p.connectionId===id&&['dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status))) add(ch, 'Bài đang được xử lý hoặc chờ đối soát; chưa thể đăng lại.','publication_history');
     if (type !== 'text' && !media.some(m => m.type === type) && !(variant.mediaUrl || content.mediaUrl)) add(ch, `Thiếu media phù hợp với định dạng ${type}.`);
     if (!api) continue;
     const provider = providers[ch.provider];

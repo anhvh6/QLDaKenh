@@ -1,9 +1,9 @@
 {
-  "version": "d3339a8a2dbb",
+  "version": "c560c0b49636",
   "compiler": "0.25.12",
   "files": {
     "public/calendar-presentation.js": "354421d312cfcbffa077f195e8a40babdd92a01d68414cf378da376aab711508",
-    "public/publish-review.js": "fff7ca3ddba269add82a97d130a997d3432a46c210acefd3d2fc676dcadb7e0b",
+    "public/publish-review.js": "6bf35ef18c15e889e32fdc8d4c683ac34747a532ea0e83fd0abeea953e562786",
     "public/tag-save-queue.js": "bd497b71a48afa3318f22d8a2c1d4da5775daf758361d2f9f60e836e7d2d51c0",
     "public/learner-lookups.js": "8a1328bb6df7fc2de83c64681662c2667997876cc99f93fbea6f6fa12563402c",
     "public/learner-progress.js": "37070ef2c5561e19e7c3214644d6ae16e80bfc4b84e99b4e699555552a0aac85",
@@ -92,7 +92,7 @@
     "public/inbox.js": "2defd5b188a9c11ed39dfa4c74898d939e2e8411d29b6a16b9fb75425464fd0c",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "fc90b762e4760639ec7f30e536fe05927a9589065024a81c9bdcef3dce1b9c3b",
-    "public/app.bundle.js": "d3339a8a2dbbe8915157a2a9d75008c298f8596defde88b2abab40f8481c59f4"
+    "public/app.js": "2b40de13f376752af0ffc3bb26051cc9622c534bcf842dd5e6aba6d86ba05b82",
+    "public/app.bundle.js": "c560c0b496364a365648e26697eff84294823a78dd038f5d1ec850323286c921"
   }
 }
