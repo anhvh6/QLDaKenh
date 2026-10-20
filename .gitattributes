@@ -1,0 +1,2 @@
+# Preserve pinned upstream skill checksums on Windows and Linux.
+.agents/skills/ui-ux/** text eol=lf
