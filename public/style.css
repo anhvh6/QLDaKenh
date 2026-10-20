@@ -5334,3 +5334,20 @@ body.comments-route .comment-post-list .comment-toolbar .comment-filter-row .tab
 .comment-reaction-native{font-size:30px;text-decoration:none}
 .comment-message-meta .active{color:#1877f2;font-weight:600}
 .comment-message-meta .text-btn svg{vertical-align:middle}
+/* Plain Tag tab and compact original-post media. */
+body.comments-route .comment-post-list .comment-tag-filter{border:0;background:transparent;box-shadow:none;border-radius:0;margin:0;padding:0;min-height:0}
+body.comments-route .comment-tag-filter>summary{border:0;background:transparent;box-shadow:none;border-radius:7px;padding:9px 6px;font-size:11px;color:var(--muted);min-height:0}
+body.comments-route .comment-tag-filter>summary:hover,body.comments-route .comment-tag-filter[open]>summary{color:var(--green)}
+.comment-post-text{border:0!important;background:none!important;box-shadow:none!important;padding:0!important;margin:0 0 10px!important;white-space:pre-wrap;overflow-wrap:anywhere}
+.comment-post-text>summary{display:block;padding:0 30px 0 0;list-style:none;cursor:pointer;font-weight:400}
+.comment-post-text>summary::-webkit-details-marker{display:none}
+.comment-post-text .comment-expand,.comment-post-text .comment-collapse{color:var(--green);font-weight:600;white-space:nowrap}
+.comment-post-text .comment-collapse{display:none}
+.comment-post-text[open] .comment-post-short,.comment-post-text[open] .comment-expand{display:none}
+.comment-post-text[open] .comment-collapse{display:inline}
+.comment-post-text>p{white-space:pre-wrap;margin:8px 0 0;line-height:1.6}
+.comment-post-media{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.comment-post-media:empty{display:none}
+.comment-post-media img,.comment-post-media video{display:block;width:100%;max-height:360px;object-fit:contain;border-radius:8px;background:#f3f5f1}
+.comment-post-media iframe{display:block;width:100%;aspect-ratio:16/9;max-height:360px;border:0;border-radius:8px}
+@media(max-width:760px){body.comments-route .comment-tag-filter>summary{font-size:12px}.comment-post-media img,.comment-post-media video{max-height:300px}}

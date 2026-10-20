@@ -1,3 +1,4 @@
+import {commentPostMedia} from '../public/comment-post-media.js';
 import {openCommentPrivateChat} from './comment-private.mjs';
 import {commentContext} from './comment-context.mjs';
 import {all,get,put,secret,now,db,notification,transaction} from './store.mjs';
@@ -53,12 +54,13 @@ export function upsertComment(channel,item,post={},live=false){
  let knownIdentity=item.from?.id&&stored(db.prepare("SELECT id,data,version FROM records WHERE kind='identities' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.externalUserId')=? LIMIT 1").get(channel.id,external));
  const name=providedName||(knownIdentity&&get('customers',knownIdentity.customerId)?.name)||existing?.senderName||'Khách từ bình luận';
  let customer=conv&&get('customers',conv.customerId);
- if(!conv){const identity=all('identities').find(i=>i.connectionId===channel.id&&i.externalUserId===external);customer=identity&&get('customers',identity.customerId);if(!customer){customer=put('customers',{name,avatar:safeUrl(item.from?.picture?.data?.url),phone:'',tags:[],consent:false});knownIdentity=put('identities',{customerId:customer.id,connectionId:channel.id,externalUserId:external});}conv=put('conversations',{customerId:customer.id,connectionId:channel.id,externalUserId:external,externalCommentId:String(item.id),postId:String(post.id||item.root_post?.id||''),postTitle:post.message||post.text||'',postCreatedAt:post.created_time||post.timestamp||'',postUrl:safeUrl(post.permalink_url||post.permalink),kind:'comment',mode:'api',status:'open',tags:[]});}
+ if(!conv){const identity=all('identities').find(i=>i.connectionId===channel.id&&i.externalUserId===external);customer=identity&&get('customers',identity.customerId);if(!customer){customer=put('customers',{name,avatar:safeUrl(item.from?.picture?.data?.url),phone:'',tags:[],consent:false});knownIdentity=put('identities',{customerId:customer.id,connectionId:channel.id,externalUserId:external});}conv=put('conversations',{customerId:customer.id,connectionId:channel.id,externalUserId:external,externalCommentId:String(item.id),postId:String(post.id||item.root_post?.id||''),postTitle:post.message||post.text||post.caption||'',postCreatedAt:post.created_time||post.timestamp||'',postUrl:safeUrl(post.permalink_url||post.permalink),kind:'comment',mode:'api',status:'open',tags:[]});}
  const username=item.username||item.from?.username,profile=safeUrl(item.from?.profileUrl||item.from?.url)||(username&&['instagram','threads'].includes(channel.provider)?'https://'+(channel.provider==='instagram'?'www.instagram.com':'www.threads.net')+'/'+encodeURIComponent(username)+'/':'');
  if(!own&&profile&&conv.authorProfileUrl!==profile)conv=put('conversations',{...get('conversations',conv.id),authorProfileUrl:profile});
  const postUrl=safeUrl(post.permalink_url||post.permalink);if(postUrl&&!conv.postUrl)conv=put('conversations',{...get('conversations',conv.id),postUrl,postTitle:post.message||post.text||conv.postTitle||''});
  if(!own&&customer&&(name!=='Khách từ bình luận')&&(customer.name!==name||item.from?.picture?.data?.url&&!customer.avatar))put('customers',{...customer,name,avatar:safeUrl(item.from?.picture?.data?.url)||customer.avatar||''});
  const created=Date.parse(item.created_time||item.timestamp||'');const createdAt=Number.isFinite(created)?new Date(created).toISOString():existing?.createdAt||now();
+ const postMedia=commentPostMedia(post);if(postMedia.length&&JSON.stringify(conv.postMedia)!==JSON.stringify(postMedia)){conv=put('conversations',{...get('conversations',conv.id),postMedia});}
  const text=String(item.message??item.text??''),attachments=commentAttachments(item);
  if(existing?.reactionUpdatedAt&&Date.now()-Date.parse(existing.reactionUpdatedAt)<30000)item={...item,user_likes:existing.liked,like_count:existing.likeCount};
  const authorMissing=!own&&!providedName&&name==='Khách từ bình luận';
@@ -77,7 +79,7 @@ const authHeaders=token=>({Authorization:'Bearer '+token});
 const newerThan=(value,state)=>Date.parse(value||0)>=(state.completedAt?Date.now()-3600000:Date.parse(state.startedAt||state.createdAt||''));
 async function syncInstagram(channel,state,request){
  const token=secret(channel.id).token,headers=authHeaders(token),root=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`;
- const media=await request(`${root}/${encodeURIComponent(channel.accountId)}/media?`+new URLSearchParams({fields:'id,caption,timestamp,permalink',limit:'25'}),{headers});
+ const media=await request(`${root}/${encodeURIComponent(channel.accountId)}/media?`+new URLSearchParams({fields:'id,caption,timestamp,permalink,media_type,media_url,thumbnail_url,children{media_type,media_url,thumbnail_url}',limit:'25'}),{headers});
  for(const post of media.data||[]){const page=await request(`${root}/${encodeURIComponent(post.id)}/comments?`+new URLSearchParams({fields:'id,text,timestamp,username,from{id,username},like_count,replies{id,text,timestamp,username,from{id,username},like_count}',limit:'100'}),{headers});for(const item of page.data||[]){upsertComment(channel,item,post,newerThan(item.timestamp,state));for(const reply of item.replies?.data||[])upsertComment(channel,{...reply,parent:{id:item.id}},post,newerThan(reply.timestamp,state));}}
 }
 async function syncYouTube(channel,state,request){
@@ -116,7 +118,7 @@ export async function syncComments(channel,request=remote){
  if(!['facebook','threads'].includes(channel.provider)){await syncProviderComments(channel,state,request);state=put('comment_sync',{...state,queue:[],after:'',status:'ready',error:'',syncedAt:now(),completedAt:now()});return state;}
  const headers={Authorization:'Bearer '+token};const read=async(path,params)=>{const url=base(channel)+'/'+encodeURIComponent(path.split('/')[0])+'/'+path.split('/').slice(1).join('/')+'?'+new URLSearchParams(params);try{return await request(url,{headers});}catch(error){if(!error.retryable&&!error.unknown)throw error;return request(url,{headers});}};
  let queue=state.queue||[],after=state.after||'',processed=0;
- if(!queue.length){const page=await read(channel.accountId+'/'+(channel.provider==='threads'?'threads':'feed'),{fields:channel.provider==='threads'?'id,text,timestamp,permalink':'id,message,created_time,permalink_url',limit:'20',...(after?{after}:{})});queue=page.data||[];after=page.paging?.next?page.paging?.cursors?.after||'':'';}
+ if(!queue.length){const page=await read(channel.accountId+'/'+(channel.provider==='threads'?'threads':'feed'),{fields:channel.provider==='threads'?'id,text,timestamp,permalink':'id,message,created_time,permalink_url,full_picture,attachments{media,type,url,subattachments}',limit:'20',...(after?{after}:{})});queue=page.data||[];after=page.paging?.next?page.paging?.cursors?.after||'':'';}
  for(const post of queue.slice(0,5)){
   const key=channel.id+':'+post.id,p=get('comment_post_sync',key)||{},cursor=p.after||'';
   const page=await read(post.id+'/'+(channel.provider==='threads'?'replies':'comments'),{fields:channel.provider==='threads'?'id,text,timestamp,username,media_type,media_url,permalink,is_reply_owned_by_me,replied_to,root_post':'id,message,created_time,from{id,name,picture},attachment,parent,user_likes,like_count,permalink_url',limit:'50',...(channel.provider==='facebook'?{filter:'stream'}:{}),...(cursor?{after:cursor}:{})});

@@ -203,3 +203,13 @@ test('confirmed Like count persists through a stale concurrent comment poll, the
  const unliked=await reactMessage({id:'owner',role:'owner'},m.id,{like:false});assert.equal(unliked.liked,false);assert.equal(unliked.likeCount,5);
  }finally{globalThis.fetch=previous;}
 });
+
+test('original post media is kept during comment sync and loaded in Facebook and Instagram detail',async()=>{
+ const {commentContext}=await import('../server/comment-context.mjs');const owner={id:'owner',role:'owner'};
+ const m=upsertComment(c,{id:'media-context-comment',message:'Media',from:{id:'media-person'}},{id:'media-context-post',message:'Caption',full_picture:'https://cdn.test/photo.jpg'});
+ assert.equal(get('conversations',m.conversationId).postMedia[0].url,'https://cdn.test/photo.jpg');
+ const out=await commentContext(owner,m.conversationId,async url=>new URL(url).pathname.endsWith('/media-context-post')?{id:'media-context-post',message:'With video',attachments:{data:[{type:'video_inline',media:{source:'https://cdn.test/video.mp4'}}]}}:{id:'media-context-comment',message:'Media'});
+ assert.equal(out.post.media[0].type,'video');assert.equal(out.mediaVersion,1);
+ const ig=put('connections',{id:'media-context-ig',provider:'instagram',name:'IG',status:'connected',mode:'api'});saveSecret(ig.id,{token:'test'});const im=upsertComment(ig,{id:'ig-media-comment',text:'Hi',from:{id:'ig-media-person'}},{id:'ig-media-post'});
+ const io=await commentContext(owner,im.conversationId,async()=>({id:'ig-media-post',caption:'IG caption',media_type:'IMAGE',media_url:'https://cdn.test/ig.jpg'}));assert.equal(io.post.text,'IG caption');assert.equal(io.post.media[0].url,'https://cdn.test/ig.jpg');
+});

@@ -1,4 +1,9 @@
 export const commentAwaitingReply=c=>c.lastCommentDirection==='incoming';
+export function commentCardTime(value,now=new Date()){
+ const d=new Date(value);if(!Number.isFinite(d.getTime()))return '';
+ const day=date=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
+ return day(d)===day(new Date(now))?new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'}).format(d):new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit'}).format(d);
+}
 export function commentProfileURL(c,channel){
  const explicit=c?.authorProfileUrl;try{if(explicit){const u=new URL(explicit);if(u.protocol==='https:')return u.href;}}catch{}
  const id=String(c?.externalUserId||'');if(!id||id===String(c?.externalCommentId||''))return '';
