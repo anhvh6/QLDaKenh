@@ -60,6 +60,7 @@ export function upsertComment(channel,item,post={},live=false){
  if(!own&&customer&&(name!=='Khách từ bình luận')&&(customer.name!==name||item.from?.picture?.data?.url&&!customer.avatar))put('customers',{...customer,name,avatar:safeUrl(item.from?.picture?.data?.url)||customer.avatar||''});
  const created=Date.parse(item.created_time||item.timestamp||'');const createdAt=Number.isFinite(created)?new Date(created).toISOString():existing?.createdAt||now();
  const text=String(item.message??item.text??''),attachments=commentAttachments(item);
+ if(existing?.reactionUpdatedAt&&Date.now()-Date.parse(existing.reactionUpdatedAt)<30000)item={...item,user_likes:existing.liked,like_count:existing.likeCount};
  const authorMissing=!own&&!providedName&&name==='Khách từ bình luận';
  if(!own&&item.from?.id&&!knownIdentity)put('identities',{customerId:customer?.id||conv.customerId,connectionId:channel.id,externalUserId:external});
  if(!own){const current=get('conversations',conv.id);if(current.authorMissing!==authorMissing)put('conversations',{...current,authorMissing});}

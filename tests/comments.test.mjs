@@ -193,3 +193,13 @@ test('pending comments use last delivered interaction, ignore notes/failures and
  assert.equal(commentProfileURL({...comment,externalUserId:'post_comment'},{provider:'facebook'}),'');
  assert.equal(commentProfileURL({...comment,authorProfileUrl:'javascript:alert(1)',externalUserId:''},{provider:'facebook'}),'');
 });
+
+test('confirmed Like count persists through a stale concurrent comment poll, then accepts fresh platform state',async()=>{
+ const {reactMessage}=await import('../server/domain.mjs');const m=upsertComment(c,{id:'reaction-race',message:'Like race',from:{id:'reaction-person'},like_count:4,user_likes:false});const previous=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(JSON.stringify({success:true}),{status:200});
+ try{const liked=await reactMessage({id:'owner',role:'owner'},m.id,{like:true});assert.equal(liked.liked,true);assert.equal(liked.likeCount,5);
+ upsertComment(c,{id:'reaction-race',message:'Like race',from:{id:'reaction-person'},like_count:4,user_likes:false});assert.equal(get('messages',m.id).liked,true);assert.equal(get('messages',m.id).likeCount,5);
+ put('messages',{...get('messages',m.id),reactionUpdatedAt:'2000-01-01T00:00:00Z'});upsertComment(c,{id:'reaction-race',message:'Like race',from:{id:'reaction-person'},like_count:6,user_likes:true});assert.equal(get('messages',m.id).likeCount,6);
+ const unliked=await reactMessage({id:'owner',role:'owner'},m.id,{like:false});assert.equal(unliked.liked,false);assert.equal(unliked.likeCount,5);
+ }finally{globalThis.fetch=previous;}
+});
