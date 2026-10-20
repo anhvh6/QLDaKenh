@@ -2278,3 +2278,5 @@ table .btn {
 .inbox-topbar-tools .tab.chat-filter-populated {
   color: #a74c0c !important;
 }
+.dashboard-event>span{overflow:hidden;grid-column:3;grid-row:1;max-height:3em}
+.dashboard-event>.schedule-state{grid-column:2/-1;grid-row:2;margin-left:0;max-width:none;line-height:1.4}
