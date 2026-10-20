@@ -2103,3 +2103,178 @@ table .btn {
 .badge {
   font-size: 12px;
 }
+.content-local-search {
+  display: none;
+}
+@media (max-width: 900px) {
+  .content-local-search {
+    display: block;
+    width: 100%;
+  }
+}
+[data-page=dashboard] .overview-head {
+  margin-bottom: 16px;
+}
+[data-page=dashboard] .overview-head h1 {
+  font-size: 24px;
+}
+[data-page=dashboard] .overview-head p {
+  margin-top: 4px;
+  font-size: 12px;
+}
+[data-page=dashboard] .dashboard-stats {
+  gap: 8px;
+  margin-bottom: 16px;
+}
+[data-page=dashboard] .dashboard-stat {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 4px 8px;
+  padding: 12px;
+  align-items: center;
+  min-height: 80px;
+}
+[data-page=dashboard] .dashboard-stat .stat-icon {
+  grid-column: 1;
+  grid-row: 1/3;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+}
+[data-page=dashboard] .dashboard-stat strong {
+  font-size: 23px;
+  grid-column: 2;
+}
+[data-page=dashboard] .dashboard-stat > span:last-child {
+  grid-column: 2;
+  font-size: 12px;
+  line-height: 1.4;
+}
+[data-page=dashboard] .learner-cycle-panel {
+  margin-bottom: 16px;
+}
+[data-page=dashboard] .learner-cycle-panel .panel-head {
+  padding: 12px 16px;
+  margin: 0;
+}
+[data-page=dashboard] .learner-cycle-panel h2 {
+  font-size: 15px;
+}
+[data-page=dashboard] .learner-cycle-values {
+  padding: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+}
+[data-page=dashboard] .learner-cycle-stat {
+  padding: 8px;
+  gap: 8px;
+  min-height: 56px;
+}
+[data-page=dashboard] .learner-cycle-stat strong {
+  font-size: 20px;
+  line-height: 1.2;
+}
+[data-page=dashboard] .cycle-glyph {
+  min-width: 26px;
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+}
+@media (min-width: 1500px) {
+  [data-page=dashboard] .learner-cycle-values {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+  }
+  [data-page=dashboard] .learner-cycle-stat {
+    padding: 10px 6px;
+  }
+  [data-page=dashboard] .learner-cycle-stat strong {
+    font-size: 18px;
+  }
+}
+@media (max-width: 900px) {
+  [data-page=dashboard] .dashboard-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  [data-page=dashboard] .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  [data-page=dashboard] .dashboard-stat:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+  [data-page=dashboard] .learner-cycle-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  [data-page=dashboard] .learner-cycle-stat strong {
+    font-size: 18px;
+  }
+  [data-page=dashboard] .learner-cycle-panel .panel-head {
+    gap: 4px;
+  }
+}
+.social.zalo_personal,
+.social.zalo_oa {
+  background: #146bc3 !important;
+  color: #fff !important;
+}
+.social.instagram {
+  background: #a44274;
+  color: #fff;
+}
+.social.blogger {
+  background: #a95615;
+  color: #fff;
+}
+.notice {
+  color: #67582d;
+}
+.badge.connected {
+  color: #35632d;
+  background: #eaf3e7;
+}
+.content.inbox-page .chat-filter-populated {
+  color: #a74c0c !important;
+}
+.chat-messages > .chat-day {
+  background: #616b76;
+  color: #fff;
+}
+.bubble time,
+.bubble-wrap time {
+  color: #59675f;
+}
+.chat-topic-select {
+  color: #43584a;
+}
+.chat-tag-popup [data-header-tag] {
+  opacity: 1;
+  color: #24372f;
+}
+.chat-tag-popup [data-header-tag] > span:nth-child(2) {
+  color: inherit;
+}
+.chat-tag-popup [data-header-tag].assigned {
+  color: var(--tag-ink,#24372f);
+}
+.stock-low {
+  color: #80531e;
+}
+.bar > span {
+  color: #193b2c;
+}
+.calendar-cell.outside {
+  opacity: 1;
+}
+.calendar-cell.outside .calendar-date {
+  color: #63715e;
+}
+.tag:not([style*=color]) {
+  color: #4a603b;
+}
+.badge.active {
+  color: #405c45;
+}
+.inbox-topbar-tools .tab.chat-filter-populated {
+  color: #a74c0c !important;
+}

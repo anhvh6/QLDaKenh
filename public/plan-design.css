@@ -1,8 +1,8 @@
-@import "/workspace-design.css?v=20261020-evon-1";
+@import "/workspace-design.css?v=20261020-contrast-2";
 :root {
   --btn-primary-grad:var(--primary);
   --btn-primary-shadow:none;
-  --btn-secondary-grad:var(--secondary);
+  --btn-secondary-grad:var(--primary);
   --font-sans:var(--app-font);
 }
 body,
@@ -35,6 +35,33 @@ body,
 #root [class*=btn-primary] {
   background-image: none !important;
 }
+#root [class*=bg-gradient].text-white {
+  background-color: var(--primary) !important;
+  color: white !important;
+}
+#root [class*=bg-gradient].text-white :is([class*="text-white/"], .text-emerald-300) {
+  color: #fff !important;
+  opacity: 1;
+}
+#root [class*=bg-gradient].text-white :is(p, span, label)[class*=opacity-] {
+  opacity: 1 !important;
+}
+#root .btn-modern:hover {
+  transform: none !important;
+}
+#root :is(.btn-primary, .btn-secondary) {
+  background: var(--primary) !important;
+  color: #fff !important;
+}
+#root button:disabled {
+  opacity: 1 !important;
+  color: #56635c !important;
+  background: #e8edea !important;
+  box-shadow: none !important;
+}
+#root button:disabled [class*=text-white] {
+  color: #56635c !important;
+}
 #root :is(.from-purple-500, .from-fuchsia-500, .from-blue-500) {
   background: var(--primary) !important;
   color: var(--primary-foreground) !important;
@@ -45,6 +72,40 @@ body,
 #root [role=dialog],
 #root [aria-modal=true] {
   box-shadow: var(--elevation-modal) !important;
+}
+#root [class*=bg-gradient].cursor-pointer.shadow-sm {
+  background: #fff !important;
+  border: 1px solid #dce5df !important;
+  box-shadow: 0 2px 2px #243b2f0a, 0 7px 16px #243b2f12 !important;
+  transform: none;
+}
+#root [class*=bg-gradient].cursor-pointer.shadow-sm:hover {
+  box-shadow: 0 4px 5px #243b2f0d, 0 12px 24px #243b2f1a !important;
+  transform: translateY(-2px);
+}
+#root [class*="border-current/20"]:has(input[type=date]) {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+#root [class*="border-current/20"] input[type=date],
+#root .items-end:has(input[placeholder="T\ean, S\110T, M\e3  VD..."]) input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+}
+#root :is(.text-green-400, .text-green-500, .text-green-600, .text-emerald-400, .text-emerald-500, .text-emerald-600) {
+  color: #16734a !important;
+}
+#root .items-end:has(input[placeholder="T\ean, S\110T, M\e3  VD..."]) input:focus-visible,
+#root [class*="border-current/20"] input[type=date]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+#root [class*=bg-gradient].text-white :is(.text-emerald-400, .text-emerald-500, .text-green-400, .text-green-500) {
+  color: #fff !important;
 }
 #root :is(.rounded-3xl, .rounded-2xl),
 #root [class*="rounded-[2"],

@@ -12,6 +12,16 @@ Trạng thái ngày 20/10/2026: người dùng đã chọn thiết kế lại to
 
 ## Xác minh
 
+### Điều chỉnh sau phản hồi về tương phản — 20/10/2026
+
+- Sửa nguyên nhân mất nền: các khối gradient có chữ trắng trong Phác đồ được gán nền xanh đặc tương ứng, bao gồm Ăn nhai cân bằng và Thông tin nhanh; không còn bỏ nền trong khi giữ chữ trắng. Nút phụ/khóa và chữ mờ trong khối tối có cặp màu rõ ràng.
+- Từng thẻ học viên có nền trắng, viền và bóng hai lớp riêng theo yêu cầu nổi 3D. Bộ lọc ngày theo nhóm trạng thái và hàng tìm kiếm/ngày chu kỳ bỏ viền ngoài, giữ dấu focus bàn phím.
+- Tổng quan thu gọn số liệu vận hành và học viên, giữ đủ chỉ số và liên kết; bỏ nút Tạo đơn, Tạo bài viết và tìm kiếm trên trang này. Nội dung PC bỏ tìm kiếm lặp bên dưới; mobile giữ ô tìm kiếm vì thanh tìm kiếm toàn hệ thống không hiển thị trên màn nhỏ.
+- Rà màu trên 15 route, đo bổ sung Phác đồ quản lý/thống kê và xem trước thực tế. Chỉnh màu nhãn chat, thời gian, tag, trạng thái kết nối, cảnh báo, tồn kho thấp, nhãn lịch và báo cáo. Không thay dữ liệu/màu tag khách đã cấu hình; chỉ sửa cách ghép màu chữ theo nền.
+- Probe có một số cảnh báo không áp dụng: bóng/nâng thẻ là yêu cầu trực tiếp; chuỗi ngày trong tên học viên không phải số thập phân; icon Zalo tròn được probe lấy nhầm nền avatar bên ngoài (computed style thực là chữ trắng trên #146bc3). Luật hover cũ của nút còn trong CSS nguồn nhưng computed transform đã được ghi đè `none`.
+- Các lỗi tài nguyên Google/CSP của ứng dụng nhúng có sẵn được ghi nhận trong báo cáo probe, không đổi quyền hay CSP để xử lý giao diện.
+- Bổ sung kiểm tra tự động: dashboard không còn điều khiển đã bỏ; không lặp tìm kiếm desktop; thẻ học viên có bóng; bộ lọc ngày không còn viền ngoài; Thông tin nhanh có chữ trắng/nền #28644c.
+
 - Build frontend và `npm run check`: đạt; bundle khớp nguồn.
 - 15 route × 390/768/1440px: 45/45 có nội dung, stylesheet chung, không tràn ngang toàn trang và không có lỗi JavaScript. Script: `scripts/test-workspace-design.mjs`, chỉ đăng nhập dữ liệu thử localhost từ biến môi trường.
 - 27 kiểm thử mô hình đơn hàng, lịch, tổng quan, bộ lọc/đếm chưa đọc chat và nhóm nội dung: đạt.
