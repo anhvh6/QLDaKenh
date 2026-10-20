@@ -25,7 +25,7 @@ import {showQuickChatOrder} from './quick-order.js';
 import {emojiPopup,filterEmoji,rememberEmoji} from './emoji-picker.js';
 import {enhanceChatNames,initChatNameControls} from './chat-name-ui.js';
 import {icon} from './icons.js';
-import {defaultFilters,filterThreads,assignedIds,normalize,safeLink} from './inbox-model.js';
+import {defaultFilters,filterThreads,unreadThreadCount,assignedIds,normalize,safeLink} from './inbox-model.js';
 let H,F=structuredClone(defaultFilters),selected=new Set(),selectionMode=false,searchIn='',lastConv='',mediaTab='all',threadLimit=150,totalThreads=0,listQuery='';
 const mentionStaff=new Map();let jumpTarget='',jumpUntil=0;const drafts=new Map();const uploading=new Set(),sendingConversations=new Set();let skipCapture=false;let openMenus=[];
 let pendingDelete=[],pendingDeleteToken='',threadHolding=false;
@@ -80,6 +80,7 @@ const freshDraft=()=>({text:'',note:false,quoteId:'',assetIds:[],assignedStaffId
 function draft(id){if(!drafts.has(id))drafts.set(id,freshDraft());return drafts.get(id);}
 function saveDrafts(){try{sessionStorage.setItem(storageKey(),JSON.stringify([...drafts]));}catch{}}
 export function rememberInboxDraft(){const form=$('#reply-form');if(skipCapture||!H||H.route()!=='inbox'||!form)return;openMenus=[...document.querySelectorAll('.chat-menu[open]')].map(m=>m.querySelector('summary').getAttribute('aria-label')||m.querySelector('summary').textContent);const d=draft(form.dataset.id);captureGroupMentions(d,form.elements.text.value);d.text=form.elements.text.value;d.note=form.elements.note.checked;saveDrafts();}
+export function inboxUnreadCount(S,q=''){return unreadThreadCount(S,q,F);}
 export function inboxThreads(S,q,status){if(q!==listQuery){threadLimit=150;listQuery=q;}const threads=filterThreads(S,q,status,F);totalThreads=threads.length;return threads.slice(0,threadLimit);}
 export function chatMessages(messages,conv,S,previous=null){
  const messageQuery=conv.id===lastConv?searchIn:'';const messageIndex=new Map([...(S.quoteMessages||[]),...S.messages].map(m=>[m.id,m])),users=new Map(S.users.map(u=>[u.id,u])),customers=new Map(S.customers.map(c=>[c.id,c])),mentions=new Map();for(const t of S.chatMentions||[]){if(!t.messageId)continue;const name=t.assignedStaffName||users.get(t.assignedStaffId)?.name||'Chưa phân công';mentions.set(t.messageId,[...new Set([...(mentions.get(t.messageId)||[]),name])]);}const ordered=chronologicalMessages(messages),timeline=messageTimeline(previous?[previous,...ordered]:ordered);return ordered.map(m=>{
@@ -155,7 +156,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of
  const pending=(S.chat_reminders||[]).filter(r=>r.status==='pending'&&Date.parse(r.dueAt)<=Date.now()).length;
  const count=Object.entries(F).filter(([k,v])=>JSON.stringify(v)!==JSON.stringify(defaultFilters[k])).length;
  const convMap=new Map(S.conversations.map(c=>[c.id,c])),customerMap=new Map(S.customers.map(p=>[p.id,p]));const list=root.querySelector('.conversation-list'),statusBar=root.previousElementSibling;
- if(statusBar?.classList.contains('toolbar'))list.prepend(statusBar);for(const key of ['unread','action-needed','scheduled','waiting-reply']){const tab=list.querySelector('[data-action=filter][data-id="'+key+'"]'),n=filterThreads(S,'',key,F).length;if(tab){tab.classList.toggle('chat-filter-populated',n>0);tab.dataset.count=n;tab.title=n+' hội thoại';}}
+ if(statusBar?.classList.contains('toolbar'))list.prepend(statusBar);for(const key of ['unread','action-needed','scheduled','waiting-reply']){const tab=list.querySelector('[data-action=filter][data-id="'+key+'"]'),n=filterThreads(S,listQuery,key,F).length;if(tab){tab.classList.toggle('chat-filter-populated',n>0);tab.dataset.count=n;tab.title=n+' hội thoại';}}
  const searchRow=list.querySelector('.conversation-search');searchRow.insertAdjacentHTML('afterbegin',b('✎','new-conversation','','aria-label="Cuộc trò chuyện mới" title="Cuộc trò chuyện mới"'));searchRow.insertAdjacentHTML('beforeend',b('☷'+(count?' · '+count:''),'filters','','aria-label="Bộ lọc và sắp xếp" title="Bộ lọc và sắp xếp"'));searchRow.insertAdjacentHTML('afterend',`<div class="chat-toolbar">${menu('Quản lý ▾',b('Xóa lọc','reset')+b('Nhắc chăm sóc'+(pending?' · '+pending+' đến hạn':''),'all-reminders')+b('Danh bạ','contacts')+b('+ Nhóm Zalo','new-group')+b('Phím tắt','help')+b(selectionMode?'Thoát chọn nhiều':'Chọn nhiều hội thoại','selection-mode')+b('Chọn tất cả kết quả','select-all'))}</div>${selected.size?'<div class="chat-bulk"><small>'+selected.size+' đã chọn</small>'+b('Xóa','bulk-delete','','aria-label="Xóa hội thoại đã chọn"')+b('Hủy chọn','clear-selection','','aria-label="Hủy chọn hội thoại"')+menu('Xử lý ▾',b('Phân công','bulk-assign')+b('Đã đọc','bulk-read')+b('Lưu trữ','bulk-archive')+b('Bỏ chọn','clear-selection'))+'</div>':''}`);
 
  placeInboxToolbar();

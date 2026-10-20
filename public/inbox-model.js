@@ -14,7 +14,7 @@ export function inboxQueues(S,time=Date.now()){
 export function filterThreads(S,q='',status='all',f=defaultFilters){
  const customers=new Map(S.customers.map(c=>[c.id,c])),texts=new Map(),queues=inboxQueues(S);
  if(q)for(const m of S.messages)texts.set(m.conversationId,(texts.get(m.conversationId)||'')+' '+m.text);
- return S.conversations.filter(c=>c.kind!=='comment'&&conversationConnected(S,c)&&(!c.careHidden||!!q.trim())).map(c=>({...c,customerName:chatName(c,customers.get(c.customerId))})).filter(c=>{
+ return S.conversations.filter(c=>!c.deletedAt&&c.kind!=='comment'&&conversationConnected(S,c)&&(!c.careHidden||!!q.trim())).map(c=>({...c,customerName:chatName(c,customers.get(c.customerId))})).filter(c=>{
   const p=customers.get(c.customerId)||{},tags=c.tags||[],ids=assignedIds(c),phone=p.phone||p.sdt;
   if(status==='unread'&&!c.unread||status==='personal'&&c.threadType===1||status==='group'&&c.threadType!==1||status==='action-needed'&&!queues.action.has(c.id)||status==='scheduled'&&!queues.scheduled.has(c.id)||status==='waiting-reply'&&!c.waitingSince)return false;
   if(!inboxTabs.some(([key])=>key===status)&&c.status!==status)return false;
@@ -32,3 +32,4 @@ export function filterThreads(S,q='',status='all',f=defaultFilters){
  }).sort((a,b)=>(f.sort==='newest'?Number(!!b.unread)-Number(!!a.unread):0)||Number(!!b.pinned)-Number(!!a.pinned)||(f.sort==='waiting'?(Date.parse(a.waitingSince)||Infinity)-(Date.parse(b.waitingSince)||Infinity):f.sort==='oldest'?Date.parse(a.lastAt||0)-Date.parse(b.lastAt||0):Date.parse(b.lastAt||0)-Date.parse(a.lastAt||0)));
 }
 export function safeLink(url){if(typeof url!=='string'||!url.trim())return '';try{const u=new URL(url,typeof location==='object'?location.origin:'http://localhost');return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'';}catch{return '';}}
+export function unreadThreadCount(S,q='',filters=defaultFilters){return filterThreads(S,q,'unread',filters).length;}

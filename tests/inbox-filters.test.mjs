@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {filterThreads,inboxTabs} from '../public/inbox-model.js';
+import {filterThreads,inboxTabs,unreadThreadCount,defaultFilters} from '../public/inbox-model.js';
 const time=Date.now(),stamp=delta=>new Date(time+delta).toISOString();
 const state={user:{id:'me',role:'owner'},customers:[{id:'customer',name:'Khách'}],messages:[],conversations:['personal','group','ai','mention','other','upcoming','due','done','waiting','answered'].map(id=>({id,customerId:'customer',kind:'message',threadType:id==='group'?1:0,status:'open',unread:id==='waiting',waitingSince:id==='waiting'?stamp(-1000):null,lastAt:stamp(-1000)})),staffHandoffs:[{conversationId:'ai',assignedStaffId:'me',status:'open'},{conversationId:'mention',source:'mention',assignedStaffId:'me',status:'processing'},{conversationId:'other',assignedStaffId:'someone-else',status:'open'},{conversationId:'done',assignedStaffId:'me',status:'resolved'}],chat_reminders:[{conversationId:'upcoming',assignee:'me',status:'pending',dueAt:stamp(3600000)},{conversationId:'due',assignee:'me',status:'pending',dueAt:stamp(-3600000)},{conversationId:'done',assignee:'me',status:'done',dueAt:stamp(3600000)}]};
 const ids=filter=>filterThreads(state,'',filter).map(c=>c.id).sort();
@@ -22,4 +22,19 @@ test('error, stopped, reconnecting, missing and configured channels never expose
  }
  updated.connections=[];assert.equal(filterThreads(updated).length,0);
  updated.connections=[{id:'channel',status:'connected',provider:'zalo_personal',listenerState:'listening'}];assert.equal(filterThreads(updated).length,state.conversations.length);
+});
+
+
+test('Chat badge counts the same unread threads as the list, excluding comments and hidden records',()=>{
+ const S={...structuredClone(state),connections:[{id:'live',status:'connected'},{id:'offline',status:'disconnected'}]};
+ S.conversations=[{id:'chat'}, {id:'comment',kind:'comment'}, {id:'hidden',careHidden:true}, {id:'archived',archived:true}, {id:'deleted',deletedAt:stamp(0)}, {id:'disconnected',connectionId:'offline'}, {id:'read',unread:false}].map(c=>({kind:'message',customerId:'customer',connectionId:'live',unread:true,lastAt:stamp(0),...c}));
+ assert.equal(unreadThreadCount(S),1);
+ assert.deepEqual(filterThreads(S,'','unread').map(c=>c.id),['chat']);
+ S.conversations[0].unread=false;assert.equal(unreadThreadCount(S),0);
+});
+test('Chat unread badge honors the same channel, tag, archive and search filters without pagination',()=>{
+ const S={...structuredClone(state),connections:[{id:'a',status:'connected'},{id:'b',status:'connected'}]};
+ S.conversations=Array.from({length:180},(_,i)=>({id:String(i),customerId:'customer',kind:'message',connectionId:i%2?'a':'b',unread:true,tags:i%2?['VIP']:[],lastAt:stamp(0)}));
+ for(const [q,f] of [['',defaultFilters],['',{...defaultFilters,connectionIds:['a']}],['',{...defaultFilters,tags:['VIP']}],['missing',defaultFilters],['',{...defaultFilters,archive:'archived'}]])assert.equal(unreadThreadCount(S,q,f),filterThreads(S,q,'unread',f).length);
+ assert.equal(unreadThreadCount(S),180);assert.equal(unreadThreadCount(S,'',{...defaultFilters,connectionIds:['a']}),90);
 });

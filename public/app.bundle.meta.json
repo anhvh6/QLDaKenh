@@ -1,5 +1,5 @@
 {
-  "version": "c560c0b49636",
+  "version": "e8310a6928d5",
   "compiler": "0.25.12",
   "files": {
     "public/calendar-presentation.js": "354421d312cfcbffa077f195e8a40babdd92a01d68414cf378da376aab711508",
@@ -10,7 +10,7 @@
     "public/care-staff-ui.js": "6d14d8e5c007fe48ab90e23d7ed29ba82cdfe377ed15159d02a6357d50bc4754",
     "public/chat-names.js": "e8a312c009f289e40a4b57fd40ab5a3345fa9c56b019610846a4d7a13fca75cd",
     "public/chat-connection-state.js": "81e885e80b8e0485c6a91bd9af0552b9eae2a3fdbb93be1a3c1ab6d606eaea21",
-    "public/inbox-model.js": "ca16376e9e3fd57786f95af7a574d533888733e37fac5a9f066a51a737ca58bb",
+    "public/inbox-model.js": "ba90fa9c95dcbec6fbe2cdb76cbc3aa1db449b011f9a92aac97600b61235f464",
     "public/chat-list-style.js": "dd8a38b80d10bf9dda22214d73f1a509dbc18f4db05a5b47fb962d5e72eaf5c5",
     "public/icons.js": "06978b5a0a1f514fcb2fb32aaa1d5485d23ba047de588c63bc23cd94dac5b8b8",
     "public/quick-replies.js": "cf1eb5fad7323c570b7cdc9eabd545aa292468697e5ace88f24c736772c5bd03",
@@ -89,10 +89,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "2defd5b188a9c11ed39dfa4c74898d939e2e8411d29b6a16b9fb75425464fd0c",
+    "public/inbox.js": "fecf8c6da56158634ebc278aacab47d998fb6decd7019553d7fca23d3239eb19",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "2b40de13f376752af0ffc3bb26051cc9622c534bcf842dd5e6aba6d86ba05b82",
-    "public/app.bundle.js": "c560c0b496364a365648e26697eff84294823a78dd038f5d1ec850323286c921"
+    "public/app.js": "f3bede43c59e10172b856a096a9f481e738f04fedeea9c56f95a0ddb8a400df3",
+    "public/app.bundle.js": "e8310a6928d518c0a33a59637e2f479ae78782aab3a5f51eba72383b59b7972c"
   }
 }
