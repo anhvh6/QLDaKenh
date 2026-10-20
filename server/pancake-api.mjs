@@ -1,12 +1,14 @@
 // Pancake POS OpenAPI: https://docs.pancake.biz/pos/api/openapi.json
 export async function pancakeRequest(apiKey,path,{method='GET',query={},body,fetcher=fetch}={}){
- if(!/^\/shops(?:\/[A-Za-z0-9_%.-]+){0,5}$/.test(path)||path.split('/').some(segment=>['.','..'].includes(decodeURIComponent(segment))))throw Error('Đường dẫn Pancake POS không hợp lệ.');
+ const geo=/^\/geo\/(provinces|districts|communes)$/.test(path);
+ if(geo&&(method!=='GET'||Object.entries(query).some(([k,v])=>!['country_code','is_new','province_id','district_id'].includes(k)||!/^[-_A-Za-z0-9]{1,40}$/.test(String(v)))))throw Error('Tham số danh mục địa chỉ POS không hợp lệ.');
+ if((!geo&&!/^\/shops(?:\/[A-Za-z0-9_%.-]+){0,5}$/.test(path))||path.split('/').some(segment=>['.','..'].includes(decodeURIComponent(segment))))throw Error('Đường dẫn Pancake POS không hợp lệ.');
  const url=new URL('https://pos.pages.fm/api/v1'+path);url.searchParams.set('api_key',apiKey);
  for(const [key,value] of Object.entries(query))if(value!==undefined&&value!==null)url.searchParams.set(key,String(value));
  let response,data;
  try{response=await fetcher(url,{method,headers:{'Content-Type':'application/json'},...(body!==undefined?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(25000)});data=await response.json();}
  catch{throw Object.assign(Error('Chưa nhận được kết quả từ Pancake POS. Đang chờ đối soát trước khi gửi lại.'),{unknown:method!=='GET',retryable:true});}
- if(!response.ok||data?.success===false){const code=data?.message_code??data?.error_code;const message=(String(data?.message||data?.error?.message||(typeof data?.error==='string'?data.error:'')||'Pancake POS từ chối yêu cầu.')+(code!==undefined?' (mã '+String(code)+')':'')).split(apiKey).join('[ẩn API key]').replace(/api_key=[^&\s]+/gi,'api_key=[ẩn]').slice(0,400);throw Object.assign(Error(message),{status:response.status===401||response.status===403?401:422,unknown:method!=='GET'&&response.status>=500,retryable:response.status===429||response.status>=500,diagnostics:{httpStatus:response.status,code,endpoint:path}});}
+ if(!response.ok||data?.success===false){const code=data?.message_code??data?.error_code;const message=(String(data?.message||data?.error?.message||(typeof data?.error==='string'?data.error:'')||'Pancake POS từ chối yêu cầu.')+(code!==undefined?' (mã '+String(code)+')':'')).split(apiKey||'\0').join('[ẩn API key]').replace(/api_key=[^&\s]+/gi,'api_key=[ẩn]').slice(0,400);throw Object.assign(Error(message),{status:response.status===401||response.status===403?401:422,unknown:method!=='GET'&&response.status>=500,retryable:response.status===429||response.status>=500,diagnostics:{httpStatus:response.status,code,endpoint:path}});}
  if(!data||typeof data!=='object')throw Object.assign(Error('Kết quả Pancake POS không hợp lệ.'),{unknown:method!=='GET'});
  return data;
 }

@@ -1,3 +1,4 @@
+import {ensureOrderAddress} from './shipping-address.js';
 import {mediaPicker} from './chat-media-picker.js';
 import {visibleComment,commentMatchesTags,unreadCommentCount,commentLikeState,commentCardTime} from './comment-presentation.js';
 import {calendarEventClass,calendarStateLabel,calendarLegend} from './calendar-presentation.js';
@@ -460,7 +461,7 @@ document.addEventListener('submit', async event => {
     }
     if (form.id === 'reply-form') { await sendCommentDraft(form,data); return; }
     if (form.id === 'workspace-form') { await api('/records/settings/general', { method: 'PATCH', body: { ...data, version: S.settings.version } }); await refresh(); toast('Đã lưu tên workspace.'); return; }
-    if (form.id === 'order-form') { validateShippingForm(form); const order = await savedShippingOrder(form, { api }) || await api('/orders', { method: 'POST', body: { ...data, freeShipping: form.freeShipping.checked, bankTransfer: form.bankTransfer.checked, items: orderItems, conversationId: route === 'inbox' ? selectedConversation : null } }); await completeOrderShipping(form, order, { api }); toast(orderCreatedMessage(form, order)); closeModal(); await refresh(); navigate('orders'); return; }
+    if (form.id === 'order-form') { await ensureOrderAddress(form); Object.assign(data,Object.fromEntries(new FormData(form))); validateShippingForm(form); const order = await savedShippingOrder(form, { api }) || await api('/orders', { method: 'POST', body: { ...data, freeShipping: form.freeShipping.checked, bankTransfer: form.bankTransfer.checked, items: orderItems, conversationId: route === 'inbox' ? selectedConversation : null } }); await completeOrderShipping(form, order, { api }); toast(orderCreatedMessage(form, order)); closeModal(); await refresh(); navigate('orders'); return; }
     if (form.id === 'shipment-form') { await api(`/orders/${modalRecord.id}/shipments`, { method: 'POST', body: data }); closeModal(); await refresh(); navigate('shipping'); toast('Đã tạo bản ghi vận đơn.'); return; }
     if (form.id === 'shipment-status-form') { const id = modalRecord.id; await api(`/shipments/${id}/action`, { method: 'POST', body: { ...data, verified: !!form.verified?.checked } }); await refresh(); shipmentDetail(id); toast('Đã cập nhật kiện.'); return; }
     if (form.id === 'publication-confirm-form') { const p = modalRecord; await api(`/publications/${p.id}/action`, { method: 'POST', body: { action: p.status === 'awaiting_manual' ? 'confirm' : 'resolve', url: data.url } }); await refresh(); publicationDetail(p.id); toast('Đã ghi nhận xác nhận thủ công.'); return; }

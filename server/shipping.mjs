@@ -1,3 +1,4 @@
+import {verifiedAddress} from './order-address-proof.mjs';
 import {collectionPolicy} from '../public/shipping-policy.js';
 import {resolveCarrierAddress} from './shipping-address.mjs';
 import {prepareCarrierCreation} from './shipment-create.mjs';
@@ -62,7 +63,7 @@ export function shipmentPayload(order,customer,a,input){
 }
 export async function dispatchShipment(user,id,input,request=vtpRequest){
  const o=get('orders',id);shippingAccess(user,o);if(o.fulfillmentTarget&&o.fulfillmentTarget!=='vtp:'+input.accountId)fail('Đơn đã chọn nơi xử lý khác. Không gửi đồng thời hai bên.',409);if(!['draft','confirmed'].includes(o.status)||o.requiresShipping===false)fail('Đơn không thể tạo vận đơn.');
- const a=account(input.accountId);let payload=shipmentPayload(o,get('customers',o.customerId),a,input);
+ const a=account(input.accountId);verifiedAddress(input,'vtp:'+a.id,input.receiverAddress||o.address);let payload=shipmentPayload(o,get('customers',o.customerId),a,input);
  if(o.version!==Number(input.version))fail('Đơn đã thay đổi. Tải lại trước khi gửi.',409);
  if(inFlight.has(id))fail('Đang gửi đơn này.',409);
  if(all('shipments').some(s=>s.orderId===id&&s.status!=='cancelled'))fail('Đơn đã có vận đơn hoặc đang chờ xác minh. Kiểm tra trước khi gửi lại.',409);

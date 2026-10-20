@@ -1,3 +1,4 @@
+import {addressCatalog,resolveOrderAddress,validateOrderAddress} from './order-address.mjs';
 import {planProducts} from './product-catalog.mjs';
 import {updateConversationTags} from './conversation-tag-update.mjs';
 import {commentPresentation} from './comment-presentation.mjs';
@@ -79,6 +80,7 @@ function checkOrigin(req) { if (req.headers['sec-fetch-site'] === 'cross-site') 
 const generic = /^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
 async function dispatch(req, res, url, user, input) {
   const path = url.pathname; const method = req.method;
+  if(path.startsWith('/api/order-address/')){domain.permission(user,'orders');if(path==='/api/order-address/catalog'&&method==='POST')return addressCatalog(input);if(path==='/api/order-address/resolve'&&method==='POST')return resolveOrderAddress(input);if(path==='/api/order-address/validate'&&method==='POST')return validateOrderAddress(input);domain.fail('Không tìm thấy danh mục địa chỉ.',404);}
   const communication=await communicationRoute(path,method,input,user);if(communication!==undefined)return communication;
   const editedOrder=orderEditorRoute(path,method,input,user);if(editedOrder!==undefined)return editedOrder;
   if(path==='/api/orders/workspace'&&method==='GET')return orderWorkspaceState(user);
