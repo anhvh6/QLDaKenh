@@ -44,6 +44,7 @@ export function editRecord(user, kind, id, input) {
     // Editing an already scheduled content does not silently mutate the frozen publication.
   }
   if (kind === 'connections') {
+    if(data.mode==='demo')fail('Kết nối mô phỏng đã được tắt. Chọn API thực tế hoặc hỗ trợ đăng thủ công.');
     if (!providers[data.provider]) fail('Nền tảng không hợp lệ.'); required(data.name, 'Tên kênh', 200); if (!['demo', 'assisted', 'api'].includes(data.mode)) fail('Chế độ không hợp lệ.');
     if (data.mode === 'api' && !providers[data.provider].publish && !providers[data.provider].message && !providers[data.provider].oauth) fail('Kênh này hiện chỉ hỗ trợ đăng thủ công.');
     data.status = data.mode === 'demo' ? 'demo' : data.mode === 'assisted' ? 'assisted' : 'configured'; data.verifiedAt = null;

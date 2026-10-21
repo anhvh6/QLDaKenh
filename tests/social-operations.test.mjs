@@ -12,9 +12,15 @@ const {checkSocialHealth,socialHealthRoute}=await import('../server/social-healt
 const {socialCan}=await import('../public/social-capabilities.js');
 const {socialHealthHTML,connectionHealthBadge}=await import('../public/social-health.js');
 const {commentChannels}=await import('../public/comment-channel-filter.js');
+const {editRecord}=await import('../server/domain.mjs');
 const bsky={id:'bsky',provider:'bluesky',accountId:'did:plc:self',expectedAccount:'self.bsky.social',mode:'api',status:'connected'};
 const parent={uri:'at://did:plc:peer/app.bsky.feed.post/child',cid:'child-cid',record:{reply:{root:{uri:'at://did:plc:root/app.bsky.feed.post/root',cid:'root-cid'}}}};
 saveSecret(bsky.id,{token:'access',refreshToken:'refresh',expiresAt:Date.now()+999999});
+
+test('connection forms cannot create simulated channels through the server',()=>{
+ assert.throws(()=>editRecord({id:'owner',role:'owner'},'connections',null,{provider:'facebook',name:'No simulation',mode:'demo'}),/mô phỏng đã được tắt/);
+ const c=editRecord({id:'owner',role:'owner'},'connections',null,{provider:'facebook',name:'Real connection',mode:'api'});assert.equal(c.mode,'api');assert.equal(c.status,'configured');
+});
 
 test('connection badges expose failed authentication, partial API access, and stopped Zalo sessions',()=>{
  assert.match(connectionHealthBadge({status:'connected',health:{checks:[{key:'profile',status:'error'}]}}),/Lỗi xác thực API/);
