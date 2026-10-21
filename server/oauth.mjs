@@ -122,7 +122,7 @@ export async function finishOAuth(req,res,url){
    if(!target)target=put('connections',{name:item.name,provider,mode:connection.mode});
    const previous=secret(target.id);
    saveSecret(target.id,{...previous,token:item.token,...(item.refreshToken?{refreshToken:item.refreshToken}:{}),...(item.expiresIn?{expiresAt:Date.now()+Number(item.expiresIn)*1000}:{}),...(item.extra||{})});
-   target=put('connections',{...target,name:target.name||item.name,mode:oauthMode(provider,target.mode),...(provider==='facebook'||provider==='instagram'?{apiVersion:target.apiVersion||graphVersion}:{}),accountId:String(item.accountId),remoteName:item.name,avatar:item.avatar,status:'connected',verifiedAt:now()});
+   target=put('connections',{...target,name:target.name||item.name,mode:oauthMode(provider,target.mode),...(provider==='facebook'||provider==='instagram'?{apiVersion:target.apiVersion||graphVersion}:{}),accountId:String(item.accountId),remoteName:item.name,avatar:item.avatar,status:'connected',verifiedAt:now(),oauthError:''});
    audit(record.userId,'oauth_connected',target.id,{provider,accountId:item.accountId});
    // A Page's access token alone is not enough: Facebook only starts sending webhook events (comments, messages)
    // for a Page once it is explicitly subscribed to this app via subscribed_apps. Without this call, the
@@ -139,6 +139,6 @@ export async function finishOAuth(req,res,url){
    }catch(error){audit(record.userId,'oauth_webhook_subscribe_failed',target.id,{provider:'instagram',error:error.message});}
   }
   done(true,`Đã kết nối ${profiles.length} ${provider==='facebook'?'Facebook Page':'tài khoản'}.`);
- }catch(error){done(false,String(error.message||'Kết nối thất bại.').slice(0,300));}
+ }catch(error){const message=String(error.message||'Kết nối thất bại.').slice(0,300),connection=get('connections',record.connectionId);if(connection&&!connection.deletedAt)put('connections',{...connection,oauthError:message});audit(record.userId,'oauth_failed',record.connectionId,{provider});done(false,message);}
  finally{try{remove('oauth_states',state);}catch{}try{saveSecret(`oauth:${state}`,{});}catch{}}
 }
