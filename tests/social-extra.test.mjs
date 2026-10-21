@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync} from 'node:fs';
+import {mkdtempSync,writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 import {resolve,join} from 'node:path';
 process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'social-extra-'));
 process.env.OAUTH_BASE_URL='https://hub.example.test';
@@ -8,7 +9,7 @@ process.env.REDDIT_CLIENT_ID='reddit-client';process.env.REDDIT_CLIENT_SECRET='r
 process.env.TUMBLR_CLIENT_ID='tumblr-client';process.env.TUMBLR_CLIENT_SECRET='tumblr-secret';
 const {extraProfile,publishExtra,extraToken,assertIdentity}=await import('../server/social-extra.mjs');
 const {startOAuth,finishOAuth,oauthConfiguration}=await import('../server/oauth.mjs');
-const {secret,saveSecret,get,put}=await import('../server/store.mjs');
+const {secret,saveSecret,get,put,db,all}=await import('../server/store.mjs');
 const req={headers:{host:'127.0.0.1:4317'}};
 
 test('new OAuth gateways use official hosts and scoped state',async()=>{
@@ -60,4 +61,11 @@ test('OAuth callback rejects wrong identity, consumes state, and preserves exist
   await finishOAuth(req,res,new URL(`https://hub.example.test/api/oauth/reddit/callback?code=code&state=${state}`));
   assert.ok(location.includes('oauth=error'));assert.equal(get('oauth_states',state),null);assert.equal(get('connections',c.id).status,'configured');assert.ok(!secret(c.id).token);
  }finally{global.fetch=original;}
+});
+test('profile importer uses active owner, stays pending, and is idempotent',()=>{
+ db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run('owner','owner@example.test','Owner','owner','unused');
+ const file=join(process.env.DATA_DIR,'profiles.json');writeFileSync(file,JSON.stringify([{provider:'mastodon',name:'Demo',profileUrl:'https://mastodon.social/@demo',expectedAccount:'demo@mastodon.social'}]));
+ const run=apply=>{const r=spawnSync(process.execPath,['scripts/import-social-profiles.mjs','--file',file,...(apply?['--apply']:[])],{encoding:'utf8',env:process.env});assert.equal(r.status,0,r.stderr);return JSON.parse(r.stdout);};
+ assert.equal(run(false)[0].status,'would_add');assert.equal(run(true)[0].status,'added_pending');assert.equal(run(true)[0].status,'existing');
+ const channels=all('connections').filter(c=>c.profileUrl==='https://mastodon.social/@demo');assert.equal(channels.length,1);assert.equal(channels[0].status,'configured');assert.equal(channels[0].expectedAccount,'demo@mastodon.social');
 });

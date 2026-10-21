@@ -7,7 +7,7 @@ const file=process.argv[process.argv.indexOf('--file')+1];
 if(!process.argv.includes('--file')||!file)throw new Error('Dùng --file profiles.json [--apply]');
 const profiles=JSON.parse(readFileSync(file,'utf8'));
 if(!Array.isArray(profiles)||profiles.length>100)throw new Error('Danh sách tối đa 100 kênh.');
-const owner=all('users').find(user=>user.role==='owner'&&!user.deletedAt);
+const owner=db.prepare("SELECT id,role FROM users WHERE role='owner' AND active=1 LIMIT 1").get();
 if(!owner)throw new Error('Chưa có chủ hệ thống.');
 const result=[];
 for(const profile of profiles){
