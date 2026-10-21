@@ -6,6 +6,7 @@ import { createReadStream, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { secret, get, saveSecret, dataDir } from './store.mjs';
 import { publicMediaUrl } from './public-media.mjs';
+import { googleRefreshClient } from './google-oauth-client.mjs';
 
 export const providers = {
   facebook: { label: 'Facebook Page', publish: true, message: true, oauth: true, update: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth để chọn Facebook Page bạn quản lý; ảnh/video cần URL HTTPS công khai.' },
@@ -49,7 +50,7 @@ function assetFile(asset) { if (!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z0-9]+$/.t
 export async function refreshedToken(c) {
   const current = secret(c.id); if (!current.refreshToken || !current.expiresAt || Number(current.expiresAt) > Date.now() + 60000) return current.token;
   let data;
-  if (['youtube', 'blogger'].includes(c.provider)) data = await remote('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID || '', client_secret: process.env.GOOGLE_CLIENT_SECRET || '', refresh_token: current.refreshToken, grant_type: 'refresh_token' }) });
+  if (['youtube', 'blogger'].includes(c.provider)) { const client=googleRefreshClient(current); data = await remote('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: client.clientId, client_secret: client.clientSecret, refresh_token: current.refreshToken, grant_type: 'refresh_token' }) }); }
   else if (c.provider === 'x') {
     if (!process.env.X_CLIENT_ID || !process.env.X_CLIENT_SECRET) throw new Error('Thiếu X_CLIENT_ID hoặc X_CLIENT_SECRET để làm mới phiên X.'); const basic = Buffer.from(`${process.env.X_CLIENT_ID}:${process.env.X_CLIENT_SECRET}`).toString('base64');
     try { data = await remote('https://api.x.com/2/oauth2/token', { method: 'POST', headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ refresh_token: current.refreshToken, grant_type: 'refresh_token', client_id: process.env.X_CLIENT_ID }) }); } catch (error) { throw new Error(`Không thể làm mới phiên X: ${error.message}. Hãy ngắt kết nối và kết nối lại X.`); }

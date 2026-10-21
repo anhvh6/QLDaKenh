@@ -3,6 +3,7 @@ import {assertIdentity} from './social-extra.mjs';
 import {createHash,randomBytes} from 'node:crypto';
 import {all,get,put,remove,secret,saveSecret,now,audit} from './store.mjs';
 import {remote} from './connectors.mjs';
+import {googleOAuthClient} from './google-oauth-client.mjs';
 
 const graphVersion=process.env.META_GRAPH_VERSION||'v25.0';
 const oauthProviders=new Set(['facebook','instagram','threads','x','youtube','blogger','tiktok',...Object.keys(extraOAuthRequirements)]);
@@ -47,8 +48,10 @@ export function startOAuth(user,connection,req){
   const challenge=createHash('sha256').update(codeVerifier).digest('base64url');
   url=`https://x.com/i/oauth2/authorize?${encode({response_type:'code',client_id:env('X_CLIENT_ID'),redirect_uri:redirect,scope:'tweet.read tweet.write users.read offline.access',state,code_challenge:challenge,code_challenge_method:'S256'})}`;
  }else if(['youtube','blogger'].includes(connection.provider)){
+  const client=googleOAuthClient(connection,secret);
+  saveSecret(`oauth:${state}`,{googleClientId:client.clientId,googleClientSecret:client.clientSecret});
   const scope=connection.provider==='blogger'?'https://www.googleapis.com/auth/blogger':'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl';
-  url=`https://accounts.google.com/o/oauth2/v2/auth?${encode({client_id:env('GOOGLE_CLIENT_ID'),redirect_uri:redirect,response_type:'code',scope,access_type:'offline',prompt:'consent',include_granted_scopes:'true',state})}`;
+  url=`https://accounts.google.com/o/oauth2/v2/auth?${encode({client_id:client.clientId,redirect_uri:redirect,response_type:'code',scope,access_type:'offline',prompt:'consent',include_granted_scopes:'true',state})}`;
  }else{
   if(!redirect.startsWith('https://'))throw Object.assign(new Error('TikTok yêu cầu TIKTOK_REDIRECT_URI hoặc OAUTH_BASE_URL là HTTPS công khai.'),{status:503});
   url=`https://www.tiktok.com/v2/auth/authorize/?${encode({client_key:env('TIKTOK_CLIENT_KEY'),redirect_uri:redirect,response_type:'code',scope:'user.info.basic,video.publish',state})}`;
@@ -88,16 +91,18 @@ async function exchange(provider,code,redirect,state){
   return {accountId:profile.data.id,name:profile.data.username||profile.data.name||'X',avatar:profile.data.profile_image_url||'',token:tokens.access_token,refreshToken:tokens.refresh_token,expiresIn:tokens.expires_in};
  }
  if(provider==='youtube'||provider==='blogger'){
-  const tokens=await tokenRequest('https://oauth2.googleapis.com/token',{code,client_id:env('GOOGLE_CLIENT_ID'),client_secret:env('GOOGLE_CLIENT_SECRET'),redirect_uri:redirect,grant_type:'authorization_code'});
+  const binding=secret(`oauth:${state}`),clientId=binding.googleClientId||env('GOOGLE_CLIENT_ID'),clientSecret=binding.googleClientSecret||env('GOOGLE_CLIENT_SECRET');
+  const tokens=await tokenRequest('https://oauth2.googleapis.com/token',{code,client_id:clientId,client_secret:clientSecret,redirect_uri:redirect,grant_type:'authorization_code'});
+  const extra={googleClientId:clientId,googleClientSecret:clientSecret};
   if(provider==='blogger'){
    const blogs=await remote('https://www.googleapis.com/blogger/v3/users/self/blogs',{headers:{Authorization:`Bearer ${tokens.access_token}`}});
-   const accounts=(blogs.items||[]).map(blog=>({accountId:String(blog.id),name:blog.name||'Blogger',avatar:'',token:tokens.access_token,refreshToken:tokens.refresh_token,expiresIn:tokens.expires_in}));
+   const accounts=(blogs.items||[]).map(blog=>({accountId:String(blog.id),name:blog.name||'Blogger',avatar:'',token:tokens.access_token,refreshToken:tokens.refresh_token,expiresIn:tokens.expires_in,extra}));
    if(!accounts.length)throw new Error('Tài khoản Google chưa có blog Blogger.');
    return {...accounts[0],accounts};
   }
   const channels=await remote('https://www.googleapis.com/youtube/v3/channels?part=id,snippet&mine=true',{headers:{Authorization:`Bearer ${tokens.access_token}`}});const channel=channels.items?.[0];
   if(!channel)throw new Error('Tài khoản Google chưa có kênh YouTube.');
-  return {accountId:channel.id,name:channel.snippet?.title||'YouTube',avatar:channel.snippet?.thumbnails?.default?.url||'',token:tokens.access_token,refreshToken:tokens.refresh_token,expiresIn:tokens.expires_in};
+  return {accountId:channel.id,name:channel.snippet?.title||'YouTube',avatar:channel.snippet?.thumbnails?.default?.url||'',token:tokens.access_token,refreshToken:tokens.refresh_token,expiresIn:tokens.expires_in,extra};
  }
  const tokens=await tokenRequest('https://open.tiktokapis.com/v2/oauth/token/',{client_key:env('TIKTOK_CLIENT_KEY'),client_secret:env('TIKTOK_CLIENT_SECRET'),code,grant_type:'authorization_code',redirect_uri:redirect});
  const profile=await remote('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url',{headers:{Authorization:`Bearer ${tokens.access_token}`}});const user=profile.data?.user||{};
