@@ -5,6 +5,13 @@
 .connection-card.channel-card{padding:16px;min-width:0;box-shadow:none;background:var(--surface,#fff)}
 .channel-card-header{display:flex;align-items:flex-start;gap:10px}
 .channel-card-heading{min-width:0;flex:1}
+.channel-card[data-action="channel-details"]{cursor:pointer}
+.channel-card[data-action="channel-details"]:hover{border-color:var(--primary)}
+.channel-card[data-action="channel-details"]:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+.channel-card-header a{color:inherit;text-decoration:none}
+.channel-card-header h3 a:hover{text-decoration:underline}
+.channel-card-body{overflow-wrap:anywhere}
+.channel-card-body p{margin:10px 0;line-height:1.5}
 .channel-card .channel-platform{font-size:11px;color:var(--muted);margin-bottom:3px}
 .channel-card h3{font-size:14px;line-height:1.45;margin:0 0 7px;overflow-wrap:anywhere;color:var(--text)}
 .channel-card .badge{display:inline-block;white-space:normal;max-width:100%}
