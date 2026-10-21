@@ -4,7 +4,7 @@ import {mkdtempSync,mkdirSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'social-operations-'));
 const {saveSecret,put,get,all,stateRevision}=await import('../server/store.mjs');
-const {replySocial,blueskyInteraction,removeBlueskyLike}=await import('../server/social-replies.mjs');
+const {replySocial,blueskyInteraction,removeBlueskyLike,mastodonReaction}=await import('../server/social-replies.mjs');
 const {syncSocialComments}=await import('../server/social-comment-sync.mjs');
 const {syncComments,commentPollInterval,commentRetryDelay}=await import('../server/comments.mjs');
 const {sendMessage,publish}=await import('../server/connectors.mjs');
@@ -15,6 +15,14 @@ const {commentChannels}=await import('../public/comment-channel-filter.js');
 const bsky={id:'bsky',provider:'bluesky',accountId:'did:plc:self',expectedAccount:'self.bsky.social',mode:'api',status:'connected'};
 const parent={uri:'at://did:plc:peer/app.bsky.feed.post/child',cid:'child-cid',record:{reply:{root:{uri:'at://did:plc:root/app.bsky.feed.post/root',cid:'root-cid'}}}};
 saveSecret(bsky.id,{token:'access',refreshToken:'refresh',expiresAt:Date.now()+999999});
+
+test('Mastodon Like and unlike use POST, validate status acknowledgement, and reject invalid IDs before writing',async()=>{
+ const c={id:'masto-like',provider:'mastodon'};saveSecret(c.id,{token:'token'});
+ for(const like of [true,false])await mastodonReaction(c,'123',like,async(url,o)=>{assert.equal(url,`https://mastodon.social/api/v1/statuses/123/${like?'favourite':'unfavourite'}`);assert.equal(o.method,'POST');assert.equal(o.headers.Authorization,'Bearer token');return {id:'123',favourited:like,favourites_count:Number(like)};});
+ await assert.rejects(mastodonReaction(c,'123',true,async()=>({id:'123',favourited:false})),e=>e.unknown===true);
+ await assert.rejects(mastodonReaction(c,'123',true,async()=>({id:'456',favourited:true})),e=>e.unknown===true);
+ let calls=0;await assert.rejects(mastodonReaction(c,'123/context',true,async()=>{calls++;}),/không hợp lệ/);assert.equal(calls,0);
+});
 test('YouTube reply resolves child to top-level comment and requires provider acknowledgement',async()=>{
  const calls=[];const req=async(url,o)=>{calls.push({url,o});return o?.method==='POST'?{id:'reply'}:{items:[{id:'child',snippet:{parentId:'top'}}]};};
  const result=await replySocial({provider:'youtube'},{externalCommentId:'child'},'Reply',{},req,async()=> 'fresh');

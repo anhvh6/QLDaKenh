@@ -1,6 +1,13 @@
 import {extraToken} from './social-extra.mjs';
 const auth=token=>({Authorization:`Bearer ${token}`});
 const json=(body,token)=>({method:'POST',headers:{...auth(token),'Content-Type':'application/json'},body:JSON.stringify(body)});
+export async function mastodonReaction(c,id,like,request){
+ if(!/^\d+$/.test(String(id)))throw new Error('ID bình luận Mastodon không hợp lệ.');
+ const token=await extraToken(c,request);
+ const r=await request(`https://mastodon.social/api/v1/statuses/${id}/${like?'favourite':'unfavourite'}`,{method:'POST',headers:auth(token)});
+ if(String(r?.id)!==String(id)||r.favourited!==like)throw Object.assign(new Error('Mastodon chưa xác nhận thay đổi Like. Kiểm tra bài gốc trước khi thử lại.'),{unknown:true});
+ return {success:true,likeCount:r.favourites_count};
+}
 export async function replySocial(c,conv,text,options,request,refresh){
  if(options.assetRefs?.length)throw new Error('Trả lời bình luận kênh này hiện chỉ hỗ trợ văn bản.');
  if(!String(text||'').trim()||!conv.externalCommentId)throw new Error('Thiếu nội dung hoặc ID bình luận cần trả lời.');

@@ -1,4 +1,4 @@
-import {replySocial,blueskyInteraction,removeBlueskyLike} from './social-replies.mjs';
+import {replySocial,blueskyInteraction,removeBlueskyLike,mastodonReaction} from './social-replies.mjs';
 import {extraProviders,isExtra,extraProfile,publishExtra} from './social-extra.mjs';
 import {sendCommentPrivateReply} from './comment-private.mjs';
 import {facebookMessageMedia} from './facebook-media.mjs';
@@ -198,6 +198,7 @@ export async function updatePublication(c, p, content) {
   throw lastError || new Error(`${c.name}: Facebook không cho phép sửa bài này.`);
 }
 export async function reactComment(c, externalCommentId, like = true, reactionUri = '') {
+  if(c.provider==='mastodon')return mastodonReaction(c,externalCommentId,like,remote);
   if(c.provider==='bluesky')return like?blueskyInteraction(c,externalCommentId,'app.bsky.feed.like',remote):removeBlueskyLike(c,reactionUri,remote);
   if (c.provider !== 'facebook') throw new Error('Kênh này chưa hỗ trợ react bình luận.');
   const token = secret(c.id).token; if (!token) throw new Error('Chưa cấu hình token.');
