@@ -42,7 +42,7 @@ export async function checkSocialHealth(c,request=remote){
   else if(c.provider==='devto')await probe('comments',()=>request('https://dev.to/api/articles/me?per_page=1',{headers:{'api-key':s.token}}));
  }
  }
- const sync=get('comment_sync',c.id);if(sync?.status==='error'&&operations.comments)checks.push({key:'sync',status:'error',message:String(sync.error||'Đồng bộ bình luận lỗi').replace(/<[^>]*>/g,'').slice(0,650)});
+ const sync=get('comment_sync',c.id),normalize=value=>String(value).replace(/<[^>]*>/g,'').replace(/\s*·\s*trace\s+\S+/g,'').trim();if(sync?.status==='error'&&operations.comments&&!checks.some(check=>check.status==='error'&&normalize(check.message)===normalize(sync.error)))checks.push({key:'sync',status:'error',message:normalize(sync.error||'Đồng bộ bình luận lỗi').slice(0,650)});
  const report={checkedAt:now(),checks,operations:Object.fromEntries(Object.keys(socialOperationLabels).map(key=>[key,{implemented:!!operations[key],verification:checks.find(x=>x.key===key)?.status||(operations[key]?'not_tested':'unsupported')}]))};
  return report;
  })();locks.set(c.id,job);try{return await job;}finally{locks.delete(c.id);}

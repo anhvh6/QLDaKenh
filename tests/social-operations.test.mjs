@@ -11,6 +11,7 @@ const {sendMessage,publish}=await import('../server/connectors.mjs');
 const {checkSocialHealth,socialHealthRoute}=await import('../server/social-health.mjs');
 const {socialCan}=await import('../public/social-capabilities.js');
 const {socialHealthHTML}=await import('../public/social-health.js');
+const {commentChannels}=await import('../public/comment-channel-filter.js');
 const bsky={id:'bsky',provider:'bluesky',accountId:'did:plc:self',expectedAccount:'self.bsky.social',mode:'api',status:'connected'};
 const parent={uri:'at://did:plc:peer/app.bsky.feed.post/child',cid:'child-cid',record:{reply:{root:{uri:'at://did:plc:root/app.bsky.feed.post/root',cid:'root-cid'}}}};
 saveSecret(bsky.id,{token:'access',refreshToken:'refresh',expiresAt:Date.now()+999999});
@@ -75,4 +76,7 @@ test('share rejects insufficient permissions and never retries an unknown result
  await assert.rejects(socialHealthRoute('/api/messages/no-id/share','POST',{}, {id:'viewer',role:'viewer'}),/không có quyền/);
  const c=put('connections',{...bsky,id:'share-channel'});saveSecret(c.id,{token:'access',refreshToken:'refresh',expiresAt:Date.now()+999999});const conv=put('conversations',{connectionId:c.id,kind:'comment'}),m=put('messages',{conversationId:conv.id,externalId:parent.uri,shareStatus:'unknown'});
  await assert.rejects(socialHealthRoute('/api/messages/'+m.id+'/share','POST',{}, {id:'owner',role:'owner'}),/kiểm tra bài gốc/);
+});
+test('comment channel picker includes newly implemented providers and excludes deleted or read-only publishing gateways',()=>{
+ const channels=['mastodon','bluesky','tumblr'].map(provider=>({provider,status:'connected'}));channels.push({provider:'facebook',status:'connected',deletedAt:'2026-10-21'});assert.deepEqual(commentChannels(channels).map(c=>c.provider),['mastodon','bluesky']);
 });

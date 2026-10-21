@@ -1,5 +1,5 @@
 {
-  "version": "e5aae9a4b6c6",
+  "version": "6fc9fcbd5e9f",
   "compiler": "0.25.12",
   "files": {
     "public/social-capabilities.js": "31844262cb0737d326abfc1d74893a37f979b0f0171c87412482c3ba8cc89ab8",
@@ -21,7 +21,7 @@
     "public/quick-replies.js": "cf1eb5fad7323c570b7cdc9eabd545aa292468697e5ace88f24c736772c5bd03",
     "public/chat-topic-model.js": "00953df50b1612e97afd82077dbe3e9458041272b44eb99d3f95558c05b9c10b",
     "public/chat-topic-menus.js": "51374611e211d3c1f166a626a5a699b587cf9a10c15e19420c21624d8d5cec3b",
-    "public/comment-channel-filter.js": "f5ce64d24fe093ebe7e83af13bc8fb33ac8dca49f341eb6a63ef6f3f1ec157a1",
+    "public/comment-channel-filter.js": "a829404ad45e82ef5c84c87f822ca10ed236662822c01b9325394227e5e75bf8",
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
@@ -96,6 +96,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "4347c89bf93292310b53de0fdabf10e66414215acb02201f3eb5a68d28c68bc4",
-    "public/app.bundle.js": "e5aae9a4b6c66e8405c04b6b6ffa702e9bb052a2700aa2f88e711aabac3a48ee"
+    "public/app.bundle.js": "6fc9fcbd5e9f253bc87b1e503c45fb92c70411835029b8a2cf8d1d0e79a5ce27"
   }
 }
