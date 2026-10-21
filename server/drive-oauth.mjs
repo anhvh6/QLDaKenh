@@ -31,7 +31,11 @@ export async function completeDriveOAuth(url){
  const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({client_id:app.clientId,client_secret:app.clientSecret,redirect_uri:flow.redirectUri,code,grant_type:'authorization_code'}),signal:AbortSignal.timeout(30000)});
  const result=await response.json();
  if(!response.ok)fail(result.error_description||'Google từ chối mã xác thực: '+(result.error||response.status),502);
- if(!result.refresh_token)fail('Google không cấp quyền truy cập dài hạn. Kết nối lại.');
- saveSecret('drive-'+user.id,{...secret('drive-'+user.id),refreshToken:result.refresh_token});
+ if(!result.refresh_token||!result.access_token)fail('Google không cấp quyền truy cập dài hạn. Kết nối lại.');
+ const identityResponse=await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress,permissionId)',{headers:{Authorization:'Bearer '+result.access_token},signal:AbortSignal.timeout(30000)});
+ const identity=await identityResponse.json();
+ if(!identityResponse.ok||!identity.user?.emailAddress)fail(identity.error?.message||'Không xác minh được tài khoản Google Drive. Kết nối lại.',502);
+ const previous=secret('drive-'+user.id),account=identity.user.emailAddress;
+ saveSecret('drive-'+user.id,{...previous,...(previous.account&&previous.account.toLowerCase()!==account.toLowerCase()?{folderId:''}:{}),account,refreshToken:result.refresh_token,googleClientId:app.clientId,googleClientSecret:app.clientSecret});
  return {ok:true,message:'Đã kết nối Google Drive.'};
 }
