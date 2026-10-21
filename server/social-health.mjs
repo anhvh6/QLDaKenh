@@ -1,5 +1,5 @@
 import {socialOperations,socialOperationLabels} from '../public/social-capabilities.js';
-import {get,put,secret,now,audit} from './store.mjs';
+import {get,put,secret,now,audit,db} from './store.mjs';
 import {remote,refreshedToken} from './connectors.mjs';
 import {extraProfile} from './social-extra.mjs';
 import {blueskyInteraction} from './social-replies.mjs';
@@ -52,7 +52,10 @@ export async function socialHealthRoute(path,method,input,user){
  if(match&&method==='POST'){
   if(user.role!=='owner')fail('Cần quyền chủ hệ thống.',403);
   const c=get('connections',match[1]);if(!c||c.deletedAt)fail('Kênh không tồn tại.',404);
-  const result=await checkSocialHealth(c);put('connections',{...get('connections',c.id),health:result});audit(user.id,'connection_health_checked',c.id);return result;
+  const result=await checkSocialHealth(c);put('connections',{...get('connections',c.id),health:result});
+  // Connection sync timestamps intentionally skip state invalidation; a user-requested health report must not.
+  db.prepare('UPDATE state_revision SET value=value+1 WHERE id=1').run();
+  audit(user.id,'connection_health_checked',c.id);return result;
  }
  const share=path.match(/^\/api\/messages\/([^/]+)\/share$/);
  if(share&&method==='POST'){

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'social-operations-'));
-const {saveSecret,put,get,all}=await import('../server/store.mjs');
+const {saveSecret,put,get,all,stateRevision}=await import('../server/store.mjs');
 const {replySocial,blueskyInteraction,removeBlueskyLike}=await import('../server/social-replies.mjs');
 const {syncSocialComments}=await import('../server/social-comment-sync.mjs');
 const {syncComments,commentPollInterval,commentRetryDelay}=await import('../server/comments.mjs');
@@ -79,4 +79,8 @@ test('share rejects insufficient permissions and never retries an unknown result
 });
 test('comment channel picker includes newly implemented providers and excludes deleted or read-only publishing gateways',()=>{
  const channels=['mastodon','bluesky','tumblr'].map(provider=>({provider,status:'connected'}));channels.push({provider:'facebook',status:'connected',deletedAt:'2026-10-21'});assert.deepEqual(commentChannels(channels).map(c=>c.provider),['mastodon','bluesky']);
+});
+test('user-requested diagnostics invalidate cached workspace data immediately',async()=>{
+ const c=put('connections',{id:'health-cached',provider:'zalo_personal',mode:'api',status:'connected',listenerState:'listening'}),revision=stateRevision();
+ const report=await socialHealthRoute('/api/connections/'+c.id+'/health','POST',{}, {id:'owner',role:'owner'});assert.ok(stateRevision()>revision);assert.equal(get('connections',c.id).health.checkedAt,report.checkedAt);
 });
