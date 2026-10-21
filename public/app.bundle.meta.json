@@ -1,7 +1,9 @@
 {
-  "version": "650ac09d4959",
+  "version": "e5aae9a4b6c6",
   "compiler": "0.25.12",
   "files": {
+    "public/social-capabilities.js": "31844262cb0737d326abfc1d74893a37f979b0f0171c87412482c3ba8cc89ab8",
+    "public/social-health.js": "f42a6f6feccaf3a050542699d3d1ee785a10c486040d9c26b57da2e0a7928339",
     "public/shipping-address.js": "af082b129ddae8e7e59627d7206e1b13888a878d1f90374e0d781e126f440497",
     "public/chat-media-picker.js": "6b5ceaace6529914224225e25c417265b584975f6666514589ae71f9d74e6e85",
     "public/chat-connection-state.js": "81e885e80b8e0485c6a91bd9af0552b9eae2a3fdbb93be1a3c1ab6d606eaea21",
@@ -93,7 +95,7 @@
     "public/inbox.js": "fecf8c6da56158634ebc278aacab47d998fb6decd7019553d7fca23d3239eb19",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "e386eca14f59ff97f86820de79ba64a8f1e818c3dbc58850df466a0f34977472",
-    "public/app.bundle.js": "650ac09d4959c3170087d64c46c6007ac6a762895cf3e1693f7c797ca2590d1b"
+    "public/app.js": "4347c89bf93292310b53de0fdabf10e66414215acb02201f3eb5a68d28c68bc4",
+    "public/app.bundle.js": "e5aae9a4b6c66e8405c04b6b6ffa702e9bb052a2700aa2f88e711aabac3a48ee"
   }
 }

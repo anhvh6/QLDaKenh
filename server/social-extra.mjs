@@ -57,6 +57,7 @@ export async function extraProfile(c,remote,token){
  return assertIdentity(c,profile);
 }
 export async function publishExtra(c,p,remote){
+ if(c.provider==='bluesky'&&p.visibility==='private')throw new Error('Bluesky không hỗ trợ bài riêng tư. Chọn công khai trước khi đăng.');
  if(p.type!=='text')throw new Error('Cổng này hiện chỉ hỗ trợ bài văn bản.');
  const token=await extraToken(c,remote),text=String(p.caption||p.title||'');let r;
  if(c.provider==='mastodon'){

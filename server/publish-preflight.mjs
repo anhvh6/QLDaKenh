@@ -35,6 +35,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     if (type !== 'text' && !media.some(m => m.type === type) && !(variant.mediaUrl || content.mediaUrl)) add(ch, `Thiếu media phù hợp với định dạng ${type}.`);
     if (!api) continue;
     const provider = providers[ch.provider];
+    if(ch.provider==='bluesky'&&(variant.visibility||input.visibility||content.visibility)==='private')add(ch,'Bluesky không hỗ trợ bài riêng tư. Chọn công khai trước khi đăng.');
     if (!provider?.publish || !provider.formats.includes(type)) add(ch,formatHint(ch.provider,type)||`API của kênh chưa hỗ trợ định dạng ${formatLabels[type]||type}. Chọn định dạng hoặc kênh khác.`);
     const limits = { threads: 500, instagram: 2200, x: 280, tiktok: 2200 };
     // TikTok's limit uses UTF-16; Threads counts Unicode code points.

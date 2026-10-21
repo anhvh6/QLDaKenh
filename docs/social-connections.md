@@ -11,7 +11,17 @@ Trong Cài đặt > Kênh kết nối, hồ sơ có trạng thái `configured` c
 - Meta Business Suite: cổng mở trang quản trị; không phải tài khoản xuất bản độc lập.
 - Google Doanh nghiệp: cổng quản trị hồ sơ; cần chủ doanh nghiệp xác minh với Google và được cấp quyền API trước khi tích hợp xuất bản. Hiện không quảng bá là kết nối API.
 
-Các cổng bổ sung chưa triển khai đồng bộ bình luận hoặc tin nhắn. Khả năng của từng cổng được khai báo trong registry để không hiển thị thao tác không hỗ trợ.
+Mastodon và Bluesky đồng bộ bình luận công khai trên tối đa 20 bài gần đây mỗi lần; Bluesky đọc luồng trả lời sâu tối đa 6 cấp. Cả hai hỗ trợ trả lời văn bản. Bluesky thêm Like/gỡ Like và chia sẻ lại bình luận. Chưa tích hợp chat riêng cho hai cổng này; Tumblr/Reddit hiện chỉ có phần xuất bản văn bản. Khả năng được khai báo tại `public/social-capabilities.js`, dùng chung cho báo cáo và nút thao tác.
+
+## Kiểm tra chức năng trên từng kênh
+
+Trong mỗi thẻ Cài đặt, mở **Chức năng & kiểm tra API** rồi chọn **Kiểm tra API từng chức năng**. Phép kiểm tra chỉ gọi API đọc hồ sơ, dữ liệu, đăng ký webhook hiện có; không tự đăng bài, trả lời, Like, share hoặc gửi tin. Kết quả đọc thành công không chứng minh quyền ghi hay giao nhận thực tế. Các quyền ghi vẫn cần thử từ thao tác do người dùng chủ động thực hiện.
+
+X và YouTube đã có nhánh trả lời bình luận; YouTube chuyển trả lời con về ID bình luận cấp đầu theo yêu cầu API. Blogger và DEV.to không có nhánh tạo trả lời trong connector, nên giao diện mở bài gốc thay vì hiển thị ô gửi không hoạt động. Instagram đã khai báo khả năng chat văn bản phù hợp với nhánh gửi hiện có; việc gửi còn phụ thuộc quyền token, webhook và cửa sổ 24 giờ.
+
+YouTube và X quét bình luận mỗi 5 phút; YouTube luân phiên 5 video mỗi lần. Lỗi quota/credits/quyền giãn thử tự động 6 giờ; HTTP 429 giãn 15 phút. Đây là kiểm soát mức sử dụng, không tăng quota, mua credits hay tự cấp thêm quyền.
+
+Bluesky chỉ có bài công khai. Hệ thống từ chối lựa chọn đăng riêng tư trước khi gửi để tránh vô tình làm lộ nội dung. Kết quả chia sẻ không xác định sẽ chặn thử lại tự động để tránh tạo bài trùng.
 
 ## Nhập danh sách hồ sơ
 

@@ -1,3 +1,4 @@
+import {replySocial,blueskyInteraction,removeBlueskyLike} from './social-replies.mjs';
 import {extraProviders,isExtra,extraProfile,publishExtra} from './social-extra.mjs';
 import {sendCommentPrivateReply} from './comment-private.mjs';
 import {facebookMessageMedia} from './facebook-media.mjs';
@@ -8,7 +9,7 @@ import { publicMediaUrl } from './public-media.mjs';
 
 export const providers = {
   facebook: { label: 'Facebook Page', publish: true, message: true, oauth: true, update: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth để chọn Facebook Page bạn quản lý; ảnh/video cần URL HTTPS công khai.' },
-  instagram: { label: 'Instagram', publish: true, message: false, oauth: true, delete: true, formats: ['image', 'video'], hint: 'Kết nối OAuth qua Facebook Page đã liên kết Instagram Professional. Xóa bài cần quyền instagram_manage_contents.' },
+  instagram: { label: 'Instagram', publish: true, message: true, oauth: true, delete: true, formats: ['image', 'video'], hint: 'Kết nối OAuth qua Facebook Page đã liên kết Instagram Professional. Tin nhắn văn bản cần đúng quyền và cửa sổ trả lời 24 giờ. Xóa bài cần quyền instagram_manage_contents.' },
   threads: { label: 'Threads', publish: true, message: false, oauth: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth Threads với quyền đọc hồ sơ và xuất bản.' },
   x: { label: 'X', publish: true, message: false, oauth: true, delete: true, formats: ['text'], hint: 'Kết nối OAuth 2.0 với quyền đọc tài khoản và đăng bài.' },
   devto: { label: 'DEV.to', publish: true, message: false, update: true, delete: true, deleteMode: 'unpublish', formats: ['text', 'image', 'video', 'audio'], hint: 'API key DEV.to. Ảnh được nhúng bằng Markdown; video/âm thanh được đính kèm bằng liên kết công khai.' },
@@ -94,7 +95,7 @@ export async function testConnection(c) {
   if (c.provider === 'instagram') return remote(`https://graph.facebook.com/${graphVersion(c)}/${id}?fields=id,username`, { headers: { Authorization: `Bearer ${s.token}` } });
   if (c.provider === 'threads') return remote(`https://graph.threads.net/v1.0/${id}?fields=id,username`, { headers: { Authorization: `Bearer ${s.token}` } });
   if (c.provider === 'devto') return remote('https://dev.to/api/users/me', { headers: { 'api-key': s.token, Accept: 'application/vnd.forem.api-v1+json' } });
-  if (c.provider === 'blogger') return remote(`https://www.googleapis.com/blogger/v3/blogs/${id}`, { headers: { Authorization: `Bearer ${s.token}` } });
+  if (c.provider === 'blogger') return remote(`https://www.googleapis.com/blogger/v3/blogs/${id}`, { headers: { Authorization: `Bearer ${await refreshedToken(c)}` } });
   if (c.provider === 'x') return remote('https://api.x.com/2/users/me', { headers: { Authorization: `Bearer ${await refreshedToken(c)}` } });
   if (c.provider === 'youtube') return remote('https://www.googleapis.com/youtube/v3/channels?part=id,snippet&mine=true', { headers: { Authorization: `Bearer ${await refreshedToken(c)}` } });
   if (c.provider === 'tiktok') return remote('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name', { headers: { Authorization: `Bearer ${s.token}` } });
@@ -196,7 +197,8 @@ export async function updatePublication(c, p, content) {
   } catch (error) { lastError = error; }
   throw lastError || new Error(`${c.name}: Facebook không cho phép sửa bài này.`);
 }
-export async function reactComment(c, externalCommentId, like = true) {
+export async function reactComment(c, externalCommentId, like = true, reactionUri = '') {
+  if(c.provider==='bluesky')return like?blueskyInteraction(c,externalCommentId,'app.bsky.feed.like',remote):removeBlueskyLike(c,reactionUri,remote);
   if (c.provider !== 'facebook') throw new Error('Kênh này chưa hỗ trợ react bình luận.');
   const token = secret(c.id).token; if (!token) throw new Error('Chưa cấu hình token.');
   const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}/likes`, { method: like ? 'POST' : 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error('Facebook chưa xác nhận thay đổi cảm xúc bình luận.'),{unknown:true});return result;
@@ -207,6 +209,7 @@ export async function deleteComment(c, externalCommentId) {
   const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error(`${c.provider === 'instagram' ? 'Instagram' : 'Facebook'} chưa xác nhận xóa bình luận.`),{unknown:true});return result;
 }
 export async function sendMessage(c, conv, text, options = {}) {
+  if(conv.kind==='comment'&&['youtube','x','mastodon','bluesky'].includes(c.provider))return replySocial(c,conv,text,options,remote,refreshedToken);
   if (c.provider === 'zalo_personal') {
     if (!conv.externalUserId) throw new Error('Thiếu người nhận Zalo.');
     const { sendMessage: sendZaloMessage } = await import('./zalo.mjs');
