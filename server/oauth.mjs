@@ -1,10 +1,13 @@
+import {extraOAuthRequirements,extraAuthorization,exchangeExtra} from './social-extra-oauth.mjs';
+import {assertIdentity} from './social-extra.mjs';
 import {createHash,randomBytes} from 'node:crypto';
 import {all,get,put,remove,secret,saveSecret,now,audit} from './store.mjs';
 import {remote} from './connectors.mjs';
 
 const graphVersion=process.env.META_GRAPH_VERSION||'v25.0';
-const oauthProviders=new Set(['facebook','instagram','threads','x','youtube','blogger','tiktok']);
+const oauthProviders=new Set(['facebook','instagram','threads','x','youtube','blogger','tiktok',...Object.keys(extraOAuthRequirements)]);
 const oauthRequirements={
+ ...extraOAuthRequirements,
  facebook:['META_APP_ID','META_APP_SECRET'],instagram:['META_APP_ID','META_APP_SECRET'],
  threads:['THREADS_APP_ID','THREADS_APP_SECRET'],x:['X_CLIENT_ID','X_CLIENT_SECRET'],
  youtube:['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET'],blogger:['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET'],tiktok:['TIKTOK_CLIENT_KEY','TIKTOK_CLIENT_SECRET']
@@ -25,7 +28,7 @@ const encode=params=>new URLSearchParams(params).toString();
 const verifier=()=>randomBytes(48).toString('base64url');
 
 export function supportsOAuth(provider){return oauthProviders.has(provider);}
-export function oauthMode(provider,currentMode){return ['facebook','instagram','threads','x','blogger','youtube','tiktok'].includes(provider)?'api':currentMode==='demo'?'assisted':currentMode;}
+export function oauthMode(provider,currentMode){return supportsOAuth(provider)?'api':currentMode==='demo'?'assisted':currentMode;}
 export function oauthConfiguration(req){return Object.fromEntries([...oauthProviders].map(provider=>{const missing=(oauthRequirements[provider]||[]).filter(name=>!process.env[name]);let callback='';try{callback=redirectUri(provider,req);}catch{}return [provider,{ready:missing.length===0,missing,callback}];}));}
 
 export function startOAuth(user,connection,req){
@@ -34,6 +37,7 @@ export function startOAuth(user,connection,req){
  put('oauth_states',{id:state,userId:user.id,connectionId:connection.id,provider:connection.provider,expiresAt:Date.now()+10*60*1000});
  if(codeVerifier)saveSecret(`oauth:${state}`,{codeVerifier});
  const redirect=redirectUri(connection.provider,req);let url;
+ if(Object.hasOwn(extraOAuthRequirements,connection.provider))return extraAuthorization(connection,state,redirect,remote);
  if(['facebook','instagram'].includes(connection.provider)){
   const scopes=['pages_show_list','pages_read_engagement','pages_read_user_content','pages_manage_posts','pages_manage_engagement','pages_manage_metadata','pages_messaging','instagram_basic','instagram_content_publish','instagram_manage_contents','instagram_manage_comments','instagram_manage_messages'];
   url=`https://www.facebook.com/${graphVersion}/dialog/oauth?${encode({client_id:env('META_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:scopes.join(',')})}`;
@@ -108,8 +112,10 @@ export async function finishOAuth(req,res,url){
  try{
   if(url.searchParams.get('error'))throw new Error(url.searchParams.get('error_description')||'Bạn đã hủy cấp quyền.');
   const code=url.searchParams.get('code');if(!code)throw new Error('Nền tảng không trả mã xác thực.');
-  const connection=get('connections',record.connectionId);if(!connection)throw new Error('Kênh kết nối không còn tồn tại.');
-  const profile=await exchange(provider,code,redirectUri(provider,req),state),profiles=profile.accounts||[profile];let primaryUsed=false;
+  const connection=get('connections',record.connectionId);if(!connection||connection.deletedAt||connection.provider!==provider)throw new Error('Kênh kết nối không còn tồn tại hoặc đã đổi nền tảng.');
+  const profile=Object.hasOwn(extraOAuthRequirements,provider)?await exchangeExtra(provider,code,redirectUri(provider,req),state,connection,remote):await exchange(provider,code,redirectUri(provider,req),state);
+  const candidates=profile.accounts||[profile],profiles=connection.expectedAccount?candidates.filter(item=>{try{assertIdentity(connection,{...item,handle:item.handle||item.name});return true;}catch{return false;}}):candidates;
+  if(!profiles.length)throw new Error(`Chưa được cấp quyền đúng kênh ${connection.expectedAccount}. Hãy chọn lại tài khoản.`);let primaryUsed=false;
   for(const item of profiles){
    let target=all('connections').find(c=>!c.deletedAt&&c.provider===provider&&String(c.accountId||'')===String(item.accountId));if(target?.id===connection.id)primaryUsed=true;
    if(!target&&!primaryUsed){target=connection;primaryUsed=true;}

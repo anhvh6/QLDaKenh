@@ -56,7 +56,7 @@ export function editRecord(user, kind, id, input) {
     if (!['tag', 'notify', 'task'].includes(data.action)) fail('Hành động không hợp lệ.'); data.enabled = data.enabled === true; data.runs = prev?.runs || 0;
   }
   const result = transaction(() => { const r = put(kind, { ...data, ...(id ? { id } : {}) }, prev ? input.version : undefined); if (kind === 'products' && (!prev || prev.stock !== r.stock)) put('stock', { productId: r.id, delta: r.stock - (prev?.stock || 0), type: 'adjustment', reason: input.reason || 'Điều chỉnh tồn kho', actor: user.id }); audit(user.id, prev ? 'update' : 'create', r.id, { kind }); return r; });
-  if (kind === 'connections' && (input.token || input.appSecret)) { saveSecret(result.id, { ...secret(result.id), ...(input.token ? { token: input.token } : {}), ...(input.appSecret ? { appSecret: input.appSecret } : {}), ...(input.verifyToken ? { verifyToken: input.verifyToken } : {}) }); }
+  if (kind === 'connections' && (input.token || input.appSecret)) { saveSecret(result.id, { ...secret(result.id), ...(input.token ? { token: input.token, ...(result.provider === 'bluesky' ? {refreshToken:null,expiresAt:null} : {}) } : {}), ...(input.appSecret ? { appSecret: input.appSecret } : {}), ...(input.verifyToken ? { verifyToken: input.verifyToken } : {}) }); }
   return result;
 }
 export async function deleteRecord(user, kind, id, input = {}) {

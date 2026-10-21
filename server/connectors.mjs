@@ -1,3 +1,4 @@
+import {extraProviders,isExtra,extraProfile,publishExtra} from './social-extra.mjs';
 import {sendCommentPrivateReply} from './comment-private.mjs';
 import {facebookMessageMedia} from './facebook-media.mjs';
 import { createReadStream, statSync } from 'node:fs';
@@ -17,7 +18,7 @@ export const providers = {
   zalo: { label: 'Zalo OA', publish: false, message: true, formats: [], hint: 'OA access token để gửi tin tư vấn khi đủ điều kiện; xuất bản dùng hỗ trợ trong bản này.' },
   tiktok: { label: 'TikTok', publish: true, oauth: true, formats: ['video'], hint: 'Đăng video bằng Content Posting API. Ứng dụng phải được duyệt Direct Post và quyền video.publish.' },
   youtube: { label: 'YouTube', publish: true, oauth: true, update: true, delete: true, formats: ['video'], hint: 'Tải video lên kênh bằng YouTube Data API. Dự án Google chưa qua kiểm duyệt có thể buộc video ở chế độ riêng tư.' },
-  reddit: { label: 'Reddit', publish: false, formats: [], hint: 'Chế độ hỗ trợ. Cần quyền ứng dụng và thỏa thuận phù hợp để tích hợp API.' }
+  ...extraProviders
 };
 export async function remote(url, options = {}) {
   const readOnly=(!options.method||options.method==='GET');
@@ -87,6 +88,7 @@ async function assertPublicMediaURL(url, type) {
 }
 function graphVersion(c) { const version = c.apiVersion || process.env.META_GRAPH_VERSION || 'v25.0'; if (!/^v\d+\.\d+$/.test(version)) throw new Error('Phiên bản Graph API không hợp lệ; kiểm tra META_GRAPH_VERSION hoặc cấu hình kênh.'); return version; }
 export async function testConnection(c) {
+  if(isExtra(c.provider))return extraProfile(c,remote);
   const s = secret(c.id); if (!s.token) throw new Error('Chưa có access token / API key.'); const id = encodeURIComponent(c.accountId || '');
   if (c.provider === 'facebook') { const info = await remote(`https://graph.facebook.com/${graphVersion(c)}/${id}?fields=id,name`, { headers: { Authorization: `Bearer ${s.token}` } }); try { await remote(`https://graph.facebook.com/${graphVersion(c)}/${id}/subscribed_apps?subscribed_fields=feed,messages,message_echoes,message_reactions`, { method: 'POST', headers: { Authorization: `Bearer ${s.token}` } }); } catch { } return info; }
   if (c.provider === 'instagram') return remote(`https://graph.facebook.com/${graphVersion(c)}/${id}?fields=id,username`, { headers: { Authorization: `Bearer ${s.token}` } });
@@ -102,6 +104,7 @@ export async function testConnection(c) {
 export function validateThreadsText(value){const count=Array.from(String(value||'')).length;if(count>500)throw new Error(`Threads giới hạn nội dung ở 500 ký tự; bài này có ${count} ký tự. Rút gọn caption cho riêng kênh Threads rồi đăng lại.`);}
 async function createMediaContainer(url,options){for(let attempt=0;attempt<3;attempt++){try{const r=await remote(url,options);if(!r.id)throw new Error('Nền tảng chưa trả mã chuẩn bị bài; bài chưa được xuất bản.');return r;}catch(error){const transient=error.unknown||error.providerStatus===429||error.providerStatus>=500;if(transient&&attempt<2)continue;if(error.unknown)throw Object.assign(new Error('Không nhận được mã chuẩn bị bài từ nền tảng sau 3 lần thử. Bài chưa được xuất bản; hãy thử lại.'),{unknown:false});throw error;}}}
 export async function publish(c, p) {
+  if(isExtra(c.provider))return publishExtra(c,p,remote);
   const s = secret(c.id); if (!s.token) throw new Error('Chưa cấu hình token.'); const id = encodeURIComponent(c.accountId || ''); let r;
   if (c.provider === 'youtube') return publishYouTube(c, p);
   if (c.provider === 'tiktok') return publishTikTok(c, p);

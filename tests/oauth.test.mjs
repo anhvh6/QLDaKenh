@@ -45,8 +45,8 @@ test('OAuth providers generate state-bound official authorization URLs',()=>{
 });
 
 test('unsupported providers cannot start OAuth',()=>{
- assert.equal(supportsOAuth('reddit'),false);
- assert.throws(()=>startOAuth(user,{id:'reddit',provider:'reddit'},req),/chưa hỗ trợ OAuth/);
+ assert.equal(supportsOAuth('unsupported'),false);
+ assert.throws(()=>startOAuth(user,{id:'unsupported',provider:'unsupported'},req),/chưa hỗ trợ OAuth/);
 });
 
 test('Meta keeps every authorized Facebook Page and linked Instagram account',()=>{
