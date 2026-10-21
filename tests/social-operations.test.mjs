@@ -10,11 +10,27 @@ const {syncComments,commentPollInterval,commentRetryDelay}=await import('../serv
 const {sendMessage,publish}=await import('../server/connectors.mjs');
 const {checkSocialHealth,socialHealthRoute}=await import('../server/social-health.mjs');
 const {socialCan}=await import('../public/social-capabilities.js');
-const {socialHealthHTML}=await import('../public/social-health.js');
+const {socialHealthHTML,connectionHealthBadge}=await import('../public/social-health.js');
 const {commentChannels}=await import('../public/comment-channel-filter.js');
 const bsky={id:'bsky',provider:'bluesky',accountId:'did:plc:self',expectedAccount:'self.bsky.social',mode:'api',status:'connected'};
 const parent={uri:'at://did:plc:peer/app.bsky.feed.post/child',cid:'child-cid',record:{reply:{root:{uri:'at://did:plc:root/app.bsky.feed.post/root',cid:'root-cid'}}}};
 saveSecret(bsky.id,{token:'access',refreshToken:'refresh',expiresAt:Date.now()+999999});
+
+test('connection badges expose failed authentication, partial API access, and stopped Zalo sessions',()=>{
+ assert.match(connectionHealthBadge({status:'connected',health:{checks:[{key:'profile',status:'error'}]}}),/Lỗi xác thực API/);
+ assert.match(connectionHealthBadge({status:'connected',health:{checks:[{key:'comments',status:'error'}]}}),/API cần xử lý/);
+ assert.match(connectionHealthBadge({status:'configured',mode:'api'}),/Chưa xác thực/);
+ assert.match(connectionHealthBadge({provider:'zalo_personal',status:'error',listenerState:'stopped'}),/Phiên chưa hoạt động/);
+ assert.match(connectionHealthBadge({provider:'zalo_personal',status:'connected',listenerState:'listening'}),/Đang nhận tin/);
+ assert.match(connectionHealthBadge({provider:'zalo_personal',status:'disconnected',health:{checks:[{key:'chat',status:'error'}]}}),/Đã ngắt/);
+ assert.match(connectionHealthBadge({status:'connected',health:{checks:[{key:'profile',status:'ok'},{key:'comments',status:'ok'}]}}),/Đã kết nối/);
+});
+
+test('stopped Zalo sessions are diagnosed as chat errors, not as an unauthenticated waiting channel',async()=>{
+ let calls=0;const report=await checkSocialHealth({id:'stopped-zalo',provider:'zalo_personal',mode:'api',status:'error',listenerState:'stopped',listenerError:'Session expired'},async()=>{calls++;});
+ assert.deepEqual(report.checks,[{key:'chat',status:'error',message:'Session expired'}]);assert.equal(calls,0);
+ const disconnected=await checkSocialHealth({id:'disconnected-zalo',provider:'zalo_personal',mode:'api',status:'disconnected'});assert.equal(disconnected.checks[0].status,'waiting');
+});
 
 test('Mastodon Like and unlike use POST, validate status acknowledgement, and reject invalid IDs before writing',async()=>{
  const c={id:'masto-like',provider:'mastodon'};saveSecret(c.id,{token:'token'});

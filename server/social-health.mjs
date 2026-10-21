@@ -11,8 +11,9 @@ export async function checkSocialHealth(c,request=remote){
  const job=(async()=>{
  const operations=socialOperations[c.provider]||{},checks=[],s=secret(c.id),headers={Authorization:`Bearer ${s.token}`};
  const probe=async(key,fn)=>{try{await fn();checks.push({key,status:'ok'});}catch(error){checks.push({key,status:'error',message:String(error.message).replace(/<[^>]*>/g,'').slice(0,650)});}};
- if(c.mode!=='api'||c.status!=='connected')checks.push({key:'profile',status:'waiting',message:'Kênh chưa được xác thực API.'});
- else if(c.provider==='zalo_personal')checks.push({key:'chat',status:c.listenerState==='listening'?'ok':'error',message:c.listenerError||'Trạng thái phiên nhận tin: '+(c.listenerState||'chưa biết')});
+ if(c.mode!=='api'||c.status==='disconnected')checks.push({key:'profile',status:'waiting',message:'Kênh chưa được xác thực API.'});
+ else if(c.provider==='zalo_personal')checks.push({key:'chat',status:c.status==='connected'&&c.listenerState==='listening'?'ok':'error',message:c.listenerError||'Trạng thái phiên nhận tin: '+(c.listenerState||'chưa biết')});
+ else if(c.status!=='connected')checks.push({key:'profile',status:'waiting',message:'Kênh chưa được xác thực API.'});
  else{
  await probe('profile',async()=>{
   if(['bluesky','mastodon','tumblr','reddit'].includes(c.provider))return extraProfile(c,request);

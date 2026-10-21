@@ -1,5 +1,5 @@
 import {socialCan} from './social-capabilities.js';
-import {socialHealthHTML} from './social-health.js';
+import {socialHealthHTML,connectionHealthBadge} from './social-health.js';
 import {ensureOrderAddress} from './shipping-address.js';
 import {mediaPicker} from './chat-media-picker.js';
 import {visibleComment,commentMatchesTags,unreadCommentCount,commentLikeState,commentCardTime} from './comment-presentation.js';
@@ -271,7 +271,7 @@ function settingsPage() {
 
     // Vùng các kênh ĐÃ kết nối
     const connectedHtml = connected.map(c => `
-<div class="connection-card" style="position:relative"><div class="row between">${social(c.provider, true)}${badge(c.status)}</div><h3 style="margin-top:16px">${e(c.remoteName || c.name)}</h3>${c.expectedAccount ? `<p class="small">${e(c.expectedAccount)}</p>` : ''}${String(c.profileUrl || '').startsWith('https://') ? `<a href="${e(c.profileUrl)}" target="_blank" rel="noopener noreferrer" class="small">Mở trang cá nhân / kênh ↗</a>` : ''}${c.connectionNote ? `<p class="help-text">${e(c.connectionNote)}</p>` : ''}${c.oauthError ? `<p class="help-text" role="alert">${e(c.oauthError)}</p>` : ''}${c.status !== 'connected' && S.providers[c.provider]?.oauth && S.oauthConfiguration?.[c.provider]?.missing?.length ? `<p class="help-text">Thiếu cấu hình: ${e(S.oauthConfiguration[c.provider].missing.join(', '))}</p>` : ''}${c.provider === 'zalo_personal' ? `<div class="help-text">Nhận tin: ${e(c.listenerState || 'Chưa chạy')}<br>${e(c.listenerError || '')}${c.zaloSync ? `<br>Đồng bộ: ${e(({ running: 'Đang tải', complete: 'Hoàn tất phần có thể tải', partial: 'Một phần', failed: 'Lỗi' })[c.zaloSync.status] || c.zaloSync.status)} · ${Number(c.zaloSync.contacts || 0)} liên hệ · ${Number(c.zaloSync.messages || 0)} tin đã nhận<br>${e(c.zaloSync.error || c.zaloSync.note || '')}` : ''}</div>` : ''}<p>${e(S.providers[c.provider]?.hint)}</p>${socialHealthHTML(c)}<div class="row between" style="margin-top:15px"><span class="muted small">${e(labels[c.mode])}</span><div class="row wrap" style="gap:6px">${c.provider === 'zalo_personal' ? btn('Đồng bộ', 'sync-zalo', 'refresh', 'small primary', c.id) + btn('Tải thêm lịch sử', 'sync-zalo-older', '', 'small', c.id) : c.mode === 'api' ? btn('Kiểm tra', 'test-connection', 'refresh', 'small', c.id) : ''}${S.providers[c.provider]?.oauth ? `<button class="btn small" data-action="${S.oauthConfiguration?.[c.provider]?.ready ? 'oauth-connect' : 'oauth-help'}" data-provider="${e(c.provider)}" data-id="${e(c.id)}">${c.status === 'connected' ? 'Kết nối lại' : 'Kết nối'}</button>` : ''}${btn('Sửa', 'edit-connection', 'edit', 'small text', c.id)}${c.status !== 'disconnected' ? btn('Ngắt kết nối', 'disconnect-connection', 'close', 'small danger', c.id) : btn('Xóa kết nối', 'delete-connection', 'close', 'small danger', c.id)}</div></div></div>
+<div class="connection-card" style="position:relative"><div class="row between">${social(c.provider, true)}${connectionHealthBadge(c)}</div><h3 style="margin-top:16px">${e(c.remoteName || c.name)}</h3>${c.expectedAccount ? `<p class="small">${e(c.expectedAccount)}</p>` : ''}${String(c.profileUrl || '').startsWith('https://') ? `<a href="${e(c.profileUrl)}" target="_blank" rel="noopener noreferrer" class="small">Mở trang cá nhân / kênh ↗</a>` : ''}${c.connectionNote ? `<p class="help-text">${e(c.connectionNote)}</p>` : ''}${c.oauthError ? `<p class="help-text" role="alert">${e(c.oauthError)}</p>` : ''}${c.status !== 'connected' && S.providers[c.provider]?.oauth && S.oauthConfiguration?.[c.provider]?.missing?.length ? `<p class="help-text">Thiếu cấu hình: ${e(S.oauthConfiguration[c.provider].missing.join(', '))}</p>` : ''}${c.provider === 'zalo_personal' ? `<div class="help-text">Nhận tin: ${e(c.listenerState || 'Chưa chạy')}<br>${e(c.listenerError || '')}${c.zaloSync ? `<br>Đồng bộ: ${e(({ running: 'Đang tải', complete: 'Hoàn tất phần có thể tải', partial: 'Một phần', failed: 'Lỗi' })[c.zaloSync.status] || c.zaloSync.status)} · ${Number(c.zaloSync.contacts || 0)} liên hệ · ${Number(c.zaloSync.messages || 0)} tin đã nhận<br>${e(c.zaloSync.error || c.zaloSync.note || '')}` : ''}</div>` : ''}<p>${e(S.providers[c.provider]?.hint)}</p>${socialHealthHTML(c)}<div class="row between" style="margin-top:15px"><span class="muted small">${e(labels[c.mode])}</span><div class="row wrap" style="gap:6px">${c.provider === 'zalo_personal' ? btn('Đồng bộ', 'sync-zalo', 'refresh', 'small primary', c.id) + btn('Tải thêm lịch sử', 'sync-zalo-older', '', 'small', c.id) + (c.status !== 'connected' ? btn('Quét QR lại', 'quick-zalo-qr', '', 'small', c.id) : '') : c.mode === 'api' ? btn('Kiểm tra', 'test-connection', 'refresh', 'small', c.id) : ''}${S.providers[c.provider]?.oauth ? `<button class="btn small" data-action="${S.oauthConfiguration?.[c.provider]?.ready ? 'oauth-connect' : 'oauth-help'}" data-provider="${e(c.provider)}" data-id="${e(c.id)}">${c.status === 'connected' ? 'Kết nối lại' : 'Kết nối'}</button>` : ''}${btn('Sửa', 'edit-connection', 'edit', 'small text', c.id)}${c.status !== 'disconnected' ? btn('Ngắt kết nối', 'disconnect-connection', 'close', 'small danger', c.id) : btn('Xóa kết nối', 'delete-connection', 'close', 'small danger', c.id)}</div></div></div>
 `).join('');
 
     // Vùng các nhóm icon ĐỢI kết nối (Tạo quick connect icon)
@@ -586,12 +586,14 @@ document.addEventListener('click', async event => {
       const result = await api(`/connections/${connection.id}/oauth/start`, { method: 'POST', body: {} }); location.assign(result.url); return;
     }
     if (action === 'sync-zalo' || action === 'sync-zalo-older') {
+      const previousHTML=target.innerHTML;
       target.disabled = true; target.innerHTML = 'Đang đồng bộ...';
       try {
         const r = await api(`/connections/${id}/sync-zalo`, { method: 'POST', body: { older: action === 'sync-zalo-older' } });
         toast(r.message || 'Đã đồng bộ xong.');
         await refresh();
       } catch (e) { toast('Lỗi: ' + e.message, true); }
+      finally { if(target.isConnected){target.disabled=false;target.innerHTML=previousHTML;} }
       return;
     }
     if (action === 'disconnect-zalo') {
@@ -607,7 +609,9 @@ document.addEventListener('click', async event => {
     if (action === 'quick-zalo-qr') {
       target.style.opacity = '0.5';
       try {
-        let c = S.connections.find(x => x.provider === 'zalo_personal' && x.status !== 'connected');
+        let c = id ? S.connections.find(x => x.id===id&&x.provider==='zalo_personal') : S.connections.find(x => x.provider === 'zalo_personal' && x.status !== 'connected');
+        if(id&&!c)throw Error('Không tìm thấy kết nối Zalo cần khôi phục.');
+        if(id&&c.status==='connected')throw Error('Kênh này đang kết nối. Chỉ quét QR lại khi phiên đã dừng.');
         if (!c) {
           c = await api('/records/connections', { method: 'POST', body: { name: 'Zalo cá nhân', provider: 'zalo_personal', mode: 'api', status: 'pending' } });
         }
