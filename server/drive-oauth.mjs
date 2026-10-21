@@ -12,7 +12,7 @@ export function beginDriveOAuth(user){
  const state=randomBytes(32).toString('hex'),expires=Date.now()+600000;
  saveSecret('drive-state-'+user.id,{state,expires});
  saveSecret(flowKey(state),{userId:user.id,expires,clientId:app.clientId,redirectUri:app.redirectUri});
- return {url:'https://accounts.google.com/o/oauth2/v2/auth?'+new URLSearchParams({client_id:app.clientId,redirect_uri:app.redirectUri,response_type:'code',scope:'https://www.googleapis.com/auth/drive.file',access_type:'offline',prompt:'consent',state})};
+ return {url:'https://accounts.google.com/o/oauth2/v2/auth?'+new URLSearchParams({client_id:app.clientId,redirect_uri:app.redirectUri,response_type:'code',scope:'https://www.googleapis.com/auth/drive.file',access_type:'offline',prompt:'select_account consent',state})};
 }
 export async function completeDriveOAuth(url){
  const state=url.searchParams.get('state')||'';
