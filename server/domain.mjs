@@ -205,7 +205,7 @@ export function runWorkflows(trigger, entity) {
 }
 export async function reply(user, id, input) {
  const conv=get('conversations',id),provider=get('connections',conv?.connectionId)?.provider;
- const send=async()=>{const msg=await replyUnlocked(user,id,input);if(!input.note&&conv?.kind!=='comment'&&!user[communicationAutomatic]){if(user.botId)finishCommunicationSend(provider,Date.now());else recordStaffSend(provider,msg.text,(msg.attachments||[]).map(a=>a.assetId||a.url),Date.now(),msg.id);}return msg;};
+ const send=async()=>{const msg=await replyUnlocked(user,id,input);if(!input.note&&conv?.kind!=='comment'&&!user[communicationAutomatic]){if(user.botId)finishCommunicationSend(provider,Date.now(),msg.text,(msg.attachments||[]).map(a=>a.assetId||a.url));else recordStaffSend(provider,msg.text,(msg.attachments||[]).map(a=>a.assetId||a.url),Date.now(),msg.id);}return msg;};
  return !provider||input.note||conv?.kind==='comment'||user[communicationLock]?send():withPlatformSend(provider,send);
 }
 async function replyUnlocked(user, id, input) {

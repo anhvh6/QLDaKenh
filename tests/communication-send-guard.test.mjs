@@ -20,6 +20,9 @@ test('same content waits indefinitely across channels until a different manual m
 test('all automated sends have platform spacing; media identity and normalized text are compared',()=>{
  reserve('zalo','  Hi\n there ',['a'],at);assert.equal(wait('zalo','Hi there',['a'],at+4000).code,'duplicate');assert.equal(wait('zalo','Different',[],at+2999).code,'spacing');assert.equal(wait('zalo','Hi there',['b'],at+3000),null);assert.equal(wait('facebook','Hi there',['a'],at),null);
 });
+test('an automatic message cannot immediately repeat even a manual message with identical content',()=>{
+ manual('zalo','Hello',[],at);assert.equal(wait('zalo','Hello',[],at+10000).code,'duplicate');manual('zalo','Other',[],at+11000);assert.equal(wait('zalo','Hello',[],at+14000),null);
+});
 test('only confirmed staff sends release content; incoming, notes, AI, history and failed sends do not',()=>{
  reserve('zalo','Hello',[],at);
  for(const [id,extra] of [['incoming',{direction:'incoming'}],['note',{direction:'note'}],['ai',{senderType:'ai'}],['history',{history:true}],['failed',{status:'failed'}],['automatic',{communicationCampaignId:'campaign'}]])put('messages',{id,conversationId:'v-z2',direction:'outgoing',senderType:'staff',status:'accepted',text:'Other',createdAt:new Date(at+1000).toISOString(),...extra});
