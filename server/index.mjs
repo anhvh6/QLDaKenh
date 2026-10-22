@@ -1,4 +1,5 @@
 import {socialHealthRoute} from './social-health.mjs';
+import {describeMetaWebhook,channelWebhookSummary} from './meta-webhook-diagnostics.mjs';
 import {addressCatalog,resolveOrderAddress,validateOrderAddress} from './order-address.mjs';
 import {planProducts} from './product-catalog.mjs';
 import {updateConversationTags} from './conversation-tag-update.mjs';
@@ -48,7 +49,7 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { Readable } from 'node:stream';
 import { backup } from 'node:sqlite';
-import { db, dataDir, all, get, put, transaction, now, uid, audit, secret, saveSecret, notification, stateRevision } from './store.mjs';
+import { db, dataDir, all, get, put, remove, transaction, now, uid, audit, secret, saveSecret, notification, stateRevision } from './store.mjs';
 import { seed } from './seed.mjs';
 import * as domain from './domain.mjs';
 import { filterDisconnectedChats } from '../public/chat-connection-state.js';
@@ -216,7 +217,10 @@ async function webhook(req, res, url) {
   const verifyTokens = [process.env.META_WEBHOOK_VERIFY_TOKEN, secret('meta-webhook').verifyToken, ...channels.map(c => secret(c.id).verifyToken)].filter(Boolean);
   if (req.method === 'GET') { if (verifyTokens.includes(url.searchParams.get('hub.verify_token'))) { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end(url.searchParams.get('hub.challenge') || ''); return; } domain.fail('Verify token không hợp lệ.', 403); }
   const { raw, value } = await body(req); const signature = req.headers['x-hub-signature-256'] || ''; const appSecrets = [...new Set([process.env.META_APP_SECRET, ...channels.map(c => secret(c.id).appSecret)].filter(Boolean))]; if (!appSecrets.length) domain.fail('Chưa có META_APP_SECRET.', 403); const validSignature = appSecrets.some(appSecret => { const expected = 'sha256=' + createHmac('sha256', appSecret).update(raw).digest('hex'); return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected)); }); if (!validSignature) domain.fail('Chữ ký không hợp lệ.', 403);
-  for(const c of channels)put('facebook_webhook_status',{id:c.id,lastReceivedAt:now(),eventCount:(value.entry||[]).reduce((n,e)=>n+(e.messaging||[]).length+(e.changes||[]).length,0)});
+  const description=describeMetaWebhook(value),receivedAt=now();
+  put('meta_webhook_receipts',{receivedAt,...description});
+  for(const old of all('meta_webhook_receipts').sort((a,b)=>b.receivedAt.localeCompare(a.receivedAt)).slice(30))remove('meta_webhook_receipts',old.id);
+  for(const c of channels){const summary=channelWebhookSummary(c,description);if(summary)put('facebook_webhook_status',{...get('facebook_webhook_status',c.id),id:c.id,lastReceivedAt:receivedAt,...summary,...(summary.messageEvents?{lastMessageEventAt:receivedAt}:{}),...(summary.standbyMessages?{lastStandbyEventAt:receivedAt}:{})});}
   transaction(() => {
     for (const c of channels) {
       if(['facebook','instagram'].includes(c.provider))ingestFacebookEvents(c, value.entry);care.ingestComments(c, value.entry);
