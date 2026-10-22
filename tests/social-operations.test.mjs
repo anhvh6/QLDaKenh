@@ -114,3 +114,9 @@ test('user-requested diagnostics invalidate cached workspace data immediately',a
  const c=put('connections',{id:'health-cached',provider:'zalo_personal',mode:'api',status:'connected',listenerState:'listening'}),revision=stateRevision();
  const report=await socialHealthRoute('/api/connections/'+c.id+'/health','POST',{}, {id:'owner',role:'owner'});assert.ok(stateRevision()>revision);assert.equal(get('connections',c.id).health.checkedAt,report.checkedAt);
 });
+
+test('an empty Instagram inbox is not proof that incoming chat works',async()=>{
+ const c={id:'empty-ig-inbox',provider:'instagram',accountId:'ig-id',mode:'api',status:'connected'};saveSecret(c.id,{token:'page-token'});
+ const report=await checkSocialHealth(c,async url=>url.includes('subscribed_apps')?{data:[{subscribed_fields:['comments','messages']}]}:url.includes('?fields=id,username')?{id:'ig-id',username:'brand'}:{data:[]});
+ assert.equal(report.operations.chat.verification,'waiting');assert.match(report.checks.find(x=>x.key==='chat').message,/hội thoại trống/);
+});

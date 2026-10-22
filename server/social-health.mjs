@@ -10,7 +10,7 @@ export async function checkSocialHealth(c,request=remote){
  if(locks.has(c.id))return locks.get(c.id);
  const job=(async()=>{
  const operations=socialOperations[c.provider]||{},checks=[],s=secret(c.id),headers={Authorization:`Bearer ${s.token}`};
- const probe=async(key,fn)=>{try{await fn();checks.push({key,status:'ok'});}catch(error){checks.push({key,status:'error',message:String(error.message).replace(/<[^>]*>/g,'').slice(0,650)});}};
+ const probe=async(key,fn)=>{try{const result=await fn();checks.push({key,status:'ok'});return result;}catch(error){checks.push({key,status:'error',message:String(error.message).replace(/<[^>]*>/g,'').slice(0,650)});}};
  if(c.mode!=='api'||c.status==='disconnected')checks.push({key:'profile',status:'waiting',message:'Kênh chưa được xác thực API.'});
  else if(c.provider==='zalo_personal')checks.push({key:'chat',status:c.status==='connected'&&c.listenerState==='listening'?'ok':'error',message:c.listenerError||'Trạng thái phiên nhận tin: '+(c.listenerState||'chưa biết')});
  else if(c.status!=='connected')checks.push({key:'profile',status:'waiting',message:'Kênh chưa được xác thực API.'});
@@ -43,7 +43,8 @@ export async function checkSocialHealth(c,request=remote){
    const root=`https://graph.facebook.com/${c.apiVersion||'v25.0'}/${encodeURIComponent(c.accountId)}`;
    await probe('webhook',async()=>{const r=await request(root+'/subscribed_apps?fields=subscribed_fields',{headers});const fields=new Set((r.data||[]).flatMap(x=>x.subscribed_fields||[])),required=c.provider==='facebook'?['feed','messages']:['comments','messages'];if(!required.every(f=>fields.has(f)))throw new Error('Webhook chưa đăng ký đủ trường: '+required.filter(f=>!fields.has(f)).join(', '));});
    await probe('comments',()=>request(root+(c.provider==='facebook'?'/feed?fields=id&limit=1':'/media?fields=id&limit=1'),{headers}));
-   await probe('chat',()=>request(root+'/conversations?fields=id&limit=1'+(c.provider==='instagram'?'&platform=instagram':''),{headers}));
+   const chat=await probe('chat',()=>request(root+'/conversations?fields=id&limit=1'+(c.provider==='instagram'?'&platform=instagram':''),{headers}));
+   if(c.provider==='instagram'&&Array.isArray(chat?.data)&&!chat.data.length)Object.assign(checks.at(-1),{status:'waiting',message:'Meta trả danh sách hội thoại trống. Chưa xác minh chiều nhận chat; kiểm tra quyền truy cập tin nhắn của công cụ kết nối và tin nhắn đang chờ trên Instagram.'});
   }else if(c.provider==='x')await probe('comments',()=>request(`https://api.x.com/2/users/${encodeURIComponent(c.accountId)}/tweets?max_results=5`,{headers}));
   else if(c.provider==='youtube')await probe('comments',()=>request(`https://www.googleapis.com/youtube/v3/commentThreads?part=id&allThreadsRelatedToChannelId=${encodeURIComponent(c.accountId)}&maxResults=1`,{headers}));
   else if(c.provider==='threads')await probe('comments',async()=>{const posts=await request(`https://graph.threads.net/v1.0/${encodeURIComponent(c.accountId)}/threads?fields=id&limit=1`,{headers});if(posts.data?.[0]?.id)await request(`https://graph.threads.net/v1.0/${encodeURIComponent(posts.data[0].id)}/replies?fields=id&limit=1`,{headers});else throw new Error('Chưa có bài Threads để kiểm tra quyền đọc phản hồi.');});
