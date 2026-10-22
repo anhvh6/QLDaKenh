@@ -40,7 +40,8 @@ test('OAuth providers generate state-bound official authorization URLs',()=>{
    assert.ok(url.searchParams.get('code_challenge'));
   }
   if(provider==='threads')assert.ok(url.searchParams.get('scope').split(',').includes('threads_delete'));
-  if(provider==='instagram'){const scopes=url.searchParams.get('scope').split(',');assert.ok(scopes.includes('instagram_manage_comments'));assert.ok(scopes.includes('instagram_manage_contents'));}
+  if(provider==='instagram'){const scopes=url.searchParams.get('scope').split(',');assert.ok(scopes.includes('instagram_manage_comments'));assert.ok(scopes.includes('instagram_manage_contents'));assert.ok(scopes.includes('business_management'));}
+  if(provider==='facebook')assert.ok(!url.searchParams.get('scope').split(',').includes('business_management'));
  }
 });
 
