@@ -1,4 +1,5 @@
 import {messageSettings,messageAudience,messageJobCurrent,triggerKey,customerLimitReached} from './communication-message.mjs';
+import {withPlatformSend,communicationSendWait,reserveCommunicationSend,finishCommunicationSend,communicationLock,communicationAutomatic} from './communication-send-guard.mjs';
 import {messageOccurrences} from '../public/communication-message-model.js';
 import {createHash} from 'node:crypto';
 import {all,get,put,db,transaction,audit,now,stateRevision} from './store.mjs';
@@ -106,7 +107,14 @@ export async function communicationTick(time=Date.now(),send=reply){
    if(job.notBefore&&Date.parse(job.notBefore)>time||job.nextAttemptAt&&Date.parse(job.nextAttemptAt)>time)continue;
    try{access(u);if(customerLimitReached(c,job.customerId,job.id))throw Error('Đã đạt giới hạn gửi cho khách hàng trong chiến dịch.');if(!conv||c.audienceType!=='message'&&!communicationAudience(u,c,time).some(r=>r.conversationId===conv.id))throw Error('Khách hàng không còn thỏa điều kiện gửi.');
     const block=job.blocks[job.nextBlock],text=block.text.replaceAll('{{name}}',get('customers',job.customerId)?.name||'bạn');
-    put('communication_jobs',{...job,status:'sending',startedAt:now()});const msg=await send(u,conv.id,{text,assetIds:block.assetIds,version:conv.version});
+    const provider=get('connections',conv.connectionId)?.provider;
+    const msg=await withPlatformSend(provider,async()=>{
+     const wait=communicationSendWait(provider,text,block.assetIds,time);if(wait){const current=get('communication_jobs',job.id);if(current.waitReason!==wait.code||current.waitUntil!==(wait.until||''))put('communication_jobs',{...current,waitReason:wait.code,waitUntil:wait.until||'',error:wait.message});return null;}
+     put('communication_jobs',{...get('communication_jobs',job.id),status:'sending',waitReason:'',waitUntil:'',error:'',startedAt:now()});
+     const rollback=reserveCommunicationSend(provider,text,block.assetIds,time),started=Date.now();
+     try{const result=await send({...u,[communicationLock]:true,[communicationAutomatic]:c.id},conv.id,{text,assetIds:block.assetIds,version:get('conversations',conv.id).version});if(['unknown','failed'].includes(result.status))throw Object.assign(Error(result.error||'Chưa xác nhận kết quả gửi.'),{unknown:result.status==='unknown'});if(get('connections',conv.connectionId)?.mode!=='demo'&&!result.externalId&&!result.externalMessages?.length)throw Object.assign(Error('Nền tảng chưa trả mã xác nhận. Kiểm tra hội thoại trước khi gửi lại.'),{unknown:true});finishCommunicationSend(provider,time+Math.max(0,Date.now()-started));return result;}
+     catch(error){const partial=!!(error.externalMessages?.length||error.messageId&&(get('messages',error.messageId)?.externalMessages?.length||get('messages',error.messageId)?.externalId));if(!partial&&(error.unknown===false||error.providerStatus>=400&&error.providerStatus<500&&error.providerStatus!==408||error.status===409&&!error.messageId))rollback();throw error;}
+    });if(!msg)continue;
     if(get('connections',conv.connectionId)?.mode!=='demo'&&!msg.externalId&&!msg.externalMessages?.length)throw Object.assign(Error('Nền tảng chưa trả mã xác nhận. Kiểm tra hội thoại trước khi gửi lại.'),{unknown:true});
     if(['unknown','failed'].includes(msg.status))throw Object.assign(Error(msg.error||'Chưa xác nhận kết quả gửi.'),{unknown:msg.status==='unknown'});
     const stored=get('messages',msg.id);if(stored)put('messages',{...stored,communicationCampaignId:c.id,communicationJobId:job.id,triggerMessageId:job.triggerMessageId||null});

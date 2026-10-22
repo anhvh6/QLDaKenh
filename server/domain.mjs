@@ -1,4 +1,5 @@
 import {facebookVideoReceipt} from './facebook-publish-reconcile.mjs';
+import {withPlatformSend,recordStaffSend,finishCommunicationSend,communicationLock,communicationAutomatic} from './communication-send-guard.mjs';
 import {verifiedAddress} from './order-address-proof.mjs';
 import {privateChatWaitMessage} from '../public/private-chat-state.js';
 import {reupText} from '../public/reup-text.js';
@@ -203,6 +204,11 @@ export function runWorkflows(trigger, entity) {
   }
 }
 export async function reply(user, id, input) {
+ const conv=get('conversations',id),provider=get('connections',conv?.connectionId)?.provider;
+ const send=async()=>{const msg=await replyUnlocked(user,id,input);if(!input.note&&conv?.kind!=='comment'&&!user[communicationAutomatic]){if(user.botId)finishCommunicationSend(provider,Date.now());else recordStaffSend(provider,msg.text,(msg.attachments||[]).map(a=>a.assetId||a.url),Date.now(),msg.id);}return msg;};
+ return !provider||input.note||conv?.kind==='comment'||user[communicationLock]?send():withPlatformSend(provider,send);
+}
+async function replyUnlocked(user, id, input) {
   permission(user, 'inbox'); const conv = get('conversations', id); if (!conv || conv.deletedAt) fail('Không tìm thấy hội thoại.', 404); assertChannel(user, conv.connectionId); let text = String(input.text || '').trim(); if (text.length > 5000) fail('Nội dung quá dài.'); const ch = get('connections', conv.connectionId); if (!ch) fail('Kênh không tồn tại.'); if (conv.groupUnavailable && !input.note) fail('Tài khoản đã rời nhóm hoặc nhóm đã giải tán.');
   const ids = input.assetIds || []; if (!Array.isArray(ids) || ids.length > 10) fail('Chọn tối đa 10 media.'); const assets = ids.map(id => { const a = get('assets', id); if (!a || a.active === false || !(a.scopes || ['chat']).includes('chat') || !/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z0-9]+$/.test(a.url)) fail('Media không hợp lệ.'); if (a.connectionId) assertChannel(user, a.connectionId); return a; });
   if (!text && !assets.length) fail('Nhập nội dung hoặc chọn media.');
@@ -223,7 +229,7 @@ export async function reply(user, id, input) {
   if (conv.sending) fail('Có một tin nhắn đang gửi. Vui lòng chờ.', 409); put('conversations', { ...conv, sending: true, assignee: user.id });
   const retrySource = input.retryOf ? get('messages', input.retryOf) : null;
   if (input.retryOf && (!retrySource || retrySource.conversationId !== id || retrySource.status !== 'failed' || retrySource.retryMessageId)) { put('conversations', { ...get('conversations', id), sending: false }); fail('Tin nhắn không còn có thể gửi lại.', 409); }
-  let msg = put('messages', { conversationId: id, direction: input.note ? 'note' : 'outgoing', senderType: user.botId ? 'ai' : 'staff', botId: user.botId || null, botRunId: user.botRunId || null, text, mentions, attachments: assets.map(({ id, url, name, type }) => ({ assetId: id, url, name, type })), quoteId: quoted?.id || null, replyToExternalId,replyTarget:input.replyTarget||'current', retryOf: retrySource?.id || null, status: 'sending', actor: user.id });
+  let msg = put('messages', { conversationId: id, direction: input.note ? 'note' : 'outgoing', senderType: user.botId ? 'ai' : 'staff', botId: user.botId || null, botRunId: user.botRunId || null, ...(user[communicationAutomatic]?{communicationCampaignId:user[communicationAutomatic]}:{}), text, mentions, attachments: assets.map(({ id, url, name, type }) => ({ assetId: id, url, name, type })), quoteId: quoted?.id || null, replyToExternalId,replyTarget:input.replyTarget||'current', retryOf: retrySource?.id || null, status: 'sending', actor: user.id });
   if (retrySource) put('messages', { ...retrySource, retryMessageId: msg.id });
   try {
     let result; if (input.note) result = {}; else if (ch.mode === 'demo') result = { demo: true }; else { if (ch.status !== 'connected') fail('Kênh chưa được kết nối thực tế.'); result = await sendMessage(ch, replyToExternalId?{...conv,externalCommentId:replyToExternalId}:conv, text, options); }

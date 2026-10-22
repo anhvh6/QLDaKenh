@@ -20,6 +20,18 @@ Tất cả thời gian dùng GMT+7. **Một lần** chạy vào ngày bắt đ�
 
 Người nhận được kiểm tra lại trước từng tin. Mỗi lượt lịch có mã duy nhất; bấm gửi thủ công dùng request ID và version để chống gửi lặp/stale cấu hình. Mỗi giây xử lý tối đa một khối, theo thứ tự của từng người nhận. Khách đã có lượt còn chờ hoặc chưa rõ kết quả không được xếp trùng ở lượt kế tiếp.
 
+### Quy tắc chờ theo nền tảng
+
+Áp dụng ngầm cho mọi tin của Chiến dịch truyền thông, dùng chung giữa chiến dịch, người nhận và tài khoản kết nối. Zalo cá nhân và Zalo OA dùng chung phạm vi Zalo; Messenger có phạm vi riêng. Không thêm tùy chọn tắt quy tắc trên giao diện.
+
+- Nội dung đã được chiến dịch gửi sẽ không tự gửi lại trên cùng nền tảng cho tới khi nhân viên gửi thành công một nội dung khác trên nền tảng đó, ở bất kỳ hội thoại nào. Tin đến của khách, ghi chú, AI, lịch sử nhập lại, tin lỗi/chưa rõ kết quả và tin chiến dịch khác không được coi là tin nhân viên xen kẽ.
+- Mọi tin chiến dịch chờ tối thiểu 3 giây sau tin gửi trước trên nền tảng; sau tin nhân viên xen kẽ cũng chờ đủ 3 giây. So sánh nội dung đã thay tên khách, chuẩn hóa Unicode/khoảng trắng và danh sách tệp đính kèm.
+- Job bị chặn vẫn ở `queued`, không tăng số lần thử và không bị bỏ qua khối. Nhật ký hiện lý do chờ. Nền tảng khác và nội dung khác vẫn có thể xử lý; không đảo thứ tự khối của một người nhận.
+- Trạng thái chờ và nội dung đang gửi lưu bền vững trước khi gọi nền tảng, tránh khởi động lại rồi gửi trùng. Lỗi xác định chưa gửi có thể thử lại theo chính sách cũ; kết quả chưa rõ vẫn cần đối chiếu thủ công.
+- Tin nhân viên gửi trực tiếp trên nền tảng chỉ được tính khi đã đồng bộ về hệ thống dưới dạng tin gửi thành công, không phải lịch sử nhập lại.
+
+Kiểm thử: `node --test tests/communication-send-guard.test.mjs tests/communication-campaigns.test.mjs tests/communication-message.test.mjs`.
+
 Tạm dừng hoặc sửa cấu hình hủy các tin chưa gửi của cấu hình cũ. Tin đang được nền tảng tiếp nhận có thể hoàn tất. Trước khi gọi nền tảng, job được lưu `sending`; khi khởi động lại, job này thành `unknown`, không tự gửi lại. Lỗi hoặc kết quả chưa rõ dừng các khối còn lại của người nhận đó. Nhật ký có thông tin lỗi và nút mở hội thoại để kiểm tra.
 
 ## Dữ liệu và kiểm thử

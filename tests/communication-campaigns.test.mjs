@@ -1,6 +1,7 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {mkdirSync,mkdtempSync} from 'node:fs';import {join,resolve} from 'node:path';
+import test,{beforeEach} from 'node:test';import assert from 'node:assert/strict';import {mkdirSync,mkdtempSync} from 'node:fs';import {join,resolve} from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'communication-'));process.env.PLAN_REMOTE_CATALOG='0';
 const {put,get,all,db}=await import('../server/store.mjs');
+beforeEach(()=>db.exec("DELETE FROM records WHERE kind IN ('communication_send_state','communication_send_content')"));
 const {communicationRoute:route,communicationAudience:audience,communicationTick:tick,recoverCommunication}=await import('../server/communication-campaigns.mjs');
 const {scheduledOccurrence,matchingCommunicationStage:match}=await import('../public/communication-model.js');
 const owner={id:'owner',role:'owner',active:1};db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run(owner.id,'comm@example.test','Owner','owner','qa');
@@ -30,7 +31,7 @@ test('audience only private, connected channels and correct statuses; duplicates
 test('worker queues once, sends blocks in order, records exact messages and does not retry ambiguous sends',async()=>{
  const c=await route(base,'POST',config({blocks:[{text:'A {{name}}',assetIds:[]},{text:'B',assetIds:[]}]}),owner),sent=[];
  const send=async(u,id,input)=>{sent.push(input);return {id:'msg-'+sent.length,status:'demo'};};await tick(at,send);await tick(at+5000,send);await tick(at+10000,send);assert.equal(sent.length,2);assert.equal(sent[0].text,'A eligible');assert.equal(sent[1].text,'B');assert.equal(all('communication_runs').filter(r=>r.campaignId===c.id).length,1);assert.equal(all('communication_jobs').find(j=>j.campaignId===c.id).status,'done');
- const broken=await route(base,'POST',config({name:'Uncertain',repeat:'once'}),owner);let calls=0;await tick(at,async()=>{calls++;throw Object.assign(Error('Timeout'),{unknown:true});});await tick(at+5000,async()=>{calls++;});assert.equal(calls,1);assert.equal(all('communication_jobs').find(j=>j.campaignId===broken.id).status,'unknown');
+ const broken=await route(base,'POST',config({name:'Uncertain',repeat:'once'}),owner);let calls=0;await tick(at+15000,async()=>{calls++;throw Object.assign(Error('Timeout'),{unknown:true});});await tick(at+20000,async()=>{calls++;});assert.equal(calls,1);assert.equal(all('communication_jobs').find(j=>j.campaignId===broken.id).status,'unknown');
 });
 test('pause/config edits cancel queued blocks; restart recovery never retries in-flight message',async()=>{
  const c=await route(base,'POST',config({blocks:[{text:'First',assetIds:[]},{text:'Second',assetIds:[]}]}),owner);let calls=0;await tick(at,async()=>{calls++;return{id:'first'};});await route(base+'/'+c.id,'PATCH',{...get('communication_campaigns',c.id),status:'paused'},owner);await tick(at+5000,async()=>{calls++;});assert.equal(calls,1);assert.equal(all('communication_jobs').find(j=>j.campaignId===c.id).status,'cancelled');
@@ -52,7 +53,7 @@ test('instant first-contact campaigns reply in the source conversation without c
  const v=person('instant-first','NEW');const m=put('messages',{id:'instant-incoming',conversationId:v.id,direction:'incoming',createdAt:new Date(Date.now()+1).toISOString()});
  const imported=person('instant-history','NEW');put('messages',{id:'instant-history-message',conversationId:imported.id,direction:'incoming',history:true,createdAt:new Date(Date.now()+1).toISOString()});
  let sent=[];const send=async(u,id,input)=>{sent.push({id,text:input.text});return{id:'instant-sent-'+sent.length,status:'demo'};};
- await tick(Date.now()+20,send);await tick(Date.now()+40,send);put('messages',{...get('messages',m.id)});await tick(Date.now()+60,send);
+ await tick(Date.now()+20,send);await tick(Date.now()+4000,send);put('messages',{...get('messages',m.id)});await tick(Date.now()+8000,send);
  assert.deepEqual(sent,[{id:v.id,text:'Welcome'},{id:v.id,text:'Second'}]);assert.equal(all('communication_runs').filter(r=>r.campaignId===c.id).length,1);
  await assert.rejects(route(base+'/'+c.id+'/run','POST',{version:c.version,requestId:'instant-manual-12345678'},owner),/không gửi hàng loạt/);
  await assert.rejects(route(base,'POST',config({newSendImmediately:true,stages:['NEW','CONSULTED']}),owner),/chỉ áp dụng/);
@@ -62,5 +63,5 @@ test('inactive channel selections are rejected and resuming instant mode does no
  for(const c of all('communication_campaigns'))put('communication_campaigns',{...c,status:'paused'});
  const c=await route(base,'POST',config({newSendImmediately:true,status:'paused',stages:['NEW'],startAt:new Date(Date.now()-60000).toISOString()}),owner);
  const v=person('during-pause','NEW');put('messages',{id:'during-pause-message',conversationId:v.id,direction:'incoming',createdAt:new Date().toISOString(),pushReceivedAt:new Date(Date.now()-10000).toISOString()});
- await route(base+'/'+c.id,'PATCH',{...c,status:'active'},owner);let calls=0;await tick(Date.now()+100,async()=>{calls++;return{id:'should-not-send'};});assert.equal(calls,0);
+ put('messages',{...get('messages','during-pause-message'),pushReceivedAt:new Date(Date.now()-10000).toISOString()});await route(base+'/'+c.id,'PATCH',{...c,status:'active'},owner);let calls=0;await tick(Date.now()+100,async()=>{calls++;return{id:'should-not-send'};});assert.equal(calls,0);
 });
