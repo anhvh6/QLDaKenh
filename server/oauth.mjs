@@ -41,6 +41,7 @@ export function startOAuth(user,connection,req){
  if(Object.hasOwn(extraOAuthRequirements,connection.provider))return extraAuthorization(connection,state,redirect,remote);
  if(['facebook','instagram'].includes(connection.provider)){
   const scopes=['pages_show_list','pages_read_engagement','pages_read_user_content','pages_manage_posts','pages_manage_engagement','pages_manage_metadata','pages_messaging','instagram_basic','instagram_content_publish','instagram_manage_contents','instagram_manage_comments','instagram_manage_messages'];
+  if(connection.provider==='instagram')scopes.push('instagram_manage_engagement');
   url=`https://www.facebook.com/${graphVersion}/dialog/oauth?${encode({client_id:env('META_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:scopes.join(',')})}`;
  }else if(connection.provider==='threads'){
   url=`https://threads.net/oauth/authorize?${encode({client_id:env('THREADS_APP_ID'),redirect_uri:redirect,state,response_type:'code',scope:'threads_basic,threads_content_publish,threads_delete,threads_read_replies,threads_manage_replies,threads_manage_insights'})}`;
