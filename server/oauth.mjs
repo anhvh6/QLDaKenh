@@ -69,17 +69,25 @@ export function metaAccounts(provider,pages=[]){
  return pages.map(page=>({accountId:page.id,name:page.name||'Facebook Page',avatar:page.picture?.data?.url||'',token:page.access_token}));
 }
 
-async function metaProfile(provider,code,redirect){
- const token=await remote(`https://graph.facebook.com/${graphVersion}/oauth/access_token?${encode({client_id:env('META_APP_ID'),client_secret:env('META_APP_SECRET'),redirect_uri:redirect,code})}`);
+async function metaProfile(provider,code,redirect,connection){
+ let token=await remote(`https://graph.facebook.com/${graphVersion}/oauth/access_token?${encode({client_id:env('META_APP_ID'),client_secret:env('META_APP_SECRET'),redirect_uri:redirect,code})}`);
+ if(provider==='instagram')token=await remote(`https://graph.facebook.com/${graphVersion}/oauth/access_token?${encode({grant_type:'fb_exchange_token',client_id:env('META_APP_ID'),client_secret:env('META_APP_SECRET'),fb_exchange_token:token.access_token})}`);
  const pages=await remote(`https://graph.facebook.com/${graphVersion}/me/accounts?${encode({fields:'id,name,access_token,picture,instagram_business_account{id,username,name,profile_picture_url}',access_token:token.access_token})}`);
+ // Business-assigned assets can be omitted from /me/accounts. Reconnect only
+ // the previously verified Page; Graph still enforces the new user's access.
+ const pageId=connection&&secret(connection.id).pageId;
+ if(provider==='instagram'&&pageId&&!pages.data?.some(page=>String(page.id)===String(pageId))){
+  const page=await remote(`https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}`,{headers:{Authorization:'Bearer '+token.access_token}});
+  if(page.access_token&&String(page.instagram_business_account?.id)===String(connection.accountId))pages.data=[...(pages.data||[]),page];
+ }
  const accounts=metaAccounts(provider,pages.data||[]);
  if(!accounts.length)throw new Error(provider==='instagram'?'Các Facebook Page được cấp quyền chưa liên kết Instagram Professional.':'Tài khoản chưa cấp quyền cho Facebook Page nào.');
  if(provider==='instagram')for(const account of accounts)account.extra={...account.extra,userToken:token.access_token};
  return {...accounts[0],accounts};
 }
 
-async function exchange(provider,code,redirect,state){
- if(provider==='facebook'||provider==='instagram')return metaProfile(provider,code,redirect);
+async function exchange(provider,code,redirect,state,connection){
+ if(provider==='facebook'||provider==='instagram')return metaProfile(provider,code,redirect,connection);
  if(provider==='threads'){
   const short=await tokenRequest('https://graph.threads.net/oauth/access_token',{client_id:env('THREADS_APP_ID'),client_secret:env('THREADS_APP_SECRET'),grant_type:'authorization_code',redirect_uri:redirect,code});
   const long=await remote(`https://graph.threads.net/access_token?${encode({grant_type:'th_exchange_token',client_secret:env('THREADS_APP_SECRET'),access_token:short.access_token})}`);
@@ -120,7 +128,7 @@ export async function finishOAuth(req,res,url){
   if(url.searchParams.get('error'))throw new Error(url.searchParams.get('error_description')||'Bạn đã hủy cấp quyền.');
   const code=url.searchParams.get('code');if(!code)throw new Error('Nền tảng không trả mã xác thực.');
   const connection=get('connections',record.connectionId);if(!connection||connection.deletedAt||connection.provider!==provider)throw new Error('Kênh kết nối không còn tồn tại hoặc đã đổi nền tảng.');
-  const profile=Object.hasOwn(extraOAuthRequirements,provider)?await exchangeExtra(provider,code,redirectUri(provider,req),state,connection,remote):await exchange(provider,code,redirectUri(provider,req),state);
+  const profile=Object.hasOwn(extraOAuthRequirements,provider)?await exchangeExtra(provider,code,redirectUri(provider,req),state,connection,remote):await exchange(provider,code,redirectUri(provider,req),state,connection);
   const candidates=profile.accounts||[profile],profiles=connection.expectedAccount?candidates.filter(item=>{try{assertIdentity(connection,{...item,handle:item.handle||item.name});return true;}catch{return false;}}):candidates;
   if(!profiles.length)throw new Error(`Chưa được cấp quyền đúng kênh ${connection.expectedAccount}. Hãy chọn lại tài khoản.`);let primaryUsed=false;
   for(const item of profiles){
@@ -141,7 +149,7 @@ export async function finishOAuth(req,res,url){
     await hydrateCommentAuthors(target,500);
    }catch(error){audit(record.userId,'oauth_webhook_subscribe_failed',target.id,{error:error.message});}
    if(provider==='instagram')try{
-    await remote(`https://graph.facebook.com/${graphVersion}/${item.accountId}/subscribed_apps?subscribed_fields=comments,messages`,{method:'POST',headers:{Authorization:`Bearer ${item.token}`}});
+    await remote(`https://graph.facebook.com/${graphVersion}/${item.accountId}/subscribed_apps?subscribed_fields=comments,messages,message_reactions,messaging_seen,messaging_postbacks`,{method:'POST',headers:{Authorization:`Bearer ${item.token}`}});
     audit(record.userId,'oauth_webhook_subscribed',target.id,{provider:'instagram'});
    }catch(error){audit(record.userId,'oauth_webhook_subscribe_failed',target.id,{provider:'instagram',error:error.message});}
   }

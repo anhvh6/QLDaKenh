@@ -201,6 +201,7 @@ export async function updatePublication(c, p, content) {
   throw lastError || new Error(`${c.name}: Facebook không cho phép sửa bài này.`);
 }
 export async function reactComment(c, externalCommentId, like = true, reactionUri = '') {
+  if(c.provider==='instagram'){const {instagramCommentLike}=await import('./instagram-engagement.mjs');return instagramCommentLike(c,externalCommentId,like,secret(c.id),remote);}
   if(c.provider==='mastodon')return mastodonReaction(c,externalCommentId,like,remote);
   if(c.provider==='bluesky')return like?blueskyInteraction(c,externalCommentId,'app.bsky.feed.like',remote):removeBlueskyLike(c,reactionUri,remote);
   if (c.provider !== 'facebook') throw new Error('Kênh này chưa hỗ trợ react bình luận.');

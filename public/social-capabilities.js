@@ -1,7 +1,7 @@
 // Implemented connector operations, not a claim that the current token grants them.
 export const socialOperations={
  facebook:{publish:true,chat:true,comments:true,reply:true,like:true},
- instagram:{publish:true,chat:true,comments:true,reply:true},
+ instagram:{publish:true,chat:true,comments:true,reply:true,like:true},
  threads:{publish:true,comments:true,reply:true},
  youtube:{publish:true,comments:true,reply:true},
  x:{publish:true,comments:true,reply:true},
