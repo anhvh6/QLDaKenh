@@ -1,4 +1,5 @@
 import {replySocial,blueskyInteraction,removeBlueskyLike,mastodonReaction} from './social-replies.mjs';
+import {tiktokPublishBlock,tiktokProviderMessage} from './tiktok-publish-policy.mjs';
 import {extraProviders,isExtra,extraProfile,publishExtra} from './social-extra.mjs';
 import {sendCommentPrivateReply} from './comment-private.mjs';
 import {facebookMessageMedia} from './facebook-media.mjs';
@@ -30,13 +31,13 @@ export async function remote(url, options = {}) {
   if (!res.ok || providerError) {
     const error = data.error && typeof data.error === 'object' ? data.error : {};
     const rawMessage = error.message || data.message || data.detail || `API trả về ${res.status}`;
-    const message = /credits? depleted/i.test(String(rawMessage))
+    const message = new URL(url).hostname==='open.tiktokapis.com'&&tiktokProviderMessage(error.code) || (/credits? depleted/i.test(String(rawMessage))
       ? 'Hạn mức API của ứng dụng X đã hết. Hãy mua hoặc nạp thêm credits trong X Developer Console rồi thử lại.'
       : new URL(url).hostname.endsWith('googleapis.com') && /insufficient authentication scopes/i.test(String(rawMessage))
         ? 'Kết nối YouTube chưa có quyền sửa/xóa. Hãy chọn Kết nối lại YouTube và cấp quyền mới, sau đó thử lại.'
         : new URL(url).hostname === 'graph.threads.net' && Number(error.code) === 10
           ? 'Threads từ chối quyền API. Kiểm tra quyền của thao tác trong Meta App Dashboard và kết nối lại Threads (đọc bình luận: threads_read_replies; quản lý trả lời: threads_manage_replies; xóa bài: threads_delete).'
-          : rawMessage;
+          : rawMessage);
     const details = [message, error.code != null ? `code ${error.code}` : '', error.error_subcode != null ? `subcode ${error.error_subcode}` : '', error.error_user_msg || '', error.fbtrace_id ? `trace ${error.fbtrace_id}` : ''].filter(Boolean);
     throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, providerCode: error.code, providerSubcode: error.error_subcode, retryable:readOnly&&(res.status===429||res.status>=500||error.is_transient===true) });
   }
@@ -71,6 +72,7 @@ async function publishYouTube(c, p) {
   const result = await uploadStream(location, file.path, file.size, file.mime); if (!result.id) throw new Error('YouTube không trả mã video sau khi upload.'); return { externalId: result.id, url: `https://www.youtube.com/watch?v=${result.id}` };
 }
 async function publishTikTok(c, p) {
+  const block=tiktokPublishBlock(c,p.visibility||'public');if(block)throw new Error(block);
   const token = await refreshedToken(c), asset = publicationAsset(p, 'video'), file = assetFile(asset); if (file.mime !== 'video/mp4' && file.mime !== 'video/quicktime' && file.mime !== 'video/webm') throw new Error('TikTok chỉ nhận file video MP4, MOV hoặc WebM trong luồng này.');
   const creator = await remote('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', json({}, token)), info = creator.data || {}, privacy = p.visibility === 'private' ? 'SELF_ONLY' : 'PUBLIC_TO_EVERYONE';
   if (Array.isArray(info.privacy_level_options) && !info.privacy_level_options.includes(privacy)) throw new Error(`Tài khoản TikTok không cho phép quyền hiển thị ${p.visibility === 'private' ? 'Riêng tư' : 'Công khai'}; hãy đổi quyền hiển thị theo tùy chọn của tài khoản.`);

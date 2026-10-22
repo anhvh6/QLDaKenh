@@ -1,3 +1,4 @@
+import {tiktokPublishBlock} from './tiktok-publish-policy.mjs';
 import {facebookVideoReceipt} from './facebook-publish-reconcile.mjs';
 import {withPlatformSend,recordStaffSend,finishCommunicationSend,communicationLock,communicationAutomatic} from './communication-send-guard.mjs';
 import {verifiedAddress} from './order-address-proof.mjs';
@@ -109,7 +110,7 @@ export async function publicationAction(user, id, input) {
   permission(user, 'content'); const p = get('publications', id); if (!p) fail('Không tìm thấy lịch.', 404);
   if (input.action === 'cancel') { if (!['scheduled', 'awaiting_manual', 'failed', 'blocked'].includes(p.status)) fail('Không thể hủy tác vụ đã gửi hoặc chưa rõ kết quả.'); return put('publications', { ...p, status: 'cancelled' }); }
   if (input.action === 'confirm') { if (p.status !== 'awaiting_manual') fail('Đích này không chờ xác nhận thủ công.'); let u; try { u = new URL(input.url); } catch { fail('Nhập URL bài đã đăng.'); } if (!['https:', 'http:'].includes(u.protocol)) fail('URL không hợp lệ.'); return put('publications', { ...p, status: 'manually_confirmed', url: u.href, publishedAt: now() }); }
-  if (input.action === 'retry') { if (!['failed', 'blocked'].includes(p.status)) fail('Chỉ thử lại tác vụ đã thất bại rõ ràng. Tác vụ chưa rõ kết quả cần đối soát.'); return put('publications', { ...p, status: 'scheduled', scheduleAt: now(), error: '' }); }
+  if (input.action === 'retry') { const block=tiktokPublishBlock(get('connections',p.connectionId),p.visibility||'public');if(block)fail(block);if (!['failed', 'blocked'].includes(p.status)) fail('Chỉ thử lại tác vụ đã thất bại rõ ràng. Tác vụ chưa rõ kết quả cần đối soát.'); return put('publications', { ...p, status: 'scheduled', scheduleAt: now(), error: '' }); }
   if (input.action === 'publish_now') { if (p.status !== 'scheduled') fail('Chỉ có thể đăng ngay tác vụ đang chờ lịch.'); return put('publications', { ...p, scheduleAt: now() }); }
   if (input.action === 'resolve') { if (!['unknown', 'processing'].includes(p.status)) fail('Tác vụ không cần đối soát.'); let u; try { u = new URL(input.url); } catch { fail('Cần URL đã kiểm tra thực tế.'); } if (u.protocol !== 'https:') fail('Cần URL HTTPS.'); audit(user.id, 'publication_reconciled', id); return put('publications', { ...p, status: 'manually_confirmed', url: u.href, publishedAt: now() }); }
   if (input.action === 'delete_remote') {

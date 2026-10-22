@@ -1,4 +1,5 @@
 import {reupText} from '../public/reup-text.js';
+import {tiktokPublishBlock} from './tiktok-publish-policy.mjs';
 import {createHash} from 'node:crypto';
 import {reviewPublishText,reviewRulesVersion} from './publish-content-review.mjs';
 import {formatHint,formatLabels} from '../public/composer-format.js';
@@ -34,6 +35,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     if (!historyBlock&&publications.some(p => p.connectionId===id&&['dispatching', 'processing', 'awaiting_manual', 'unknown'].includes(p.status))) add(ch, 'Bài đang được xử lý hoặc chờ đối soát; chưa thể đăng lại.','publication_history');
     if (type !== 'text' && !media.some(m => m.type === type) && !(variant.mediaUrl || content.mediaUrl)) add(ch, `Thiếu media phù hợp với định dạng ${type}.`);
     if (!api) continue;
+    const tiktokBlock=tiktokPublishBlock(ch,variant.visibility||content.visibility||'public');if(tiktokBlock)add(ch,tiktokBlock,'tiktok_public_access');
     const provider = providers[ch.provider];
     if(ch.provider==='bluesky'&&(variant.visibility||input.visibility||content.visibility)==='private')add(ch,'Bluesky không hỗ trợ bài riêng tư. Chọn công khai trước khi đăng.');
     if (!provider?.publish || !provider.formats.includes(type)) add(ch,formatHint(ch.provider,type)||`API của kênh chưa hỗ trợ định dạng ${formatLabels[type]||type}. Chọn định dạng hoặc kênh khác.`);
