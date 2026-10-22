@@ -74,6 +74,7 @@ async function metaProfile(provider,code,redirect){
  const pages=await remote(`https://graph.facebook.com/${graphVersion}/me/accounts?${encode({fields:'id,name,access_token,picture,instagram_business_account{id,username,name,profile_picture_url}',access_token:token.access_token})}`);
  const accounts=metaAccounts(provider,pages.data||[]);
  if(!accounts.length)throw new Error(provider==='instagram'?'Các Facebook Page được cấp quyền chưa liên kết Instagram Professional.':'Tài khoản chưa cấp quyền cho Facebook Page nào.');
+ if(provider==='instagram')for(const account of accounts)account.extra={...account.extra,userToken:token.access_token};
  return {...accounts[0],accounts};
 }
 
