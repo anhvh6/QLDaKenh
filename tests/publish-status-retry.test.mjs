@@ -33,3 +33,10 @@ test('creating an unpublished container retries a transient failure but publishi
  const fetch=global.fetch;let count=0;
  try{global.fetch=async(url)=>{assert.match(url,/\/threads$/);if(++count===1)throw Error('Connection reset');return response({id:'new-container'});};const result=await publish(ch,{type:'text',caption:'QA'});assert.equal(count,2);assert.equal(result.containerId,'new-container');assert.equal(result.processing,true);}finally{global.fetch=fetch;}
 });
+
+test('Facebook ambiguous video write is reconciled by a read without another publish POST',async()=>{
+ fixture();const fb=put('connections',{provider:'facebook',accountId:'page',mode:'api',status:'connected'});saveSecret(fb.id,{token:'qa'});
+ const at=new Date().toISOString(),p=put('publications',{connectionId:fb.id,type:'video',status:'unknown',caption:'Exact FB video',scheduleAt:at,dispatchedAt:at,attempts:1}),old=global.fetch;
+ let reads=0;global.fetch=async(url,options)=>{assert.equal(options.method,undefined);assert.match(url,/\/page\/videos/);reads++;return Response.json({data:[{id:'video-result',description:p.caption,created_time:at,permalink_url:'/reel/video-result/',status:{video_status:'ready',publishing_phase:{publish_status:'published'}}}]});};
+ try{await tick();assert.equal(get('publications',p.id).status,'published');assert.equal(get('publications',p.id).attempts,1);await tick();assert.equal(reads,1);}finally{global.fetch=old;}
+});

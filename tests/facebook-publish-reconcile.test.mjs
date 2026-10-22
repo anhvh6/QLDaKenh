@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {facebookVideoReceipt} from '../server/facebook-publish-reconcile.mjs';
+const p={caption:'Exact caption',scheduleAt:'2026-10-22T06:30:00Z'},v={id:'123',description:p.caption,created_time:'2026-10-22T06:30:01Z',permalink_url:'/reel/123/',status:{video_status:'ready',publishing_phase:{publish_status:'published'}}};
+test('unique published video with exact caption and matching time reconciles receipt',()=>{assert.equal(facebookVideoReceipt(p,[v]).url,'https://www.facebook.com/reel/123/');});
+test('ambiguous, unfinished, different-caption and out-of-window videos never confirm a write',()=>{for(const rows of [[v,v],[{...v,status:{video_status:'processing'}}],[{...v,description:'Other'}],[{...v,created_time:'2026-10-21T06:30:00Z'}]])assert.equal(facebookVideoReceipt(p,rows),null);});

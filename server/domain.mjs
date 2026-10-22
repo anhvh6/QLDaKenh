@@ -1,3 +1,4 @@
+import {facebookVideoReceipt} from './facebook-publish-reconcile.mjs';
 import {verifiedAddress} from './order-address-proof.mjs';
 import {privateChatWaitMessage} from '../public/private-chat-state.js';
 import {reupText} from '../public/reup-text.js';
@@ -17,7 +18,7 @@ import { dataDir } from './store.mjs';
 import { all, get, put, remove, transaction, audit, notification, now, uid, secret, saveSecret, db } from './store.mjs';
 import { syncPlanHandoff } from './plan-bridge.mjs';
 import { observeCareMessage, syncPaymentOrder, enrollmentFromOrder, assertChannel } from './taophacdo.mjs';
-import { providers, publish, continuePublish, validateThreadsText, deletePublication, updatePublication, sendMessage, reactComment, deleteComment, ghn, validMediaURL } from './connectors.mjs';
+import { providers, publish, continuePublish, remote, validateThreadsText, deletePublication, updatePublication, sendMessage, reactComment, deleteComment, ghn, validMediaURL } from './connectors.mjs';
 import { publicMediaUrl } from './public-media.mjs';
 export function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 export function required(v, label, max = 10000) { if (typeof v !== 'string' || !v.trim() || v.length > max) fail(`${label} không hợp lệ.`); return v.trim(); }
@@ -249,9 +250,19 @@ export async function tick() {
       if (p.mode === 'assisted') { put('publications', { ...p, status: 'awaiting_manual' }); notification('Đến giờ đăng: ' + p.title, `Mở gói đăng cho ${ch.name}.`, 'calendar'); continue; }
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }
       if (ch.status !== 'connected') { put('publications', { ...p, status: 'blocked', error: 'Kênh chưa được kiểm tra kết nối.' }); continue; }
-      put('publications', { ...p, status: 'dispatching', attempts: p.attempts + 1 });
+      put('publications', { ...p, status: 'dispatching', dispatchedAt:now(), attempts: p.attempts + 1 });
       try { const r = await publish(ch, p); put('publications', { ...get('publications', p.id), ...r, status: r.processing ? 'processing' : 'published', ...(r.processing?{processingStartedAt:now(),nextCheckAt:''}:{}), publishedAt: r.processing ? null : now(), error: '' }); }
       catch (e) { put('publications', { ...get('publications', p.id), status: e.unknown ? 'unknown' : 'failed', error: e.message }); notification('Cần xử lý bài đăng', `${ch.name}: ${e.message}`, 'calendar'); }
+    }
+    for(const p of all('publications').filter(x=>x.status==='unknown'&&x.type==='video'&&get('connections',x.connectionId)?.provider==='facebook'&&(!x.nextReconcileAt||Date.parse(x.nextReconcileAt)<=Date.now())&&Date.now()-Date.parse(x.dispatchedAt||x.scheduleAt)<86400000).slice(0,3)){
+      const ch=get('connections',p.connectionId);if(ch?.provider!=='facebook'||ch.status!=='connected')continue;
+      put('publications',{...p,nextReconcileAt:new Date(Date.now()+60000).toISOString()});
+      try{const result=await remote('https://graph.facebook.com/'+(ch.apiVersion||process.env.META_GRAPH_VERSION||'v25.0')+'/'+encodeURIComponent(ch.accountId)+'/videos?'+new URLSearchParams({fields:'id,description,created_time,permalink_url,status',since:new Date(Date.parse(p.dispatchedAt||p.scheduleAt)-5*60000).toISOString(),limit:'100'}),{headers:{Authorization:'Bearer '+secret(ch.id).token}});
+        const receipt=facebookVideoReceipt(p,result.data||[]);
+        if(receipt&&!all('publications').some(other=>other.id!==p.id&&other.connectionId===p.connectionId&&other.externalId===receipt.externalId)){
+          put('publications',{...get('publications',p.id),...receipt,status:'published',error:'',reconciledAt:now()});audit('system','publication_api_reconciled',p.id,{externalId:receipt.externalId});
+        }
+      }catch{/* Keep unknown on read errors; never repeat the publish request. */}
     }
     for (const p of all('publications').filter(x => x.status === 'processing' && (x.containerId || x.carouselPending) && (!x.nextCheckAt||Date.parse(x.nextCheckAt)<=Date.now())).slice(0, 5)) {
       if (Date.now() - Date.parse(p.processingStartedAt||p.updatedAt) > 30 * 60000) { put('publications', { ...p, status: 'unknown', error: 'Xử lý quá lâu. Đối soát trên nền tảng gốc.' }); continue; }

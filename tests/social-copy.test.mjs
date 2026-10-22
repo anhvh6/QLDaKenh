@@ -64,7 +64,7 @@ test('Reup preserves long Unicode caption and accepted future schedule after bac
  const scheduleAt=new Date(Date.now()+5*60000).toISOString();assert.throws(()=>schedule(owner,c.id,{version:c.version,scheduleAt}),/10 phút/);const [job]=schedule(owner,c.id,{version:c.version,scheduleAt},{prepared:true});assert.equal(job.caption,caption);assert.equal(job.scheduleAt,scheduleAt);
 });
 test('ZIP to Drive reuses saved files, keeps one library row, gates ownership, and tracks actual Reup',async()=>{
- const j=put('copy_jobs',{id:'promote-package',userId:owner.id,postId:post.id,title:post.title,target:'device',status:'done'}),folder=join(dataDir,'social-copy',j.id);
+ const promoteSource=put('copy_posts',{...post,id:'promote-unique-source',url:'https://facebook.com/reel/456789',externalId:'456789',sourceVideoKey:'facebook:456789'});const j=put('copy_jobs',{id:'promote-package',userId:owner.id,postId:promoteSource.id,title:post.title,target:'device',status:'done'}),folder=join(dataDir,'social-copy',j.id);
  mkdirSync(folder,{recursive:true});writeFileSync(join(folder,'001.jpg'),'saved media');writeFileSync(join(folder,'post.json'),JSON.stringify(manifest(post,[{name:'001.jpg',type:'image',mime:'image/jpeg'}])));writeFileSync(folder+'.zip','saved zip');writeFileSync(join(folder,'caption.txt'),post.caption);
  await assert.rejects(route('/api/copy/save-drive','POST',{jobId:j.id},peer),{status:404});
  await assert.rejects(route('/api/copy/reup-job','POST',{jobId:j.id}),/Lưu bài/);
@@ -74,7 +74,7 @@ test('ZIP to Drive reuses saved files, keeps one library row, gates ownership, a
   await route('/api/copy/save-drive','POST',{jobId:j.id},owner,{extract:async input=>{assert.equal(input.action,'zip');writeFileSync(input.folder+'.zip','new zip');}});
   for(let i=0;i<60&&get('copy_jobs',j.id).status!=='done';i++)await new Promise(r=>setTimeout(r,10));
   assert.equal(get('copy_jobs',j.id).status,'done',get('copy_jobs',j.id).error);assert.equal(uploads,3);
-  let row=(await route('/api/copy/jobs','GET')).find(x=>x.id===j.id);assert.equal(row.zipSaved,true);assert.equal(row.driveSaved,true);assert.equal(row.url,post.url);
+  let row=(await route('/api/copy/jobs','GET')).find(x=>x.id===j.id);assert.equal(row.zipSaved,true);assert.equal(row.driveSaved,true);assert.equal(row.url,promoteSource.url);
   const c=await route('/api/copy/reup-job','POST',{jobId:j.id});assert.equal(c.copyReady,true);assert.equal(c.assets.length,1);
   assert.equal((await route('/api/copy/jobs','GET')).find(x=>x.id===j.id).reupPublished,false);
   put('publications',{id:'real-reup',contentId:c.id,status:'published'});assert.equal((await route('/api/copy/jobs','GET')).find(x=>x.id===j.id).reupPublished,true);
