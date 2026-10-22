@@ -9,6 +9,7 @@ const {chatRoute}=await import('../server/chat.mjs');
 const {defaultFilters,filterThreads}=await import('../public/inbox-model.js');
 const ch=put('connections',{id:'page',provider:'facebook',mode:'api',status:'connected',accountId:'page-id'});
 const item=(id,date,message='Xin chào')=>({id,created_time:date,message,from:{id:'person',name:'Khách'},to:{data:[{id:'page-id'}]}});
+
 test('history import keeps platform timestamps, attachments and sender direction without duplicates',()=>{
  const a=ingestFacebookMessage(ch,{...item('one','2026-10-13T08:00:00Z'),attachments:{data:[{mime_type:'image/jpeg',image_data:{url:'https://example.com/a.jpg'}}]}},{history:true});
  assert.equal(a.createdAt,'2026-10-13T08:00:00.000Z');assert.equal(a.attachments[0].type,'image');
@@ -89,4 +90,24 @@ test('multiple images upload concurrently, send as one album and reuse cached Fa
 test('active Instagram conversation polling uses the Instagram platform and imports customer replies',async()=>{
  const {syncFacebookConversation}=await import('../server/facebook-chat.mjs');const channel=put('connections',{id:'ig-live',provider:'instagram',accountId:'ig-business',mode:'api',status:'connected'});saveSecret(channel.id,{token:'mock'});const customer=put('customers',{name:'IG customer'}),c=put('conversations',{id:'ig-live-chat',kind:'message',connectionId:channel.id,customerId:customer.id,externalUserId:'ig-person'});let platforms=[];
  await syncFacebookConversation(channel,c,async url=>{if(url.includes('/conversations?')){platforms.push(new URL(url).searchParams.get('platform'));return {data:[{id:'ig-thread'}]};}return {data:[{id:'ig-response',created_time:'2026-10-19T12:00:00Z',message:'IG reply',from:{id:'ig-person'},to:{data:[{id:'ig-business'}]}}]};});assert.deepEqual(platforms,['instagram']);assert.equal(all('messages').find(m=>m.externalId==='ig-response').conversationId,c.id);assert.ok(get('conversations',c.id).lastInboundAt);
+});
+
+test('Instagram standby messages appear in inbox but cannot send until the active stream resumes',async()=>{
+ const {sendMessage}=await import('../server/connectors.mjs');
+ const channel=put('connections',{id:'ig-standby',provider:'instagram',mode:'api',status:'connected',accountId:'ig-standby-business'});saveSecret(channel.id,{token:'mock'});
+ const event={sender:{id:'ig-standby-person'},recipient:{id:channel.accountId},timestamp:Date.now(),message:{mid:'ig-standby-message',text:'Tin khách gửi khi công cụ khác giữ hội thoại'}};
+ ingestFacebookEvents(channel,[{id:channel.accountId,standby:[event]}]);
+ const message=all('messages').find(m=>m.externalId===event.message.mid),conv=get('conversations',message.conversationId);
+ assert.equal(message.direction,'incoming');assert.equal(conv.unread,true);assert.ok(conv.lastInboundAt);assert.equal(conv.metaRoutingState,'standby');
+ const beforeFetch=global.fetch;let sends=0;
+ try{
+  global.fetch=async()=>{sends++;return new Response(JSON.stringify({message_id:'ig-active-reply'}),{status:200});};
+  await assert.rejects(sendMessage(channel,conv,'Trả lời'),/ứng dụng khác/);assert.equal(sends,0);
+  ingestFacebookEvents(channel,[{id:channel.accountId,messaging:[event]}]);
+  assert.equal(all('messages').filter(m=>m.externalId===event.message.mid).length,1);
+  const active=get('conversations',conv.id);assert.equal(active.metaRoutingState,'active');
+  assert.equal((await sendMessage(channel,active,'Trả lời')).message_id,'ig-active-reply');assert.equal(sends,1);
+  ingestFacebookEvents(channel,[{id:channel.accountId,standby:[event,{...event,timestamp:event.timestamp-1000,message:{mid:'ig-older-standby',text:'Tin cũ'}}]}]);
+  assert.equal(get('conversations',conv.id).metaRoutingState,'active');
+ }finally{global.fetch=beforeFetch;}
 });

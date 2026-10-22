@@ -16,7 +16,7 @@ export function facebookAttachments(items = []) {
  }).filter(a => a.url);
 }
 
-export function ingestFacebookMessage(channel, item, { history = false, participant = {}, unread = false } = {}) {
+export function ingestFacebookMessage(channel, item, { history = false, participant = {}, unread = false, routingState } = {}) {
  const outgoing = String(item.from?.id) === String(channel.accountId);
  const peer = outgoing ? item.to?.data?.find(p => String(p.id) !== String(channel.accountId)) : item.from;
  const peerId = String(peer?.id || participant.id || '');
@@ -27,6 +27,8 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  let conv=peerRow?get('conversations',peerRow.id):null;
  if(!conv){const receipt=db.prepare(`SELECT c.id FROM records m JOIN records c ON c.kind='conversations' AND c.id=json_extract(m.data,'$.conversationId') WHERE m.kind='messages' AND json_extract(c.data,'$.connectionId')=? AND json_extract(c.data,'$.privateReplySourceId') IS NOT NULL AND (json_extract(m.data,'$.externalId')=? OR json_extract(m.data,'$.externalId')=?) LIMIT 1`).get(channel.id,String(item.id),String(item.reply_to?.mid||''));if(receipt){conv=get('conversations',receipt.id);conv=put('conversations',{...conv,externalUserId:peerId});}}
  if (conv?.purgePending) return null;
+ // A replay on the active stream can release a conversation previously seen on standby.
+ if(conv&&routingState&&(!conv.metaRoutingAt||createdAt>conv.metaRoutingAt||createdAt===conv.metaRoutingAt&&routingState==='active'))conv=put('conversations',{...conv,metaRoutingState:routingState,metaRoutingAt:createdAt});
  const duplicate = db.prepare("SELECT id FROM records WHERE kind='messages' AND (json_extract(data,'$.externalId')=? OR EXISTS(SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) e WHERE json_extract(e.value,'$.id')=?)) AND json_extract(data,'$.conversationId')=?").get(String(item.id), String(item.id), conv?.id || '');
  const attachments = facebookAttachments(item.attachments?.data || item.attachments || []);
  const stickerURL = safeURL(typeof item.sticker === 'string' ? item.sticker : item.sticker?.url);
@@ -41,7 +43,7 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  return transaction(() => {
   if (!conv) {
    const customer = put('customers', { name: peer?.name || participant.name || 'Khách Facebook ' + peerId.slice(-6), phone: '', tags: [], consent: false });
-   conv = put('conversations', { customerId: customer.id, connectionId: channel.id, externalUserId: peerId, kind: 'message', status: 'open', tags: [], mode: 'api', unread: !!unread, lastAt: createdAt, createdAt });
+   conv = put('conversations', { customerId: customer.id, connectionId: channel.id, externalUserId: peerId, kind: 'message', status: 'open', tags: [], mode: 'api', unread: !!unread, lastAt: createdAt, createdAt, ...(routingState?{metaRoutingState:routingState,metaRoutingAt:createdAt}:{}) });
   } else if (peer?.name || participant.name) {
    const customer = get('customers', conv.customerId), name = peer?.name || participant.name;
    if (customer?.name?.startsWith('Khách Facebook ') && customer.name !== name) put('customers', { ...customer, name });
@@ -49,18 +51,18 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
   const msg = put('messages', { conversationId: conv.id, direction: outgoing ? 'outgoing' : 'incoming', text, attachments, sticker, externalId: String(item.id), status: outgoing ? 'sent' : 'received', senderType: outgoing ? 'channel' : 'customer', createdAt, history });
   const latest = !conv.lastAt || createdAt >= conv.lastAt;
   put('conversations', { ...conv, deletedAt: null, archived: conv.deletedAt ? false : conv.archived, ...(latest ? { lastAt: createdAt, lastMessage: text || (sticker?'Sticker':attachments[0]?.name||'Tin nhắn'), unread: !outgoing && (history ? !!unread : true) } : {}), ...(!outgoing && (!conv.lastInboundAt || createdAt > conv.lastInboundAt) ? { lastInboundAt: createdAt, waitingSince: latest ? conv.waitingSince || createdAt : conv.waitingSince } : {}), ...(outgoing && latest ? { waitingSince: null } : {}) });
-  if (!history && !outgoing) { runWorkflows('message_received', msg); observeCareMessage(get('conversations', conv.id), msg); }
+  if (!history && !outgoing && routingState!=='standby') { runWorkflows('message_received', msg); observeCareMessage(get('conversations', conv.id), msg); }
   return msg;
  });
 }
 
 export function ingestFacebookEvents(channel, entries = []) {
- for (const entry of entries) for (const event of entry.messaging || []) {
+ for (const entry of entries) for (const {event,routingState} of [...(entry.messaging||[]).map(event=>({event,routingState:'active'})),...(entry.standby||[]).map(event=>({event,routingState:'standby'}))]) {
   if(event.reaction?.mid){const conv=all('conversations').find(c=>c.connectionId===channel.id&&[String(event.sender?.id),String(event.recipient?.id)].includes(String(c.externalUserId)));const row=conv&&db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND (json_extract(data,'$.externalId')=? OR EXISTS(SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) e WHERE json_extract(e.value,'$.id')=?))").get(conv.id,event.reaction.mid,event.reaction.mid);if(row){const m=get('messages',row.id),senderId=String(event.sender?.id),reactions=(m.reactions||[]).filter(r=>r.senderId!==senderId);if(event.reaction.action!=='unreact')reactions.push({senderId,emoji:event.reaction.emoji||({love:'❤️',like:'👍',haha:'😆',wow:'😮',sad:'😢',angry:'😡'}[event.reaction.reaction]||'❤️')});put('messages',{...m,reactions});}continue;}
   if (!event.message?.mid) continue;
   const echo = event.message.is_echo || String(event.sender?.id) === String(channel.accountId);
   if (String((echo ? event.sender : event.recipient)?.id) !== String(channel.accountId)) continue;
-  ingestFacebookMessage(channel, { id: event.message.mid, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [],sticker_id:event.message.sticker_id,reply_to:event.message.reply_to });
+  ingestFacebookMessage(channel, { id: event.message.mid, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [],sticker_id:event.message.sticker_id,reply_to:event.message.reply_to },{routingState});
  }
 }
 

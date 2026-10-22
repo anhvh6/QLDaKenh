@@ -251,6 +251,7 @@ export async function sendMessage(c, conv, text, options = {}) {
   if(c.provider==='blogger'&&conv.kind==='comment'){
     throw Error('Blogger API chỉ hỗ trợ đọc và kiểm duyệt bình luận, không hỗ trợ tạo trả lời. Mở bài gốc trên Blogger để trả lời.');
   }
+  if(['facebook','instagram'].includes(c.provider)&&conv.metaRoutingState==='standby')throw Error('Meta đang chuyển hội thoại cho ứng dụng khác xử lý. Cần chuyển quyền kiểm soát về MegaPhuong trước khi trả lời.');
   if(conv.privateReplyCommentId&&!conv.lastInboundAt)return sendCommentPrivateReply(c,conv,text,options,remote,token);
   if (!conv.externalUserId) throw new Error('Hội thoại chưa có định danh người nhận thực tế.');
   if(c.provider==='instagram'){if(!conv.lastInboundAt||Date.now()-Date.parse(conv.lastInboundAt)>86400000)throw Error('Ngoài cửa sổ nhắn tin Instagram 24 giờ. Khách cần gửi tin nhắn cho kênh trước.');if(options.assetRefs?.length)throw Error('Nhắn riêng Instagram hiện hỗ trợ văn bản.');const r=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(c.accountId)}/messages`,json({recipient:{id:conv.externalUserId},message:{text}},token));if(!r.message_id)throw Object.assign(Error('Instagram chưa xác nhận tin nhắn. Kiểm tra ứng dụng gốc trước khi thử lại.'),{unknown:true});return r;}
