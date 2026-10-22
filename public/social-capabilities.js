@@ -9,6 +9,7 @@ export const socialOperations={
  mastodon:{publish:true,comments:true,reply:true,like:true},
  bluesky:{publish:true,comments:true,reply:true,like:true,share:true},
  tumblr:{publish:true},reddit:{publish:true},
+ tiktok:{publish:true},
  zalo:{chat:true},zalo_personal:{chat:true}
 };
 export function socialCan(provider,operation){return socialOperations[provider]?.[operation]===true;}

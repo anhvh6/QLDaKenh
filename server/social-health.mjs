@@ -29,6 +29,16 @@ export async function checkSocialHealth(c,request=remote){
   throw new Error('Chưa có phép kiểm tra hồ sơ cho cổng này.');
  });
  if(checks[0]?.status==='ok'){
+  if(c.provider==='tiktok'){
+   await probe('publish',async()=>{
+    const r=await request('https://open.tiktokapis.com/v2/post/publish/creator_info/query/',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}'});
+    const info=r.data||{};if(!info.creator_username||!Array.isArray(info.privacy_level_options)||!info.privacy_level_options.length)throw Error('TikTok chưa trả thông tin quyền đăng video.');
+    const sandbox=String(process.env.TIKTOK_CLIENT_KEY||'').startsWith('sb');
+    if(sandbox){checks.push({key:'publish_access',status:'waiting',message:'Đang dùng TikTok Sandbox. Chỉ kiểm thử riêng tư; chưa xác minh quyền đăng công khai của ứng dụng Production.'});}
+    else if(!info.privacy_level_options.includes('PUBLIC_TO_EVERYONE'))checks.push({key:'publish_access',status:'waiting',message:'Tài khoản chưa cho phép đăng công khai. Quyền hiển thị hiện có: '+info.privacy_level_options.join(', ')});
+   });
+   checks.push({key:'comments',status:'waiting',message:'Chưa kết nối Organic API cho đọc, trả lời và Like bình luận. Quyền video.publish không bao gồm bình luận.'},{key:'chat',status:'waiting',message:'Chưa kết nối Business Messaging API cho nhận và trả lời chat TikTok.'});
+  }
   if(['facebook','instagram'].includes(c.provider)){
    const root=`https://graph.facebook.com/${c.apiVersion||'v25.0'}/${encodeURIComponent(c.accountId)}`;
    await probe('webhook',async()=>{const r=await request(root+'/subscribed_apps?fields=subscribed_fields',{headers});const fields=new Set((r.data||[]).flatMap(x=>x.subscribed_fields||[])),required=c.provider==='facebook'?['feed','messages']:['comments','messages'];if(!required.every(f=>fields.has(f)))throw new Error('Webhook chưa đăng ký đủ trường: '+required.filter(f=>!fields.has(f)).join(', '));});

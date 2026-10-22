@@ -99,7 +99,7 @@ export async function testConnection(c) {
   if (c.provider === 'blogger') return remote(`https://www.googleapis.com/blogger/v3/blogs/${id}`, { headers: { Authorization: `Bearer ${await refreshedToken(c)}` } });
   if (c.provider === 'x') return remote('https://api.x.com/2/users/me', { headers: { Authorization: `Bearer ${await refreshedToken(c)}` } });
   if (c.provider === 'youtube') return remote('https://www.googleapis.com/youtube/v3/channels?part=id,snippet&mine=true', { headers: { Authorization: `Bearer ${await refreshedToken(c)}` } });
-  if (c.provider === 'tiktok') return remote('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name', { headers: { Authorization: `Bearer ${s.token}` } });
+  if (c.provider === 'tiktok') return remote('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name', { headers: { Authorization: `Bearer ${await refreshedToken(c)}` } });
   if (c.provider === 'zalo') return remote('https://openapi.zalo.me/v2.0/oa/getoa', { headers: { access_token: s.token } });
   throw new Error('Kênh này hiện dùng hỗ trợ đăng.');
 }
