@@ -8,8 +8,15 @@ export async function verifySocialPublication(c,p,request,fetchMedia=fetch){
   if(!(await media.text()).startsWith('#EXTM3U'))return null;
   return {processing:false,mediaVerifiedAt:new Date().toISOString()};
  }
- const token=await extraToken(c,request),r=await request(`https://api.tumblr.com/v2/blog/${encodeURIComponent(c.accountId)}/posts/${encodeURIComponent(p.externalId)}`,{headers:{Authorization:'Bearer '+token}}),post=r.response?.post||r.response;
+ const token=await extraToken(c,request),root=`https://api.tumblr.com/v2/blog/${encodeURIComponent(c.accountId)}`,headers={Authorization:'Bearer '+token};let post;
+ try{const r=await request(root+'/posts/'+encodeURIComponent(p.externalId),{headers});post=r.response?.post||r.response;}catch(e){
+  if(e.providerStatus!==404)throw e;
+  // Tumblr can replace a video post ID after transcoding. Reconcile only an exact,
+  // unique caption, video and dispatch-time match; never publish a second copy.
+  const r=await request(root+'/posts?limit=20&npf=true',{headers}),matches=(r.response?.posts||[]).filter(x=>x.content?.some(b=>b.type==='text'&&b.text===p.caption)&&x.content.some(b=>b.type==='video')&&Math.abs(x.timestamp*1000-Date.parse(p.dispatchedAt||p.processingStartedAt))<600000);
+  if(matches.length!==1)return null;post=matches[0];
+ }
  if(!post||post.state!=='published')return null;
  if(p.type==='video'&&!post.content?.some(x=>x.type==='video'&&(x.media?.url||x.url)))return null;
- return {processing:false,url:post.post_url||p.url,mediaVerifiedAt:new Date().toISOString()};
+ return {processing:false,externalId:post.id_string||String(post.id||p.externalId),url:post.post_url||p.url,mediaVerifiedAt:new Date().toISOString()};
 }
