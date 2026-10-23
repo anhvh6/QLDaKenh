@@ -10,7 +10,8 @@ import {copyStateSummary} from './copy-state-summary.mjs';
 import {orderPOSFields} from './order-workspace.mjs';
 export const dashboardRevision=()=>stateRevision()+':'+JSON.stringify(db.prepare('SELECT id,role,active FROM users ORDER BY id').all());
 export function dashboardCountsFor(user){
- const state={user};for(const key of ['assets','connections','contents','publications','conversations','customers','orders','tasks','staffHandoffs','journeys','chat_reminders','payments'])state[key]=all(key);
+ const state={user};for(const key of ['assets','connections','contents','publications','conversations','customers','orders','tasks','journeys','chat_reminders','payments'])state[key]=all(key);
+ state.staffHandoffs=all('staff_handoffs').filter(h=>['owner','manager'].includes(user.role)||h.assignedStaffId===user.id);
  state.messages=dashboardMessages();state.notifications=[];Object.assign(state,copyStateSummary(user.id,all));
  filterDeletedChats(state);filterDisconnectedChats(state);state.orders=orderPOSFields(state.orders);
  const scoped=scopeCareChats(scopeState(state,user),user),data=dashboardData(scoped);
