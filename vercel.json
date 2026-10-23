@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:app && npm run check",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "http://36.50.55.233/$1" }
+  ],
+  "headers": [
+    { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+    { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+    { "source": "/(.*).css", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+    { "source": "/(.*).js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+  ]
+}
