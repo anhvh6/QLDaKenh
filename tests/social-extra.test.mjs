@@ -15,7 +15,7 @@ const req={headers:{host:'127.0.0.1:4317'}};
 test('new OAuth gateways use official hosts and scoped state',async()=>{
  const original=global.fetch;
  try{
-  global.fetch=async(url,options)=>{assert.equal(String(url),'https://mastodon.social/api/v1/apps');assert.equal(options.body.get('scopes'),'read:accounts read:statuses write:statuses write:favourites');return Response.json({client_id:'mastodon-client',client_secret:'mastodon-secret'});};
+  global.fetch=async(url,options)=>{assert.equal(String(url),'https://mastodon.social/api/v1/apps');assert.equal(options.body.get('scopes'),'read:accounts read:statuses write:statuses write:media write:favourites');return Response.json({client_id:'mastodon-client',client_secret:'mastodon-secret'});};
   for(const [provider,host] of [['reddit','www.reddit.com'],['tumblr','www.tumblr.com'],['mastodon','mastodon.social']]){
    const result=await startOAuth({id:'owner'},{id:`pending-${provider}`,provider},req),url=new URL(result.url);
    assert.equal(url.hostname,host);assert.equal(get('oauth_states',url.searchParams.get('state')).connectionId,`pending-${provider}`);
@@ -43,7 +43,7 @@ test('Reddit refresh keeps refresh token when provider does not rotate it',async
  assert.equal(token,'new');assert.equal(secret('reddit-refresh').refreshToken,'refresh');
 });
 test('publishing rejects unsupported media and missing submission acknowledgement',async()=>{
- await assert.rejects(publishExtra({provider:'bluesky'},{type:'video'},()=>assert.fail('no remote request allowed')),/chỉ hỗ trợ bài văn bản/);
+ await assert.rejects(publishExtra({provider:'reddit'},{type:'video'},()=>assert.fail('no remote request allowed')),/Định dạng/);
  saveSecret('reddit-post',{token:'token'});
  await assert.rejects(publishExtra({id:'reddit-post',provider:'reddit',expectedAccount:'demo'},{type:'text',title:'Title',caption:'Body'},async url=>url.endsWith('/me')?{id:'id',name:'demo'}:{json:{errors:[['SUBREDDIT_NOTALLOWED','Cannot post here']]}}),/Cannot post here/);
 });
@@ -70,3 +70,18 @@ test('profile importer uses active owner, stays pending, and is idempotent',()=>
  const channels=all('connections').filter(c=>c.profileUrl==='https://mastodon.social/@demo');assert.equal(channels.length,1);assert.equal(channels[0].status,'configured');assert.equal(channels[0].expectedAccount,'demo@mastodon.social');
 });
 
+test('video publishing uploads actual bytes and attaches native media on all three providers',async()=>{
+ const {mkdirSync}=await import('node:fs');const {dataDir}=await import('../server/store.mjs');mkdirSync(join(dataDir,'uploads'),{recursive:true});writeFileSync(join(dataDir,'uploads','asset_video-test.mp4'),Buffer.from('fake-video-test'));
+ put('assets',{id:'video-test',url:'/uploads/asset_video-test.mp4',mime:'video/mp4',type:'video',active:true});
+ for(const provider of ['mastodon','bluesky','tumblr']){
+  const c={id:'video-'+provider,provider,accountId:provider==='bluesky'?'did:plc:test':'blog',expectedAccount:''};saveSecret(c.id,{token:'token',refreshToken:provider==='bluesky'?'refresh':undefined,expiresAt:Date.now()+999999});let uploaded=false;
+  const r=await publishExtra(c,{id:'publication-'+provider,type:'video',caption:'Test',assets:['video-test']},async(url,opts)=>{
+   if(url.endsWith('/api/v2/media')){assert.equal(await opts.body.get('file').text(),'fake-video-test');uploaded=true;return {id:'media',url:'https://media.test/video.mp4'};}
+   if(url.endsWith('.uploadBlob')){assert.equal(await opts.body.text(),'fake-video-test');uploaded=true;return {blob:{$type:'blob',ref:{$link:'cid'},mimeType:'video/mp4',size:15}};}
+   if(url.endsWith('.getSession'))return {did:'did:plc:test',handle:'test.bsky.social'};
+   if(provider==='mastodon'){assert.deepEqual(JSON.parse(opts.body).media_ids,['media']);return {id:'post',url:'https://mastodon.social/post'};}
+   if(provider==='bluesky'){assert.equal(JSON.parse(opts.body).record.embed.$type,'app.bsky.embed.video');return {uri:'at://did:plc:test/app.bsky.feed.post/post'};}
+   assert.ok(opts.body instanceof FormData);assert.equal(JSON.parse(opts.body.get('json')).content[1].media.identifier,'upload');assert.equal(await opts.body.get('upload').text(),'fake-video-test');uploaded=true;return {response:{id:'post'}};
+  });assert.ok(uploaded);assert.ok(r.externalId);
+ }
+});

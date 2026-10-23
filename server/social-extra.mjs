@@ -1,10 +1,11 @@
+import {uploadSocialMedia} from './social-media-upload.mjs';
 import {secret,saveSecret} from './store.mjs';
 
 export const extraProviders={
  reddit:{label:'Reddit',publish:true,oauth:true,formats:['text'],hint:'OAuth Reddit với quyền identity, submit. Cần ứng dụng API được Reddit cho phép; mặc định đăng lên hồ sơ của bạn.'},
- mastodon:{label:'Mastodon',publish:true,oauth:true,formats:['text'],hint:'Kết nối mastodon.social bằng OAuth, đọc hồ sơ và đăng trạng thái văn bản.'},
- tumblr:{label:'Tumblr',publish:true,oauth:true,formats:['text'],hint:'OAuth Tumblr để xác minh blog và đăng nội dung văn bản.'},
- bluesky:{label:'Bluesky',publish:true,formats:['text'],hint:'Nhập handle và mật khẩu ứng dụng Bluesky tại đây; không dùng mật khẩu đăng nhập chính.'},
+ mastodon:{label:'Mastodon',publish:true,oauth:true,formats:['text','image','video'],hint:'Kết nối mastodon.social bằng OAuth, đọc hồ sơ và đăng trạng thái văn bản.'},
+ tumblr:{label:'Tumblr',publish:true,oauth:true,formats:['text','image','video'],hint:'OAuth Tumblr để xác minh blog và đăng nội dung văn bản.'},
+ bluesky:{label:'Bluesky',publish:true,formats:['text','image','video'],hint:'Nhập handle và mật khẩu ứng dụng Bluesky tại đây; không dùng mật khẩu đăng nhập chính.'},
  meta_business:{label:'Meta Business Suite',publish:false,formats:[],hint:'Quản trị doanh nghiệp. Xuất bản qua Facebook Page và Instagram đã cấp quyền.'},
  google_business:{label:'Google Doanh nghiệp',publish:false,formats:[],hint:'Hồ sơ chưa xác minh cần hoàn tất xác minh với Google trước khi tích hợp API.'}
 };
@@ -58,21 +59,22 @@ export async function extraProfile(c,remote,token){
 }
 export async function publishExtra(c,p,remote){
  if(c.provider==='bluesky'&&p.visibility==='private')throw new Error('Bluesky không hỗ trợ bài riêng tư. Chọn công khai trước khi đăng.');
- if(p.type!=='text')throw new Error('Cổng này hiện chỉ hỗ trợ bài văn bản.');
+ if(!['text','image','video'].includes(p.type)||c.provider==='reddit'&&p.type!=='text')throw new Error('Định dạng không được hỗ trợ.');
  const token=await extraToken(c,remote),text=String(p.caption||p.title||'');let r;
+ const media=p.type==='text'?null:await uploadSocialMedia(c,p,token,remote);
  if(c.provider==='mastodon'){
   if(Array.from(text).length>500)throw new Error('Mastodon: nội dung vượt 500 ký tự.');
-  r=await remote('https://mastodon.social/api/v1/statuses',{...post({status:text,visibility:p.visibility==='private'?'private':'public'},token),headers:{...post({},token).headers,...(p.id?{'Idempotency-Key':String(p.id)}:{})}});
+  r=await remote('https://mastodon.social/api/v1/statuses',{...post({status:text,...(media?{media_ids:media}:{}),visibility:p.visibility==='private'?'private':'public'},token),headers:{...post({},token).headers,...(p.id?{'Idempotency-Key':String(p.id)}:{})}});
   if(!r.id)throw new Error('Mastodon chưa trả mã bài viết.');return {externalId:String(r.id),url:r.url};
  }
  if(c.provider==='bluesky'){
   if([...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text)].length>300)throw new Error('Bluesky: nội dung vượt 300 ký tự.');
   const profile=await extraProfile(c,remote,token);
-  r=await remote('https://bsky.social/xrpc/com.atproto.repo.createRecord',post({repo:profile.accountId,collection:'app.bsky.feed.post',record:{$type:'app.bsky.feed.post',text,createdAt:new Date().toISOString()}},token));
+  r=await remote('https://bsky.social/xrpc/com.atproto.repo.createRecord',post({repo:profile.accountId,collection:'app.bsky.feed.post',record:{$type:'app.bsky.feed.post',text,...(media?{embed:media}:{}),createdAt:new Date().toISOString()}},token));
   if(!r.uri)throw new Error('Bluesky chưa trả mã bài viết.');return {externalId:r.uri,url:`https://bsky.app/profile/${profile.handle}/post/${r.uri.split('/').pop()}`};
  }
  if(c.provider==='tumblr'){
-  r=await remote(`https://api.tumblr.com/v2/blog/${encodeURIComponent(c.accountId)}/posts`,post({content:[{type:'text',text}],state:p.visibility==='private'?'private':'published'},token));
+  r=await remote(`https://api.tumblr.com/v2/blog/${encodeURIComponent(c.accountId)}/posts`,media?{method:'POST',headers:bearer(token),body:media,signal:AbortSignal.timeout(600000)}:post({content:[{type:'text',text}],state:p.visibility==='private'?'private':'published'},token));
   const id=r.response?.id_string||r.response?.id;if(!id)throw new Error('Tumblr chưa trả mã bài viết.');return {externalId:String(id),url:`https://www.tumblr.com/${encodeURIComponent(c.accountId)}/${id}`};
  }
  if(p.visibility==='private')throw new Error('Reddit không hỗ trợ bài riêng tư qua cổng này.');

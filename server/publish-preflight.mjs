@@ -39,6 +39,10 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     const provider = providers[ch.provider];
     if(ch.provider==='bluesky'&&(variant.visibility||input.visibility||content.visibility)==='private')add(ch,'Bluesky không hỗ trợ bài riêng tư. Chọn công khai trước khi đăng.');
     if (!provider?.publish || !provider.formats.includes(type)) add(ch,formatHint(ch.provider,type)||`API của kênh chưa hỗ trợ định dạng ${formatLabels[type]||type}. Chọn định dạng hoặc kênh khác.`);
+    if(['mastodon','bluesky','tumblr'].includes(ch.provider)&&type!=='text'){
+      const files=media.filter(m=>m.type===type);if(files.length!==1)add(ch,'Kênh này cần đúng một file media đính kèm; không chỉ đường dẫn.');
+      if(files.some(m=>Number(m.size)>100*1024*1024))add(ch,'Media vượt giới hạn 100 MB của cổng này.');
+    }
     const limits = { threads: 500, instagram: 2200, x: 280, tiktok: 2200 };
     // TikTok's limit uses UTF-16; Threads counts Unicode code points.
     const count = ch.provider === 'tiktok' || ch.provider === 'x' ? caption.length : Array.from(caption).length;

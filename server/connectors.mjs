@@ -25,7 +25,7 @@ export const providers = {
 };
 export async function remote(url, options = {}) {
   const readOnly=(!options.method||options.method==='GET');
-  let res,raw; try { res = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
+  let res,raw; try { res = await fetch(url, { ...options, signal: options.signal || AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
   let data; try { data = JSON.parse(raw); } catch { data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
   const providerError = data.error && (typeof data.error === 'object' ? data.error.code && !['ok', 0, '0'].includes(data.error.code) : data.error !== 0);
   if (!res.ok || providerError) {
@@ -66,7 +66,7 @@ async function uploadStream(url, path, size, mime, headers = {}) {
 }
 async function publishYouTube(c, p) {
   const token = await refreshedToken(c), asset = publicationAsset(p, 'video'), file = assetFile(asset), metadata = { snippet: { title: String(p.title || 'Video'), description: String(p.caption || ''), categoryId: '22' }, status: { privacyStatus: ['public', 'private', 'unlisted'].includes(p.visibility) ? p.visibility : 'public' } };
-  const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(file.size), 'X-Upload-Content-Type': file.mime }, body: JSON.stringify(metadata), signal: AbortSignal.timeout(45000) });
+  const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(file.size), 'X-Upload-Content-Type': file.mime }, body: JSON.stringify(metadata), signal: options.signal || AbortSignal.timeout(45000) });
   if (!init.ok) { const raw = await init.text(); let message = raw; try { message = JSON.parse(raw).error?.message || raw; } catch { } throw new Error(String(message).slice(0, 700)); }
   const location = init.headers.get('location'); if (!location) throw new Error('YouTube không trả URL tiếp nhận video.');
   const result = await uploadStream(location, file.path, file.size, file.mime); if (!result.id) throw new Error('YouTube không trả mã video sau khi upload.'); return { externalId: result.id, url: `https://www.youtube.com/watch?v=${result.id}` };
