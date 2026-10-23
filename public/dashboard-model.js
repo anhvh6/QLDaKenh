@@ -1,3 +1,4 @@
+import {calendarEvents,calendarDayKey,calendarDayItems} from './calendar-model.js';
 import {activeAppointmentTask} from './reminder-model.js';
 const day=86400000;
 export const dashboardLabels={prepared:'Nội dung đã chuẩn bị',pending:'Chờ đăng',failed:'Đăng lỗi 48h',messages:'Tin nhắn mới',comments:'Bình luận mới',tasks:'Nhiệm vụ',orders:'Đơn mới'};
@@ -12,17 +13,7 @@ export function dashboardData(S,time=Date.now()){
  const tasks=[...(S.staffHandoffs||[]),...(S.tasks||[])].filter(t=>!['resolved','done','completed','cancelled'].includes(t.status)&&!t.completedAt&&activeAppointmentTask(t,time)&&(t.assignedStaffId===S.user.id||t.assignee===S.user.id||t.assigneeId===S.user.id||(t.assigneeIds||[]).includes(S.user.id)));
  return {prepared:S.contents||[],pending,failed,messages:unanswered.filter(c=>c.kind!=='comment'),comments:unanswered.filter(c=>c.kind==='comment'),tasks,orders:(S.orders||[]).filter(o=>o.autoDraft===true&&['draft','new'].includes(o.status)&&(!o.posDisplay||o.posDisplay.status==null||Number(o.posDisplay.status)===0))};
 }
-export function dashboardDays(S,time=Date.now()){
- const start=new Date(time+7*3600000).toISOString().slice(0,10),midnight=Date.parse(start+'T00:00:00+07:00');
- const groups=new Map(),latest=new Map(),contents=new Map((S.contents||[]).map(c=>[c.id,c])),publishedCopyIds=new Set((S.publications||[]).filter(p=>p.status!=='cancelled').map(p=>p.copyPlanItemId));
- for(const p of S.publications||[]){const key=p.contentId+':'+p.connectionId+':'+(p.scheduleAt||'');const previous=latest.get(key);if(!previous||String(p.updatedAt||p.createdAt||'')>=String(previous.updatedAt||previous.createdAt||''))latest.set(key,p);}
- for(const p of latest.values()){
-  if(!['scheduled','awaiting_manual','dispatching','processing','publishing','accepted','published','manually_confirmed','failed','blocked','unknown'].includes(p.status))continue;
-  const c=contents.get(p.contentId),at=p.scheduleAt||c?.scheduleAt;if(!at)continue;
-  const key=p.contentId+':'+at,group=groups.get(key)||{...c,id:c?.id||p.contentId,title:c?.title||p.title,at,scheduleAt:at,type:p.copyPlanId?'copy':'post',planId:p.copyPlanId,statuses:[]};group.statuses.push(p.status);groups.set(key,group);
- }
- const posts=[...groups.values()].map(({statuses,...p})=>({...p,status:statuses.some(s=>['failed','blocked','unknown'].includes(s))?'failed':statuses.every(s=>['published','manually_confirmed'].includes(s))?'published':'scheduled'}));
- posts.push(...(S.copyPlanCalendar||[]).filter(p=>!['cancelled','draft','skipped'].includes(p.state||p.status)&&!publishedCopyIds.has(p.id)).map(p=>({...p,at:p.scheduleAt,type:'copy'})));
- const calls=(S.chat_reminders||[]).filter(r=>['pending','done','completed','resolved'].includes(r.status)).map(r=>({...r,at:r.dueAt,type:'call',title:r.title||r.text||r.content||'Call khách hàng'}));
- return [-1,0,1].map(offset=>{const at=midnight+offset*day;return {at,offset,items:[...posts,...calls].filter(x=>Date.parse(x.at)>=at&&Date.parse(x.at)<at+day).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))};});
+export function dashboardDays(S,time=Date.now(),startOffset=0){
+ const midnight=Date.parse(calendarDayKey(new Date(time).toISOString())+'T00:00:00+07:00'),events=calendarEvents(S);
+ return [startOffset,startOffset+1].map(offset=>{const at=midnight+offset*day;return {at,offset,items:calendarDayItems(events,calendarDayKey(new Date(at).toISOString()))};});
 }

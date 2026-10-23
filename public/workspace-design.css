@@ -2298,3 +2298,18 @@ table .btn {
   .content.inbox-page .inbox-layout.has-selection .conversation-list { display:none; }
   .content.inbox-page .inbox-layout:not(.has-selection) .chat { display:none; }
 }
+/* Calendar cards share identity, state and a compact platform strip. */
+.dashboard-three-days.dashboard-two-days{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dashboard-day-heading{display:flex;align-items:center;gap:6px;min-height:32px}
+.dashboard-day-heading .icon-btn{width:32px;height:32px;flex-shrink:0;padding:5px}
+.dashboard-day-heading>span{min-width:0}
+.calendar-card.dashboard-event,.calendar-cell>.calendar-card{display:block;min-width:0;text-align:left}
+.calendar-card .calendar-card-meta{display:flex;align-items:center;gap:6px;min-width:0;overflow:visible;white-space:normal;font-size:11px}
+.calendar-card .calendar-card-platforms{display:flex;align-items:center;gap:3px;flex-wrap:wrap;min-width:0;overflow:visible;margin-left:auto}
+.calendar-card .calendar-card-platforms .social{display:inline-flex;align-items:center;justify-content:center;flex:0 0 16px;width:16px;height:16px;min-width:16px;font-size:10px;line-height:1;border-radius:4px;overflow:hidden}
+.calendar-card .calendar-card-meta>svg{flex:0 0 14px}
+.calendar-card .calendar-card-title,.calendar-cell>.calendar-card .calendar-card-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;overflow-wrap:anywhere;margin:5px 0;font-size:12px;line-height:1.5;font-weight:500}
+.calendar-card.dashboard-event>.schedule-state{display:block;max-width:none;margin:0;padding:0;text-align:left}
+.calendar-day-more{display:block;margin:8px 0 0;padding:5px 2px;font-size:12px;min-height:32px;white-space:normal;text-align:left}
+@media(max-width:600px){.dashboard-three-days.dashboard-two-days{grid-template-columns:1fr}.dashboard-two-days .dashboard-day+.dashboard-day{border-left:0}}
+.calendar-actions>.calendar-filter:first-child .calendar-filter-options{left:0;right:auto;max-width:min(260px,calc(100vw - 32px))}

@@ -1,5 +1,7 @@
+export const defaultCalendarSelection=['appointment'];
 export const calendarTypes={published:'Đã đăng',scheduled:'Lên lịch',failed:'Lỗi',appointment:'Lịch hẹn'};
 export function calendarType(item){
+ if(item.type==='call')return 'appointment';
  const status=item.status||item.state;
  if(['published','manually_confirmed'].includes(status))return 'published';
  if(['failed','blocked','unknown'].includes(status))return 'failed';
