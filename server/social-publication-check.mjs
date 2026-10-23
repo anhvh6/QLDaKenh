@@ -1,3 +1,4 @@
+import {hashtags,tumblrCaption} from '../public/platform-text-rules.js';
 import {extraToken} from './social-extra.mjs';
 export async function verifySocialPublication(c,p,request,fetchMedia=fetch){
  if(c.provider==='bluesky'){
@@ -13,7 +14,7 @@ export async function verifySocialPublication(c,p,request,fetchMedia=fetch){
   if(e.providerStatus!==404)throw e;
   // Tumblr can replace a video post ID after transcoding. Reconcile only an exact,
   // unique caption, video and dispatch-time match; never publish a second copy.
-  const r=await request(root+'/posts?limit=20&npf=true',{headers}),matches=(r.response?.posts||[]).filter(x=>x.content?.some(b=>b.type==='text'&&b.text===p.caption)&&x.content.some(b=>b.type==='video')&&Math.abs(x.timestamp*1000-Date.parse(p.dispatchedAt||p.processingStartedAt))<600000);
+  const r=await request(root+'/posts?limit=20&npf=true',{headers}),matches=(r.response?.posts||[]).filter(x=>(x.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n')===tumblrCaption(p.caption)&&hashtags(p.caption).every(t=>x.tags?.includes(t))||x.content?.some(b=>b.type==='text'&&b.text===p.caption))&&x.content.some(b=>b.type==='video')&&Math.abs(x.timestamp*1000-Date.parse(p.dispatchedAt||p.processingStartedAt))<600000);
   if(matches.length!==1)return null;post=matches[0];
  }
  if(!post||post.state!=='published')return null;

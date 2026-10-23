@@ -84,10 +84,10 @@ test('video publishing uploads actual bytes and attaches native media on all thr
    if(url.endsWith('.getSession'))return {did:'did:plc:test',handle:'test.bsky.social'};
    if(provider==='mastodon'){assert.deepEqual(JSON.parse(opts.body).media_ids,['media']);return {id:'post',url:'https://mastodon.social/post'};}
    if(provider==='bluesky'){assert.equal(JSON.parse(opts.body).record.embed.$type,'app.bsky.embed.video');return {uri:'at://did:plc:test/app.bsky.feed.post/post'};}
-   assert.ok(opts.body instanceof FormData);assert.equal(JSON.parse(opts.body.get('json')).tags,'yoga,dep');assert.equal(JSON.parse(opts.body.get('json')).content[1].media.identifier,'upload');assert.equal(await opts.body.get('upload').text(),'fake-video-test');uploaded=true;return {response:{id:'post'}};
+   assert.ok(opts.body instanceof FormData);assert.equal(JSON.parse(opts.body.get('json')).tags,'yoga,dep');assert.equal(JSON.parse(opts.body.get('json')).content[0].text,'Test');assert.equal(JSON.parse(opts.body.get('json')).content[1].media.identifier,'upload');assert.equal(await opts.body.get('upload').text(),'fake-video-test');uploaded=true;return {response:{id:'post'}};
   });assert.ok(uploaded);assert.ok(r.externalId);
  }
 });
 
-test('Tumblr text tags use comma-separated strings',async()=>{saveSecret('tumblr-tags',{token:'fake'});await publishExtra({id:'tumblr-tags',provider:'tumblr',accountId:'blog'},{type:'text',caption:'#yoga #đẹp #yoga'},async(url,opts)=>{assert.equal(JSON.parse(opts.body).tags,'yoga,đẹp');return {response:{id:'123'}};});});
+test('Tumblr text tags use comma-separated strings',async()=>{saveSecret('tumblr-tags',{token:'fake'});await publishExtra({id:'tumblr-tags',provider:'tumblr',accountId:'blog'},{type:'text',caption:'#yoga #đẹp #yoga'},async(url,opts)=>{assert.equal(JSON.parse(opts.body).tags,'yoga,đẹp');assert.equal(JSON.parse(opts.body).content[0].formatting[0].url,'https://www.tumblr.com/tagged/yoga');return {response:{id:'123'}};});});
 test('Tumblr validation errors include platform reason and subcode',async()=>{const {remote}=await import('../server/connectors.mjs');const previous=global.fetch;try{global.fetch=async()=>Response.json({meta:{status:400,msg:'Bad Request'},errors:[{code:8001,title:'tags must be a string'}]},{status:400});await assert.rejects(remote('https://api.tumblr.com/v2/blog/test/posts',{method:'POST',body:'{}'}),/8001: tags must be a string/);}finally{global.fetch=previous;}});
