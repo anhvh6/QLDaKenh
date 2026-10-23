@@ -1,6 +1,7 @@
 import {sourceVideoKey} from './copy-source-key.mjs';
 import {assertChannel} from './taophacdo.mjs';
 import {get,all,db} from './store.mjs';
+import {publicationAdmissionTime} from './publication-admission.mjs';
 // The five-second automation poll can observe a completed download just after its slot.
 // Keep the original slot and existing dispatch deadline, but require proof it was ready on time.
 export function copyPlanHandoffReady(content,scheduleAt,time=Date.now()){
@@ -20,6 +21,7 @@ export function copyPlanBlock(publication,time=Date.now()){
  try{if(publication.connectionId)assertChannel(user,publication.connectionId);}catch(e){return e.message;}
  if(time<Date.parse(p.startAt)||p.endAt&&time>Date.parse(p.endAt))return 'Ngoài thời gian hoạt động kế hoạch.';
  const key=content?.sourceVideoKey||(content?.sourceCopyId?sourceVideoKey(get('copy_posts',content.sourceCopyId)):'');if(key){const ids=new Set(all('contents').filter(c=>(c.sourceVideoKey||(c.sourceCopyId?sourceVideoKey(get('copy_posts',c.sourceCopyId)):''))===key).map(c=>c.id));if(all('publications').some(p=>p.id!==publication.id&&p.connectionId===publication.connectionId&&ids.has(p.contentId)&&['published','manually_confirmed'].includes(p.status)))return 'Đã đăng video này trên kênh; chặn đăng trùng.';}
- if(time-Date.parse(publication.scheduleAt)>60000)return 'Đã lỡ giờ đăng; cần xếp lịch mới.';
+ const admission=publicationAdmissionTime(publication);
+ if(time-Date.parse(publication.scheduleAt)>60000&&!(Number.isFinite(admission)&&admission<=time))return 'Đã lỡ giờ đăng; cần xếp lịch mới.';
  return '';
 }

@@ -65,14 +65,15 @@ export async function refreshedToken(c) {
 }
 async function uploadStream(url, path, size, mime, headers = {}) {
   let res; try { res = await fetch(url, { method: 'PUT', headers: { 'Content-Type': mime, 'Content-Length': String(size), ...headers }, body: createReadStream(path), duplex: 'half', signal: AbortSignal.timeout(30 * 60 * 1000) }); } catch { throw Object.assign(new Error('Không xác định kết quả upload media. Kiểm tra trên nền tảng trước khi thử lại.'), { unknown: true }); }
-  const raw = await res.text(); let data = {}; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 300) }; } if (!res.ok) throw new Error(data.error?.message || data.message || `Upload media thất bại (${res.status}).`); return data;
+  let raw;try{raw=await res.text();}catch{throw Object.assign(new Error('Mất phản hồi sau khi upload media. Cần đối soát trước khi thử lại.'),{unknown:true});}
+  let data = {}; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 300) }; } if (!res.ok) throw Object.assign(new Error(data.error?.message || data.message || `Upload media thất bại (${res.status}).`),{unknown:res.status>=500}); return data;
 }
 async function publishYouTube(c, p) {
   const token = await refreshedToken(c), asset = publicationAsset(p, 'video'), file = assetFile(asset), metadata = { snippet: { title: String(p.title || 'Video'), description: String(p.caption || ''), categoryId: '22' }, status: { privacyStatus: ['public', 'private', 'unlisted'].includes(p.visibility) ? p.visibility : 'public' } };
-  const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(file.size), 'X-Upload-Content-Type': file.mime }, body: JSON.stringify(metadata), signal: options.signal || AbortSignal.timeout(45000) });
+  const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(file.size), 'X-Upload-Content-Type': file.mime }, body: JSON.stringify(metadata), signal: AbortSignal.timeout(45000) });
   if (!init.ok) { const raw = await init.text(); let message = raw; try { message = JSON.parse(raw).error?.message || raw; } catch { } throw new Error(String(message).slice(0, 700)); }
   const location = init.headers.get('location'); if (!location) throw new Error('YouTube không trả URL tiếp nhận video.');
-  const result = await uploadStream(location, file.path, file.size, file.mime); if (!result.id) throw new Error('YouTube không trả mã video sau khi upload.'); return { externalId: result.id, url: `https://www.youtube.com/watch?v=${result.id}` };
+  const result = await uploadStream(location, file.path, file.size, file.mime); if (!result.id) throw Object.assign(new Error('YouTube không trả mã video sau khi upload. Cần đối soát trước khi thử lại.'),{unknown:true}); return { externalId: result.id, url: `https://www.youtube.com/watch?v=${result.id}` };
 }
 async function publishTikTok(c, p) {
   const block=tiktokPublishBlock(c,p.visibility||'public');if(block)throw new Error(block);

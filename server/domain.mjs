@@ -9,6 +9,7 @@ import {contentSourceKey,copySourceBlock} from './copy-history.mjs';
 import {chatOrderSource} from './chat-order-drafts.mjs';
 import {validateOrderTarget} from './order-routing.mjs';
 import {copyPlanBlock,copyPlanHandoffReady} from './copy-plan-guard.mjs';
+import {observeDuePublications} from './publication-admission.mjs';
 import {commentReplyTarget} from './comment-context.mjs';
 import { assertPublicationPreflight } from './publish-preflight.mjs';
 import { validateGroupMentions } from './group-mentions.mjs';
@@ -255,6 +256,10 @@ export async function deleteCommentMessage(user, id) { permission(user, 'inbox')
 export function ingestDemo(user, input) { permission(user, 'inbox'); assertChannel(user, input.connectionId); const ch = get('connections', input.connectionId); if (ch?.mode !== 'demo') fail('Chỉ tạo tương tác mẫu trên kênh mẫu.'); const c = get('customers', input.customerId); if (!c) fail('Chọn khách hàng.'); const text = required(input.text, 'Tin nhắn'); const conv = put('conversations', { customerId: c.id, connectionId: ch.id, kind: input.kind || 'message', status: 'open', unread: true, assignee: '', lastMessage: text, lastAt: now(), tags: [], mode: 'demo', productId: input.productId || null }); const msg = put('messages', { conversationId: conv.id, direction: 'incoming', text, status: 'demo' }); runWorkflows('message_received', { ...msg, conversationId: conv.id }); observeCareMessage(get('conversations', conv.id), msg); return get('conversations', conv.id); }
 let ticking = false;
 export async function tick() {
+  // Observe every timer pulse, even while a previous video upload is pending.
+  // This prevents our own serial upload queue from making an on-time job late.
+  const observedAt=Date.now();
+  observeDuePublications(all('publications').filter(p=>p.status==='scheduled'&&Date.parse(p.scheduleAt)<=observedAt&&!copyPlanBlock(p,observedAt)),observedAt);
   if (ticking) return; ticking = true; try {
     const jobs = all('publications').filter(p => p.status === 'scheduled' && Date.parse(p.scheduleAt) <= Date.now()).filter(p=>{const block=copyPlanBlock(p);return !block||block.startsWith('Đã lỡ')||block.startsWith('Đã đăng')||block.startsWith('Kênh đã');}).slice(0, 5);
     for (let p of jobs) {

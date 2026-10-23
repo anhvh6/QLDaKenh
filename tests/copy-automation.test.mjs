@@ -134,3 +134,28 @@ test('result search uses the edited content caption and source overrides instead
  const c=put('contents',{caption:'Actual prepared caption',title:'Actual title'});put('copy_plan_items',{...i,contentId:c.id});
  const rows=automationState(u).items;assert.equal(rows.find(x=>x.id===i.id).caption,'Actual prepared caption');assert.equal(filterPlanRows(rows,{search:'prepared caption'}).some(x=>x.id===i.id),true);
 });
+
+test('invalid extracted text keeps an editable draft and preserves channel edits on preparation retry',async()=>{
+ const {p}=fixture();const channel=get('connections','auto-threads');put('connections',{...channel,mode:'api'});reserveSlots(p);let i=all('copy_plan_items').find(i=>i.planId===p.id&&i.state==='scheduled');const start=Date.parse(i.scheduleAt)-1800000;let downloads=0;
+ const deps={...tickDeps,extract:async()=>({title:'QA',caption:'x'.repeat(600),media:[{type:'video'}]}),startCopy:(user,postId,target,extra)=>{downloads++;return put('copy_jobs',{userId:user.id,postId,target,status:'queued',...extra});}};
+ await automationTick(start,deps);i=get('copy_plan_items',i.id);assert.equal(i.state,'failed');assert.ok(i.contentId);assert.equal(downloads,0);const c=get('contents',i.contentId);assert.equal(c.caption.length,600);
+ put('contents',{...c,caption:'Short approved caption',variants:{'auto-threads':{caption:'Channel-specific caption'}}});
+ await automationRoute('/api/copy/automation/items/'+i.id+'/action','POST',{action:'retry'},u);
+ await automationTick(start,deps);const saved=get('contents',i.contentId);assert.equal(saved.caption,'Short approved caption');assert.equal(saved.variants['auto-threads'].caption,'Channel-specific caption');assert.ok(downloads>0);put('connections',channel);
+});
+test('confirmed receipts clear stale failed copy item, but mixed or unknown destinations stay unresolved',async()=>{
+ const {p}=fixture(),items=all('copy_plan_items').filter(i=>i.planId===p.id),i=items[0],j=items[1];
+ put('copy_plan_items',{...i,state:'unknown',error:'Old lost receipt'});for(const connectionId of i.channels)put('publications',{copyPlanItemId:i.id,connectionId,status:'published'});
+ put('copy_plan_items',{...j,state:'failed',error:'Needs attention'});put('publications',{copyPlanItemId:j.id,connectionId:j.channels[0],status:'published'});put('publications',{copyPlanItemId:j.id,connectionId:j.channels[1],status:'unknown'});
+ await automationTick(Date.now(),tickDeps);assert.equal(get('copy_plan_items',i.id).state,'published');assert.equal(get('copy_plan_items',i.id).error,'');assert.equal(get('copy_plan_items',j.id).state,'failed');
+});
+
+test('restart restores a single orphaned preflight draft without guessing among multiple drafts',()=>{
+ const {p}=fixture(),items=all('copy_plan_items').filter(i=>i.planId===p.id),[i,j]=items;
+ for(const row of items)put('copy_plan_items',{...row,state:'failed',contentId:''});
+ const draft=put('contents',{copyPlanId:p.id,copyPlanItemId:i.id,caption:'Needs editing'});for(let n=0;n<2;n++)put('contents',{copyPlanId:p.id,copyPlanItemId:j.id,caption:'Ambiguous draft '+n});
+ recoverAutomation();assert.equal(get('copy_plan_items',i.id).contentId,draft.id);assert.equal(get('copy_plan_items',j.id).contentId,'');
+});
+test('a partial successful receipt cannot clear a failed multi-channel item',async()=>{
+ const {p}=fixture(),i=all('copy_plan_items').find(i=>i.planId===p.id);put('copy_plan_items',{...i,state:'failed',error:'Missing destination'});put('publications',{copyPlanItemId:i.id,connectionId:i.channels[0],status:'published'});await automationTick(Date.now(),tickDeps);assert.equal(get('copy_plan_items',i.id).state,'failed');
+});

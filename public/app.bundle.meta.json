@@ -1,5 +1,5 @@
 {
-  "version": "da0a4411b1b6",
+  "version": "be743bc59c62",
   "compiler": "0.25.12",
   "files": {
     "public/report-model.js": "60b35c41f78ce401f959b480708f88928cb9916f98e78dfa12900a3403342c1e",
@@ -30,7 +30,7 @@
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
-    "public/dashboard-model.js": "7e760b4ce0d735133c197e86793b70e9fc70e07dcfefe479b1df85ea432909f5",
+    "public/dashboard-model.js": "1d7abd8c25e8e6e33f3e2f8aa4313cbbaea5a2ea5096aa310effad87fdb4c3f8",
     "public/order-editor-tools.js": "05c9b8299615dcfe5677f21b5a92f781d0694b7364de7b64670d7985002462d2",
     "public/chat-message-sync.js": "6c634b0bb2b40c91c20d4a11ea0dab98587f9089f7379d56e5336808ea550073",
     "public/order-linked-chat.js": "dfc29d8ef5374660d1c584cc9c186b17e5732eca17382d1a550d5d0a545e59c4",
@@ -103,6 +103,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "64f716baabad842e124b9ec2deb1e757de1ea9527e4b87f82e93d12f15242deb",
-    "public/app.bundle.js": "da0a4411b1b6383b9a6cc174b6323c624e112d74d443a099aa9e4d0ee7ca7c8d"
+    "public/app.bundle.js": "be743bc59c623106e72386d0a10a22f7348c1602c4fcef5edd5b8716e734c1cb"
   }
 }

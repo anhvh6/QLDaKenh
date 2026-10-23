@@ -1,0 +1,10 @@
+# Publishing failure fixes — 2026-10-23
+
+- YouTube resumable initialization used an undefined `options` variable. The upload now initializes with its own timeout. A missing final receipt, interrupted receipt body or upload server error remains `unknown`; no automatic upload retry is performed.
+- A slow upload held the serial scheduler while later jobs crossed the one-minute deadline. Each five-second timer pulse now admits eligible scheduled jobs before checking the busy flag. Admission is process-local, tied to the publication ID and exact scheduled time, and invalidated when cancelled, rescheduled or no longer eligible. Dispatch still rechecks plan activity, permissions and source duplication. Jobs first observed after the deadline, including after downtime, still require rescheduling. Queue admission does not guarantee publication at the exact scheduled second.
+- Copy preparation now links the draft before preflight. Validation errors can be opened in the existing content editor, and common/per-channel edits survive preparation retries. Startup restores a legacy orphaned draft only when there is exactly one matching draft. Length limits remain blocking; content is never silently truncated.
+- Confirmed receipts for every destination can clear a stale failed/unknown copy-item flag. Partial or uncertain results stay unresolved. Dashboard totals omit the duplicate copy-item row when its content publications already represent it.
+
+Backend deployment is required. The aggregate database is SQLite and needs no Supabase SQL change. Production failed publications are not automatically replayed by this patch. Reconcile and reschedule only unsent destinations; preserve successful receipts.
+
+Regression coverage: mocked resumable upload, broken receipts, a long upload with six waiting jobs across multiple batches, actual missed schedules, cancellation/rescheduling, editable failed preflight, draft recovery, partial receipts, and dashboard deduplication. Tests do not publish to real accounts.
