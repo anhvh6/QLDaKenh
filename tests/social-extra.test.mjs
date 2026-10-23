@@ -75,7 +75,7 @@ test('video publishing uploads actual bytes and attaches native media on all thr
  put('assets',{id:'video-test',url:'/uploads/asset_video-test.mp4',mime:'video/mp4',type:'video',active:true});
  for(const provider of ['mastodon','bluesky','tumblr']){
   const c={id:'video-'+provider,provider,accountId:provider==='bluesky'?'did:plc:test':'blog',expectedAccount:''};saveSecret(c.id,{token:'token',refreshToken:provider==='bluesky'?'refresh':undefined,expiresAt:Date.now()+999999});let uploaded=false;
-  const r=await publishExtra(c,{id:'publication-'+provider,type:'video',caption:'Test',assets:['video-test']},async(url,opts)=>{
+  const r=await publishExtra(c,{id:'publication-'+provider,type:'video',caption:'Test #yoga #dep',assets:['video-test']},async(url,opts)=>{
    if(url.startsWith('https://plc.directory/'))return {service:[{id:'#atproto_pds',serviceEndpoint:'https://test.bsky.network'}]};
    if(url.includes('getServiceAuth'))return {token:'service-token'};
    if(url.includes('app.bsky.video.uploadVideo')){uploaded=true;return {blob:{$type:'blob',ref:{$link:'cid'},mimeType:'video/mp4',size:15}};}
@@ -84,7 +84,9 @@ test('video publishing uploads actual bytes and attaches native media on all thr
    if(url.endsWith('.getSession'))return {did:'did:plc:test',handle:'test.bsky.social'};
    if(provider==='mastodon'){assert.deepEqual(JSON.parse(opts.body).media_ids,['media']);return {id:'post',url:'https://mastodon.social/post'};}
    if(provider==='bluesky'){assert.equal(JSON.parse(opts.body).record.embed.$type,'app.bsky.embed.video');return {uri:'at://did:plc:test/app.bsky.feed.post/post'};}
-   assert.ok(opts.body instanceof FormData);assert.equal(JSON.parse(opts.body.get('json')).content[1].media.identifier,'upload');assert.equal(await opts.body.get('upload').text(),'fake-video-test');uploaded=true;return {response:{id:'post'}};
+   assert.ok(opts.body instanceof FormData);assert.equal(JSON.parse(opts.body.get('json')).tags,'yoga,dep');assert.equal(JSON.parse(opts.body.get('json')).content[1].media.identifier,'upload');assert.equal(await opts.body.get('upload').text(),'fake-video-test');uploaded=true;return {response:{id:'post'}};
   });assert.ok(uploaded);assert.ok(r.externalId);
  }
 });
+
+test('Tumblr text tags use comma-separated strings',async()=>{saveSecret('tumblr-tags',{token:'fake'});await publishExtra({id:'tumblr-tags',provider:'tumblr',accountId:'blog'},{type:'text',caption:'#yoga #đẹp #yoga'},async(url,opts)=>{assert.equal(JSON.parse(opts.body).tags,'yoga,đẹp');return {response:{id:'123'}};});});

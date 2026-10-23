@@ -30,9 +30,10 @@ export async function remote(url, options = {}) {
   let res,raw; try { res = await fetch(url, { ...options, signal: options.signal || AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
   let data; try { data = parseProviderJSON(raw); } catch { data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
   const providerError = data.error && (typeof data.error === 'object' ? data.error.code && !['ok', 0, '0'].includes(data.error.code) : data.error !== 0);
-  if (!res.ok || providerError) {
+  if (!res.ok || providerError || new URL(url).hostname==='api.tumblr.com'&&Number(data.meta?.status)>=400) {
     const error = data.error && typeof data.error === 'object' ? data.error : {};
-    const rawMessage = error.message || data.message || data.detail || `API trả về ${res.status}`;
+    const tumblrDetails=new URL(url).hostname==='api.tumblr.com'?(data.errors||[]).map(e=>[e.code,e.title||e.detail||e.message].filter(Boolean).join(': ')).join(' · '):'';
+    const rawMessage = error.message || data.message || data.detail || tumblrDetails || data.meta?.msg || `API trả về ${res.status}`;
     const message = new URL(url).hostname==='open.tiktokapis.com'&&tiktokProviderMessage(error.code) || (/credits? depleted/i.test(String(rawMessage))
       ? 'Hạn mức API của ứng dụng X đã hết. Hãy mua hoặc nạp thêm credits trong X Developer Console rồi thử lại.'
       : new URL(url).hostname.endsWith('googleapis.com') && /insufficient authentication scopes/i.test(String(rawMessage))

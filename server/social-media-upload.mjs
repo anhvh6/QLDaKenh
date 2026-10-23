@@ -40,7 +40,7 @@ export async function uploadSocialMedia(c,p,token,request){
  const form=new FormData();
  if(c.provider==='tumblr'){
   const media={type:file.mime,identifier:'upload'},block=p.type==='video'?{type:'video',media}:{type:'image',media:[media]};
-  form.set('json',JSON.stringify({tags:hashtags(p.caption),content:[...(p.caption?[{type:'text',text:p.caption}]:[]),block],state:p.visibility==='private'?'private':'published'}));
+  form.set('json',JSON.stringify({tags:hashtags(p.caption).join(','),content:[...(p.caption?[{type:'text',text:p.caption}]:[]),block],state:p.visibility==='private'?'private':'published'}));
   form.set('upload',file.blob,file.name);return form;
  }
  form.set('file',file.blob,file.name);
