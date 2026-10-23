@@ -222,7 +222,8 @@ async function replyUnlocked(user, id, input) {
   if(conv.kind==='comment'&&conv.remoteDeleted&&!input.note)fail('Bình luận gốc đã bị xóa.');
   if(conv.kind==='comment'&&ch.provider==='threads'&&Array.from(text).length>500)fail('Threads giới hạn 500 ký tự.');
   const commentMediaSupported = conv.kind === 'comment' && ch.provider === 'facebook';
-  if (assets.length && ch.mode !== 'demo' && !['zalo_personal','facebook'].includes(ch.provider) && !commentMediaSupported && !input.note) fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
+  if (assets.length && ch.mode !== 'demo' && !['zalo_personal','facebook','instagram'].includes(ch.provider) && !commentMediaSupported && !input.note) fail('Kênh này chưa hỗ trợ gửi media trong ứng dụng.');
+  if(assets.length&&ch.provider==='instagram'&&conv.kind==='comment'&&!input.note)fail('Bình luận Instagram chưa hỗ trợ gửi ảnh qua cổng này.');
   if (assets.length > 1 && commentMediaSupported) fail('Bình luận Facebook chỉ nhận 1 media mỗi lần trả lời.');
   let quoted = input.quoteId ? get('messages', input.quoteId) : null; if (input.quoteId && (!quoted || quoted.deletedAt || quoted.conversationId !== id || quoted.direction === 'note')) fail('Tin trích dẫn không hợp lệ.');
   const mentionText = String(input.text || ''); let mentions = validateGroupMentions(conv, mentionText, input.mentions).map(m => ({ ...m, pos: m.pos - (mentionText.length - mentionText.trimStart().length) })); if (input.note && mentions.length) fail('Ghi chú nội bộ không tag thành viên nhóm.'); if (mentions.length && ch.mode !== 'demo' && ch.provider !== 'zalo_personal') fail('Kênh này chưa hỗ trợ tag thành viên nhóm qua API.'); const nativeQuote = quoted && ch.provider === 'zalo_personal' && quoted.quoteSource;

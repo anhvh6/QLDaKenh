@@ -117,10 +117,10 @@ export async function syncFacebookChat(channel, request = remote) {
  } finally { running.delete(channel.id); }
 }
 
-export async function facebookChatTick() {
- for (const channel of all('connections').filter(c => ['facebook','instagram'].includes(c.provider) && c.status === 'connected' && c.mode === 'api')) {
+export async function facebookChatTick(request = remote) {
+ await Promise.allSettled(all('connections').filter(c => ['facebook','instagram'].includes(c.provider) && c.status === 'connected' && c.mode === 'api').map(async channel=>{
   const state = get('facebook_chat_sync', channel.id);
-  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.after && state.status !== 'error' ? 5000 : state.status==='error'?60000:10000)) continue;
-  try { await syncFacebookChat(channel); } catch { /* Error is stored for the channel's diagnostic UI. */ }
- }
+  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.after && state.status !== 'error' ? 5000 : state.status==='error'?60000:10000)) return;
+  try { await syncFacebookChat(channel, request); } catch { /* Error is stored for the channel's diagnostic UI. */ }
+ }));
 }

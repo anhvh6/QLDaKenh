@@ -4,11 +4,25 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'facebook-chat-'));process.env.PLAN_REMOTE_CATALOG='0';
 const {put,get,all,saveSecret,dataDir}=await import('../server/store.mjs');
-const {ingestFacebookMessage,ingestFacebookEvents,syncFacebookChat}=await import('../server/facebook-chat.mjs');
+const {ingestFacebookMessage,ingestFacebookEvents,syncFacebookChat,facebookChatTick}=await import('../server/facebook-chat.mjs');
 const {chatRoute}=await import('../server/chat.mjs');
 const {defaultFilters,filterThreads}=await import('../public/inbox-model.js');
 const ch=put('connections',{id:'page',provider:'facebook',mode:'api',status:'connected',accountId:'page-id'});
 const item=(id,date,message='Xin chào')=>({id,created_time:date,message,from:{id:'person',name:'Khách'},to:{data:[{id:'page-id'}]}});
+
+test('a slow Facebook channel does not delay Instagram polling',async()=>{
+ const slow=put('connections',{id:'slow-page',provider:'facebook',mode:'api',status:'connected',accountId:'slow-page'});
+ const ig=put('connections',{id:'fast-ig',provider:'instagram',mode:'api',status:'connected',accountId:'fast-ig'});
+ let release,igCalled=false;
+ const gate=new Promise(resolve=>{release=resolve;});
+ const ticking=facebookChatTick(async url=>{
+  if(url.includes('/slow-page/'))await gate;
+  if(url.includes('/fast-ig/'))igCalled=true;
+  return {data:[]};
+ });
+ try{await new Promise(resolve=>setImmediate(resolve));assert.equal(igCalled,true);}
+ finally{release();await ticking;put('connections',{...slow,status:'disconnected'});put('connections',{...ig,status:'disconnected'});}
+});
 
 test('history import keeps platform timestamps, attachments and sender direction without duplicates',()=>{
  const a=ingestFacebookMessage(ch,{...item('one','2026-10-13T08:00:00Z'),attachments:{data:[{mime_type:'image/jpeg',image_data:{url:'https://example.com/a.jpg'}}]}},{history:true});

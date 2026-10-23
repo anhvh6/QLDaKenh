@@ -1,5 +1,5 @@
 {
-  "version": "c0bb4913b263",
+  "version": "86627525ef07",
   "compiler": "0.25.12",
   "files": {
     "public/platform-text-rules.js": "4b16f5740c18ef46d2553b25192d70352a8d2bd1c1e9d109e963934e67eb7b25",
@@ -8,7 +8,7 @@
     "public/connection-groups.js": "39ba85d29bc94212fdd225b0f36c73b1db6678fe010401be8174ccc87d85166a",
     "public/connection-profile.js": "69db23f182cb225afae37cc294a0c948565591d3bd119d90365130f117c393b7",
     "public/shipping-address.js": "af082b129ddae8e7e59627d7206e1b13888a878d1f90374e0d781e126f440497",
-    "public/chat-media-picker.js": "6b5ceaace6529914224225e25c417265b584975f6666514589ae71f9d74e6e85",
+    "public/chat-media-picker.js": "5a34d8e51178665fa7e32521a6e917e152732563798a2d66c370313cd11aeb20",
     "public/chat-connection-state.js": "81e885e80b8e0485c6a91bd9af0552b9eae2a3fdbb93be1a3c1ab6d606eaea21",
     "public/comment-presentation.js": "ee4cc16af48db8f2044b56e916d7aca3444a19eb0992ad196546498a172ebea8",
     "public/calendar-presentation.js": "354421d312cfcbffa077f195e8a40babdd92a01d68414cf378da376aab711508",
@@ -68,6 +68,7 @@
     "public/handoff-card.js": "1da31938d1a0e8e06dd8a712a7917fbab74896a77ab0811fa0e86de9e848dec5",
     "public/chatbot-ui.js": "2be635f7663e609dea4d2379f54343628f9d5dc525a5b8d5df96c2e3f876c236",
     "public/media-library.js": "a8eec5e8e4ced54c94877678dd7c8eea3299585c9198b5133ffc3ce930add492",
+    "public/chat-send-draft.js": "f4cb96acd3b417d056fc5d43086ae8ef8c4fbfd06f709443575c9de9075277e9",
     "public/private-chat-state.js": "bbd52fe67a7561e4a2ffa4cd87bb8c161e6c6e41b5f5f1af81f45eeca3d89e88",
     "public/chat-composer-state.js": "cf59f4cfd3b02b8b5b8c756d7071d8dce9e9fed81168bdc7bdb85e136bb05acc",
     "public/chat-appointments.js": "0e5fba10c507aa9c61daeaefbf6dd24403338a682717aa7b71c5a611fae9fc6b",
@@ -95,10 +96,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "fecf8c6da56158634ebc278aacab47d998fb6decd7019553d7fca23d3239eb19",
+    "public/inbox.js": "f32db5a0dd92ebeed9ce3fc30a254785092a4c085c8b03aee0dceb7fdc66789e",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "49481a0bd927e90fa789368d39b35504a5735279b0f6fc25028c3a31b681017d",
-    "public/app.bundle.js": "c0bb4913b263f1f1479d0c4fed7b64a37497bee9ff338f8d73545eeb341e66e7"
+    "public/app.bundle.js": "86627525ef07c5ad29a813d0f431b8a47ad09a20b79e2ca1e6a43e348b13e87b"
   }
 }
