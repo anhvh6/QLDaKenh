@@ -1,5 +1,5 @@
 {
-  "version": "796533aac37d",
+  "version": "e924d65c93cd",
   "compiler": "0.25.12",
   "files": {
     "public/platform-text-rules.js": "4b16f5740c18ef46d2553b25192d70352a8d2bd1c1e9d109e963934e67eb7b25",
@@ -53,10 +53,11 @@
     "public/comment-post-media.js": "3e09adcf2617a6205556dd40d72038b36ad360d4250978c20aadd13be72db52e",
     "public/comment-detail.js": "23189d6f985a9cb865ba5a2eaa9e85e657a13dd8f2847fb7eb9943e19c07249c",
     "public/api-response.js": "fe1ca887d268d9c2d75fe47ff0068114cc15397a2e034f5e64137c44d28aea6c",
+    "public/copy-layout-model.js": "1fb8deff67667b988bf4cc43932323675affca23c7b6e79c8ad42693060a9027",
+    "public/copy-plan-selection.js": "4f34d00e15fabe14bb7570810390b30f5d48005ee1796c43af605a131d08d6fe",
     "public/copy-job-table.js": "f450fc8f8b177329e17443d198961a4d860f079199bfac3ce506bdf653fb2c32",
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
-    "public/copy-layout-model.js": "1fb8deff67667b988bf4cc43932323675affca23c7b6e79c8ad42693060a9027",
-    "public/copy-automation.js": "2c361ac8d5c5d3e02144fa2155188e266175ccfd5d074973519e2c58223ffded",
+    "public/copy-automation.js": "b617b7b0b34133a049cb5b45ad2598ec2510a50cb848597e3b3e081446b5b1e5",
     "public/social-copy.js": "1aed73d9419e5e35cd34da82a1135fcfc999d04b7aee537ccf501bbd47b2109c",
     "public/group-learner.js": "b05abac67afcab33565401e14e1d5b6c0fdd8f132b49584a83cf376c05d34ab3",
     "public/student-care.js": "0add02bb57c381d66e24c6e2d33223951d66d1fce3bd32ca0db67636cae879f5",
@@ -100,6 +101,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "49481a0bd927e90fa789368d39b35504a5735279b0f6fc25028c3a31b681017d",
-    "public/app.bundle.js": "796533aac37d85e9ad13d5b6bd472a1902accf7c385b38146ce167df909375ac"
+    "public/app.bundle.js": "e924d65c93cdb297e8fe679ccbaa7c46e08a10195375c92c9643f1e5d946e87c"
   }
 }
