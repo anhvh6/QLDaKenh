@@ -1,0 +1,13 @@
+# Content loading
+
+The publishing page requests `GET /api/state?view=content`. It carries publishing records, connections, media, campaigns, products, permissions and the current user's copy-plan catalog. It does not hydrate chat histories, learners, POS or shipping. Other pages retain their existing state views. Older backends fall back to workspace once; they must not cause a refresh loop during a rolling release.
+
+Content cards initially render 24 entries in creation-date order. Search and status filters operate on all loaded content before pagination. “Xem thêm” expands the list. Video cards, selected attachments and library tiles use lazy JPEG covers, never video elements or MP4 sources. Explicit Play creates the video player. Intentional source-post previews use `preload=none`.
+
+`GET /api/media/thumbnail/:assetId` authenticates and checks the asset's channel scope before reading a local upload. FFmpeg extracts one frame at at most 480×270 pixels. Results are cached under `DATA_DIR/thumbnails`, keyed by asset, file size and modification time. Work is deduplicated and serialized with a bounded queue and an eight-second process timeout; failures temporarily return a small SVG cover, never the video. No source-platform/Drive download occurs to make a cover. Missing/corrupt local files still need recovery through the normal media preparation workflow.
+
+The VPS must have `ffmpeg` on PATH (or set `FFMPEG_PATH` to its executable). No SQL migration is required. A frontend-only Vercel deployment stops list-video downloads, but actual covers and the compact content snapshot require the updated VPS backend. The frontend deliberately uses a small placeholder while that backend capability is absent.
+
+Plan dropdowns use the initial authenticated catalog before the larger result request finishes. Results poll every 15 seconds, retaining selection and the current rows. The automation endpoint accepts `since` and returns a small unchanged response when its authorized revision is unchanged; identical snapshots share the existing short-lived per-user/role cache.
+
+Validation: `node scripts/test-content-loading.mjs` uses an isolated database with 100 videos and 2,000 unrelated customers. It checks JPEG generation, authentication, zero MP4 requests on initial cards/all status tabs/editor initialization, explicit playback, pagination, plan dropdown readiness while results are deliberately delayed, four viewport sizes, and fallback to an older backend. `tests/content-loading.test.mjs` covers escaping and channel isolation. No production/customer data is used in fixtures or screenshots.

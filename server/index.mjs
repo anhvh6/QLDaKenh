@@ -1,3 +1,5 @@
+import {contentSnapshot} from './content-snapshot.mjs';
+import {mediaThumbnail} from './media-thumbnail.mjs';
 import {dashboardSnapshot} from './dashboard-snapshot.mjs';
 import {createAggregateStore} from './overview-cache.mjs';
 import {refreshLearnerOverview} from './overview-worker.mjs';
@@ -96,6 +98,12 @@ async function dispatch(req, res, url, user, input) {
   if(path==='/api/orders/workspace'&&method==='PUT')return saveOrderWorkspace(user,input);
   const pos=await posRoute(path,method,input,user,url);if(pos!==undefined)return pos;
   const comments=await commentsRoute(path,method,input,user);if(comments!==undefined)return comments;
+  if(path==='/api/copy/automation/state'&&method==='GET'){
+    const revision=createHash('sha256').update(stateRevision()+':'+user.id+':'+user.role).digest('hex'),key='copy-state:'+user.id+':'+user.role;
+    domain.permission(user,'content');if(url.searchParams.get('since')===revision)return {unchanged:true,automationRevision:revision};
+    const cached=stateCache.get(key,revision);if(cached)return cached;
+    return stateCache.set(key,revision,{...await automationRoute(path,method,input,user),automationRevision:revision});
+  }
   const automation=await automationRoute(path,method,input,user);if(automation!==undefined)return automation;
   const copy = await copyRoute(path, method, input, user, url); if (copy !== undefined) return copy;
   const careConversation = path.match(/^\/api\/(?:chat\/|care\/|chatbot\/)?conversations\/([^/]+)/);
@@ -125,14 +133,15 @@ async function dispatch(req, res, url, user, input) {
   const genericObject = path.match(/^\/api\/records\/(customers|contents)\/([^/]+)$/); if (genericObject) { const r = get(genericObject[1], genericObject[2]); if (r) { if (genericObject[1] === 'customers') care.assertCustomer(user, r.id); else for (const id of r.channels || []) care.assertChannel(user, id); } }
 
   if (path === '/api/state' && method === 'GET') {
-    const snapshotView=['dashboard','inbox','workspace'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
+    const snapshotView=['dashboard','inbox','workspace','content'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
     const users = db.prepare('SELECT id,name,email,role,active FROM users').all();
     const revision = createHash('sha256').update(stateRevision() + ':' + (overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + (snapshotView==='dashboard'?overviewAggregates.read('learners:v1')?.updatedAt||0:0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user };
+    if(snapshotView==='content')return stateCache.set(cacheKey,revision,contentSnapshot(user,{revision,providers}));
     if(snapshotView==='dashboard')return stateCache.set(cacheKey,revision,dashboardSnapshot(user,{aggregates:overviewAggregates,revision,providers,sourceRevision:dashboardRevision()}));
     // Learner status synchronization is scheduled independently of page visits.
-    const state = { user, reminderDefaults: get('settings','chat-reminder-defaults-'+user.id) || null, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision, snapshotView }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = k==='messages'&&snapshotView!=='full'?(snapshotView==='dashboard'?dashboardMessages():[]):all(k); }
+    const state = { user, contentFeatures:{snapshot:true,thumbnails:true}, reminderDefaults: get('settings','chat-reminder-defaults-'+user.id) || null, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision, snapshotView }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = k==='messages'&&snapshotView!=='full'?(snapshotView==='dashboard'?dashboardMessages():[]):all(k); }
     Object.assign(state,snapshotView==='inbox'?{copyPlanCalendar:[],copyPlanSummaries:[]}:copyStateSummary(user.id,all));
     const sourcePostIds=new Set(state.contents.filter(c=>c.sourceCopyId&&!c.copyReady).map(c=>c.sourceCopyId));const sourcePosts=new Map(sourcePostIds.size?all('copy_posts').filter(p=>sourcePostIds.has(p.id)).map(p=>[p.id,p]):[]);state.contents=state.contents.map(c=>c.sourceCopyId&&!c.copyReady?{...c,sourceMediaTypes:[...new Set((sourcePosts.get(c.sourceCopyId)?.media||[]).map(m=>m.type))]}:c);
     const learnerFacts = new Map(all('learner_source_facts').map(f => [f.id, f])); state.customers = state.customers.map(c => { const f = learnerFacts.get(c.id); if (!f) return c; const { id, version, createdAt, updatedAt, sourceUpdatedAt, ...fields } = f; return { ...c, ...fields }; });
@@ -263,6 +272,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path.startsWith('/api/') || path.startsWith('/uploads/')) {
       if (!user) domain.fail('Vui lòng đăng nhập.', 401);
+      const thumbnail=path.match(/^\/api\/media\/thumbnail\/([\w-]+)$/);if(thumbnail&&req.method==='GET'){const result=await mediaThumbnail(user,thumbnail[1]);if(result.path)return serveFile(req,res,result.path,true);res.writeHead(200,{'Content-Type':'image/svg+xml','Cache-Control':'private, max-age=30'});return res.end(result.fallback);}
       const previewMedia = path.match(/^\/api\/copy\/media\/([\w-]+)\/(\d+)$/); if (previewMedia && req.method === 'GET') { const response = await copyPreviewMedia(user, previewMedia[1], previewMedia[2], url.searchParams.has('poster'), req.headers.range); for (const header of ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges']) if (response.headers.has(header)) res.setHeader(header, response.headers.get(header)); res.setHeader('Cache-Control', 'private, no-store'); res.writeHead(response.status); try { await pipeline(Readable.fromWeb(response.body), res); } catch (error) { if (!res.destroyed) throw error; } return; }
       const archive = path.match(/^\/api\/copy\/archive\/([\w-]+)$/); if (archive && req.method === 'GET') { res.setHeader('Content-Disposition', 'attachment; filename="bai-viet-' + archive[1] + '.zip"'); return serveFile(req, res, copyArchive(user, archive[1]), true); }
       if (req.method !== 'GET' && req.method !== 'HEAD') { checkOrigin(req); if (!path.startsWith('/api/proxy/supabase/') && req.headers['x-csrf-token'] !== user.csrf) domain.fail('Phiên làm việc không hợp lệ. Tải lại trang.', 403); }
