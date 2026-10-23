@@ -81,5 +81,10 @@ public class LauncherTest {
         assertEquals(PackageManager.PERMISSION_GRANTED, pm.checkPermission(Manifest.permission.REORDER_TASKS, app.getPackageName()));
         assertTrue(pm.getActivityInfo(new ComponentName(app.getPackageName(),
                 "com.google.androidbrowserhelper.trusted.FocusActivity"), 0).exported);
+        assertNotNull(pm.getActivityInfo(new ComponentName(app.getPackageName(),
+                "com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"),
+                PackageManager.MATCH_DISABLED_COMPONENTS));
+        assertFalse(pm.getActivityInfo(new ComponentName(app.getPackageName(),
+                "com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity"), 0).exported);
     }
 }
