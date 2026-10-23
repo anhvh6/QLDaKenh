@@ -15,7 +15,7 @@ const req={headers:{host:'127.0.0.1:4317'}};
 test('new OAuth gateways use official hosts and scoped state',async()=>{
  const original=global.fetch;
  try{
-  global.fetch=async(url,options)=>{assert.equal(String(url),'https://mastodon.social/api/v1/apps');assert.equal(options.body.get('scopes'),'read:accounts read:statuses read:conversations write:statuses write:favourites');return Response.json({client_id:'mastodon-client',client_secret:'mastodon-secret'});};
+  global.fetch=async(url,options)=>{assert.equal(String(url),'https://mastodon.social/api/v1/apps');assert.equal(options.body.get('scopes'),'read:accounts read:statuses write:statuses write:favourites');return Response.json({client_id:'mastodon-client',client_secret:'mastodon-secret'});};
   for(const [provider,host] of [['reddit','www.reddit.com'],['tumblr','www.tumblr.com'],['mastodon','mastodon.social']]){
    const result=await startOAuth({id:'owner'},{id:`pending-${provider}`,provider},req),url=new URL(result.url);
    assert.equal(url.hostname,host);assert.equal(get('oauth_states',url.searchParams.get('state')).connectionId,`pending-${provider}`);
