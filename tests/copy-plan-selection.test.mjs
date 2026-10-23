@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {visibleCopyPlans,normalizePlanSelection,copyPlanItemScope} from '../public/copy-plan-selection.js';
+import {visibleCopyPlans,normalizePlanSelection,copyPlanItemScope,nearestCopyCampaign} from '../public/copy-plan-selection.js';
 const plans=[
  {id:'new-a',name:'A',mode:'new',campaignId:'a',status:'active'},
  {id:'paused-a',name:'Paused',mode:'new',campaignId:'a',status:'paused'},
@@ -29,4 +29,11 @@ test('all selection automatically includes newly loaded plans; removed selection
  assert.equal(normalizePlanSelection(['missing'],initial),null);
  assert.deepEqual(normalizePlanSelection(['new-a','missing','new-a'],initial),['new-a']);
  assert.deepEqual(normalizePlanSelection([],initial),[]);
+});
+
+test('default campaign uses newest creation date among campaigns with plans in this mode',()=>{
+ const campaigns=[{id:'a',createdAt:'2026-10-22'},{id:'b',createdAt:'2026-10-23'},{id:'empty',createdAt:'2026-10-24'}];
+ assert.equal(nearestCopyCampaign(campaigns,plans,'new'),'b');
+ assert.equal(nearestCopyCampaign(campaigns,plans,'bulk'),'a');
+ assert.equal(nearestCopyCampaign(campaigns,[],'new'),'empty');
 });

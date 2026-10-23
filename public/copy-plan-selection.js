@@ -14,3 +14,9 @@ export function copyPlanItemScope(items,plans,ids=null){
  const allowed=new Set((ids===null?plans:plans.filter(p=>ids.includes(p.id))).map(p=>p.id));
  return items.filter(item=>allowed.has(item.planId));
 }
+
+export function nearestCopyCampaign(campaigns,plans,mode){
+ const rows=campaigns.filter(c=>plans.some(p=>p.campaignId===c.id&&p.mode===mode));
+ const pool=rows.length?rows:campaigns;
+ return [...pool].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))||String(b.id).localeCompare(String(a.id)))[0]?.id||'';
+}
