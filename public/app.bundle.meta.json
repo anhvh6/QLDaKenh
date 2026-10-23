@@ -1,5 +1,5 @@
 {
-  "version": "6b59479f83b2",
+  "version": "9ff34e59da6a",
   "compiler": "0.25.12",
   "files": {
     "public/calendar-model.js": "023809eb67e01a29bb3b9d067d50b7b2011c3da8d1584a30199199553cdfb6f5",
@@ -60,7 +60,7 @@
     "public/copy-plan-selection.js": "eedfc31ddb0ea23c5c0de4ac7c77dc44245d46d9518ed61fe3b114da7133c538",
     "public/copy-job-table.js": "f450fc8f8b177329e17443d198961a4d860f079199bfac3ce506bdf653fb2c32",
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
-    "public/copy-automation.js": "5d76c4b598b6b86ca274d0c573c380df922c4102f6b7e397d69cdb5f4311c147",
+    "public/copy-automation.js": "67e1bc6bda7ac6a5a3d8510e958413e92ec79307cdddea1fcd68685da70d5809",
     "public/social-copy.js": "1aed73d9419e5e35cd34da82a1135fcfc999d04b7aee537ccf501bbd47b2109c",
     "public/group-learner.js": "b05abac67afcab33565401e14e1d5b6c0fdd8f132b49584a83cf376c05d34ab3",
     "public/student-care.js": "0add02bb57c381d66e24c6e2d33223951d66d1fce3bd32ca0db67636cae879f5",
@@ -104,6 +104,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "53180457d5d66a5345142c5d88b294176b5457245560302223a7a248d32ee92b",
-    "public/app.bundle.js": "6b59479f83b299f5c8dc6df68b64f313c71dc15725dd3f3ceefbcced7850796f"
+    "public/app.bundle.js": "9ff34e59da6a8830b4381ab2a976664057f5e2425f67c546dbeb526cc86bcd78"
   }
 }

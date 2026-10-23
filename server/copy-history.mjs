@@ -2,10 +2,12 @@ import {all,get,db} from './store.mjs';
 import {sourceVideoKey} from './copy-source-key.mjs';
 export function contentSourceKey(c){return c?.sourceVideoKey||sourceVideoKey(c?.sourceCopyId?get('copy_posts',c.sourceCopyId):null)||(c?.sourceURL?sourceVideoKey({sourceURL:c.sourceURL}):'');}
 export function copySourceBlock(content,connectionId,{publicationId='',dispatch=false}={}){
+ const globalPlatform=!!content?.copyFallbackOf,provider=globalPlatform?get('connections',connectionId)?.provider:'';
+ const sameTarget=p=>p.connectionId===connectionId||globalPlatform&&provider&&p.connectionId&&get('connections',p.connectionId)?.provider===provider;
  const key=contentSourceKey(content);if(!key)return '';
  const keys=new Map(all('contents').map(c=>[c.id,contentSourceKey(c)])),publications=all('publications'),current=publications.find(p=>p.id===publicationId);
  for(const p of publications){
-  if(p.id===publicationId||p.connectionId!==connectionId||(p.sourceVideoKey||keys.get(p.contentId))!==key)continue;
+  if(p.id===publicationId||!sameTarget(p)||(p.sourceVideoKey||keys.get(p.contentId))!==key)continue;
   if(['published','manually_confirmed','demo_published'].includes(p.status))return 'Bài nguồn này đã đăng trên kênh này; chặn đăng trùng.';
   if(['dispatching','processing','awaiting_manual','unknown'].includes(p.status))return 'Bài nguồn này đang xử lý hoặc chưa rõ kết quả trên kênh này; cần đối soát trước khi đăng lại.';
   if(p.status==='scheduled'&&p.contentId!==content.id){
