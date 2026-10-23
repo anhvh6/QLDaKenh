@@ -6,6 +6,7 @@ import {socialChatRequest} from './social-chat.mjs';
 import {blueskyInteraction} from './social-replies.mjs';
 import {permission,fail} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
+import {publicationMetrics,threadsRepost} from './social-metrics.mjs';
 const locks=new Map();
 export async function checkSocialHealth(c,request=remote){
  if(locks.has(c.id))return locks.get(c.id);
@@ -41,6 +42,8 @@ export async function checkSocialHealth(c,request=remote){
    });
    checks.push({key:'comments',status:'waiting',message:'Chưa kết nối Organic API cho đọc, trả lời và Like bình luận. Quyền video.publish không bao gồm bình luận.'},{key:'chat',status:'waiting',message:'Chưa kết nối Business Messaging API cho nhận và trả lời chat TikTok.'});
   }
+  if(c.provider==='threads')await probe('metrics',async()=>{const posts=await request(`https://graph.threads.net/v1.0/${encodeURIComponent(c.accountId)}/threads?fields=id&limit=1`,{headers});if(!posts.data?.[0]?.id)throw Error('Chưa có bài để kiểm tra số liệu.');await publicationMetrics(c,{externalId:posts.data[0].id},request);});
+  if(c.provider==='reddit')await probe('comments',async()=>{const {redditRequest}=await import('./reddit-interactions.mjs');await redditRequest(c,'user/'+encodeURIComponent(c.expectedAccount||c.remoteName||c.name.replace(/^u\//,''))+'/submitted?limit=1',request);});
   if(['facebook','instagram'].includes(c.provider)){
    const root=`https://graph.facebook.com/${c.apiVersion||'v25.0'}/${encodeURIComponent(c.accountId)}`;
    await probe('webhook',async()=>{const r=await request(root+'/subscribed_apps?fields=subscribed_fields',{headers});const fields=new Set((r.data||[]).flatMap(x=>x.subscribed_fields||[])),required=c.provider==='facebook'?['feed','messages']:['comments','messages'];if(!required.every(f=>fields.has(f)))throw new Error('Webhook chưa đăng ký đủ trường: '+required.filter(f=>!fields.has(f)).join(', '));});
@@ -62,6 +65,12 @@ export async function checkSocialHealth(c,request=remote){
  })();locks.set(c.id,job);try{return await job;}finally{locks.delete(c.id);}
 }
 export async function socialHealthRoute(path,method,input,user){
+ const metric=path.match(/^\/api\/publications\/([^/]+)\/metrics$/);
+ if(metric&&method==='POST'){
+  permission(user,'content');const p=get('publications',metric[1]),c=p&&get('connections',p.connectionId);if(!p||p.deletedAt||!c||c.deletedAt)fail('Không tìm thấy bài.',404);assertChannel(user,c.id);
+  if(p.status!=='published'||c.status!=='connected')fail('Cần bài đã đăng và kênh đã kết nối.');
+  const metrics={values:await publicationMetrics(c,p,remote),checkedAt:now()};put('publications',{...get('publications',p.id),metrics});return metrics;
+ }
  const match=path.match(/^\/api\/connections\/([^/]+)\/health$/);
  if(match&&method==='POST'){
   if(user.role!=='owner')fail('Cần quyền chủ hệ thống.',403);
@@ -79,7 +88,7 @@ export async function socialHealthRoute(path,method,input,user){
   if(m.sharedExternalId)return {id:m.sharedExternalId,alreadyShared:true};
   if(['sending','unknown'].includes(m.shareStatus))fail('Đang chia sẻ hoặc cần kiểm tra bài gốc trước khi thử lại.',409);
   put('messages',{...m,shareStatus:'sending'});
-  try{const result=await blueskyInteraction(c,m.externalId,'app.bsky.feed.repost',remote);
+  try{const result=(c.provider==='threads'?await threadsRepost(c,m.externalId,remote):await blueskyInteraction(c,m.externalId,'app.bsky.feed.repost',remote));
   put('messages',{...get('messages',m.id),sharedExternalId:result.uri,shareStatus:'accepted'});audit(user.id,'comment_shared',m.id);return {id:result.uri};}
   catch(error){put('messages',{...get('messages',m.id),shareStatus:error.unknown?'unknown':'failed'});throw error;}
  }

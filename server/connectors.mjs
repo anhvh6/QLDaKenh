@@ -1,4 +1,4 @@
-import {hashtags} from '../public/platform-text-rules.js';
+import {hashtags,threadsTopic} from '../public/platform-text-rules.js';
 import {replySocial,blueskyInteraction,removeBlueskyLike,mastodonReaction} from './social-replies.mjs';
 import {parseProviderJSON} from './provider-json.mjs';
 import {tiktokPublishBlock,tiktokProviderMessage} from './tiktok-publish-policy.mjs';
@@ -129,7 +129,7 @@ export async function publish(c, p) {
   if (c.provider === 'threads' || c.provider === 'instagram') {
       if (p.type !== 'text' && !p.mediaItems?.length) await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
     const threads = c.provider === 'threads'; if(threads)validateThreadsText(p.caption); const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.facebook.com/${graphVersion(c)}`;
-    let body = threads ? { media_type: p.type === 'text' ? 'TEXT' : p.type === 'image' ? 'IMAGE' : 'VIDEO', text: p.caption } : { caption: p.caption };
+    let body = threads ? { media_type: p.type === 'text' ? 'TEXT' : p.type === 'image' ? 'IMAGE' : 'VIDEO', text: p.caption, ...threadsTopic(p.caption) } : { caption: p.caption };
     if (p.mediaItems?.length > 1) { if (p.mediaItems.length > 10) throw new Error('Carousel tối đa 10 media trong connector này.'); const children = []; for (const item of p.mediaItems) { const child = await createMediaContainer(`${base}/${id}/${threads ? 'threads' : 'media'}`, json({ ...(threads || item.type === 'video' ? { media_type: item.type === 'video' ? 'VIDEO' : 'IMAGE' } : {}), is_carousel_item: true, ...(item.type === 'video' ? { video_url: validMediaURL(item.url) } : { image_url: validMediaURL(item.url) }) }, s.token)); children.push(child.id); } return { childContainerIds: children, processing: true, carouselPending: true }; }
     if (p.type === 'image') body.image_url = validMediaURL(p.mediaUrl);
     if (p.type === 'video') { body.video_url = validMediaURL(p.mediaUrl); if (!threads) body.media_type = 'REELS'; }
@@ -148,7 +148,7 @@ export async function continuePublish(c, p) {
     const externalId = String(data.publicaly_available_post_id?.[0] || data.publicly_available_post_id?.[0] || p.containerId); return { externalId, url: '' };
   }
   const token = secret(c.id).token; const threads = c.provider === 'threads'; const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.facebook.com/${graphVersion(c)}`;
-  if (p.carouselPending) { for (const child of p.childContainerIds || []) { const state = await remote(`${base}/${encodeURIComponent(child)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: 'Bearer ' + token } }); const code = state.status_code || state.status; if (['ERROR', 'EXPIRED'].includes(code)) throw new Error('Media trong carousel bị lỗi: ' + (state.error_message || state.status || code)); if (code !== 'FINISHED') return null; } const container = await createMediaContainer(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads' : 'media'}`, json({ media_type: 'CAROUSEL', children: p.childContainerIds.join(','), ...(threads ? { text: p.caption } : { caption: p.caption }) }, token)); return { containerId: container.id, carouselPending: false, processing: true, container: true }; }
+  if (p.carouselPending) { for (const child of p.childContainerIds || []) { const state = await remote(`${base}/${encodeURIComponent(child)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: 'Bearer ' + token } }); const code = state.status_code || state.status; if (['ERROR', 'EXPIRED'].includes(code)) throw new Error('Media trong carousel bị lỗi: ' + (state.error_message || state.status || code)); if (code !== 'FINISHED') return null; } const container = await createMediaContainer(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads' : 'media'}`, json({ media_type: 'CAROUSEL', children: p.childContainerIds.join(','), ...(threads ? { text: p.caption, ...threadsTopic(p.caption) } : { caption: p.caption }) }, token)); return { containerId: container.id, carouselPending: false, processing: true, container: true }; }
   const state = await remote(`${base}/${encodeURIComponent(p.containerId)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: `Bearer ${token}` } });
   const code = state.status_code || state.status;
   if (code === 'ERROR' || code === 'EXPIRED') throw new Error('Nền tảng không xử lý được media: ' + (state.error_message || code));
@@ -206,6 +206,7 @@ export async function updatePublication(c, p, content) {
 }
 export async function reactComment(c, externalCommentId, like = true, reactionUri = '') {
   if(c.provider==='instagram'){const {instagramCommentLike}=await import('./instagram-engagement.mjs');return instagramCommentLike(c,externalCommentId,like,secret(c.id),remote);}
+  if(c.provider==='reddit')return (await import('./reddit-interactions.mjs')).redditVote(c,externalCommentId,like,remote);
   if(c.provider==='mastodon')return mastodonReaction(c,externalCommentId,like,remote);
   if(c.provider==='bluesky')return like?blueskyInteraction(c,externalCommentId,'app.bsky.feed.like',remote):removeBlueskyLike(c,reactionUri,remote);
   if (c.provider !== 'facebook') throw new Error('Kênh này chưa hỗ trợ react bình luận.');
@@ -218,6 +219,7 @@ export async function deleteComment(c, externalCommentId) {
   const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error(`${c.provider === 'instagram' ? 'Instagram' : 'Facebook'} chưa xác nhận xóa bình luận.`),{unknown:true});return result;
 }
 export async function sendMessage(c, conv, text, options = {}) {
+  if(c.provider==='reddit'&&conv.kind==='comment'){if(options.assetRefs?.length)throw Error('Reddit: trả lời chỉ hỗ trợ văn bản.');return (await import('./reddit-interactions.mjs')).redditReply(c,conv.externalCommentId,text,remote);}
   if(conv.kind!=='comment'&&['mastodon','bluesky'].includes(c.provider))return (await import('./social-chat.mjs')).sendSocialChat(c,conv,text,options,remote);
   if(conv.kind==='comment'&&['youtube','x','mastodon','bluesky'].includes(c.provider))return replySocial(c,conv,text,options,remote,refreshedToken);
   if (c.provider === 'zalo_personal') {

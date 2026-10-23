@@ -7,7 +7,7 @@ const env=name=>{if(!process.env[name])throw new Error(`Chưa cấu hình ${name
 const formRequest=body=>({method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'QLDaKenh/2.1 (social account integration)'},body:new URLSearchParams(body)});
 export function extraAuthorization(c,state,redirect,remote){
  if(c.provider==='mastodon')return mastodonAuthorization(state,redirect,remote);
- const params={client_id:env(`${c.provider.toUpperCase()}_CLIENT_ID`),response_type:'code',redirect_uri:redirect,state,scope:c.provider==='reddit'?'identity submit':'basic write offline_access',...(c.provider==='reddit'?{duration:'permanent'}:{})};
+ const params={client_id:env(`${c.provider.toUpperCase()}_CLIENT_ID`),response_type:'code',redirect_uri:redirect,state,scope:c.provider==='reddit'?'identity submit read vote':'basic write offline_access',...(c.provider==='reddit'?{duration:'permanent'}:{})};
  env(`${c.provider.toUpperCase()}_CLIENT_SECRET`);
  return {url:`${c.provider==='reddit'?'https://www.reddit.com/api/v1/authorize':'https://www.tumblr.com/oauth2/authorize'}?${new URLSearchParams(params)}`,redirectUri:redirect};
 }

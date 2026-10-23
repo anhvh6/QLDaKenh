@@ -22,7 +22,7 @@ function commentMessage(channelId,externalId){
  AND EXISTS(SELECT 1 FROM json_each(m.data,'$.externalMessages') e WHERE json_extract(e.value,'$.id')=?) ORDER BY m.updated_at DESC LIMIT 1`).get(channelId,externalId));
 }
 
-export const commentProviders=new Set(['facebook','threads','instagram','youtube','blogger','x','devto','mastodon','bluesky','tumblr']);
+export const commentProviders=new Set(['facebook','threads','instagram','youtube','blogger','x','devto','mastodon','bluesky','tumblr','reddit']);
 export const commentPollInterval=provider=>({facebook:15000,instagram:30000,threads:60000,youtube:300000,x:300000,mastodon:120000,bluesky:120000,blogger:300000,devto:300000})[provider]||300000;
 export function commentRetryDelay(error){return /quota|credits?|hạn mức|401|permission|quyền|token.*expired/i.test(String(error.message))?6*3600000:error.providerStatus===429?15*60000:5*60000;}
 const locks=new Map();
@@ -46,6 +46,9 @@ export function upsertComment(channel,item,post={},live=false){
  if(!item.id)return null;
  return transaction(()=>{
  let existing=commentMessage(channel.id,String(item.id));
+ if(channel.provider==='reddit'&&item.remote_deleted){
+  if(existing){put('messages',{...existing,text:'',senderName:'',attachments:[],score:null,likeCount:null,liked:false,status:'deleted',deletedAt:now()});const conv=get('conversations',existing.conversationId);if(conv?.externalCommentId===String(item.id))put('conversations',{...conv,lastMessage:'',remoteDeleted:true,status:'resolved'});}return null;
+ }
  if(existing?.deletedAt)return existing;
  const own=existing?.direction==='outgoing'||item.is_reply_owned_by_me===true||String(item.from?.id||'')===String(channel.accountId);
  const parent=String(item.parent?.id||item.replied_to?.id||'');
@@ -69,8 +72,8 @@ export function upsertComment(channel,item,post={},live=false){
  const authorMissing=!own&&!providedName&&name==='Khách từ bình luận';
  if(!own&&item.from?.id&&!knownIdentity)put('identities',{customerId:customer?.id||conv.customerId,connectionId:channel.id,externalUserId:external});
  if(!own){const current=get('conversations',conv.id);if(current.authorMissing!==authorMissing)put('conversations',{...current,authorMissing});}
- if(existing&&existing.senderName===(own?channel.name:name)&&existing.externalId===String(item.id)&&existing.parentCommentId===parent&&existing.likeCount===(item.like_count??existing.likeCount)&&existing.text===text&&JSON.stringify(existing.attachments||[])===JSON.stringify(attachments)&&(item.user_likes===undefined||existing.liked===item.user_likes))return existing;
- const msg=put('messages',{...existing,conversationId:conv.id,externalId:String(item.id),direction:own?'outgoing':'incoming',senderName:own?channel.name:name,authorMissing,text,attachments,liked:item.user_likes??existing?.liked,status:own?'accepted':'received',history:existing?.history??(!own&&!live),createdAt,permalink:safeUrl(item.permalink_url||item.permalink),parentCommentId:parent,likeCount:item.like_count??existing?.likeCount??null});
+ if(existing&&existing.senderName===(own?channel.name:name)&&existing.externalId===String(item.id)&&existing.parentCommentId===parent&&existing.score===(item.score??existing.score)&&existing.likeCount===(item.like_count??existing.likeCount)&&existing.text===text&&JSON.stringify(existing.attachments||[])===JSON.stringify(attachments)&&(item.user_likes===undefined||existing.liked===item.user_likes))return existing;
+ const msg=put('messages',{...existing,conversationId:conv.id,externalId:String(item.id),direction:own?'outgoing':'incoming',senderName:own?channel.name:name,authorMissing,text,attachments,liked:item.user_likes??existing?.liked,status:own?'accepted':'received',history:existing?.history??(!own&&!live),createdAt,permalink:safeUrl(item.permalink_url||item.permalink),parentCommentId:parent,score:item.score??existing?.score??null,likeCount:item.like_count??existing?.likeCount??null});
  const newest=Date.parse(createdAt)>=Date.parse(conv.lastAt||'1970-01-01');
  put('conversations',{...get('conversations',conv.id),...(newest?{lastAt:createdAt,lastMessage:text||(attachments[0]?.type==='video'?'Video':'Ảnh')}:{}),...(!own&&live?{unread:true,status:'open'}:{})});
  if(!own&&!existing&&live){observeCareMessage(get('conversations',conv.id),msg);notification('Bình luận mới trên '+channel.name,text.slice(0,120),'comments',{conversationId:conv.id,messageId:msg.id});}
@@ -106,6 +109,7 @@ async function syncX(channel,state,request){
  for(const post of tweets.data||[]){const conversationId=post.conversation_id||post.id,result=await request(`${api}/tweets/search/recent?`+new URLSearchParams({query:`conversation_id:${conversationId} -from:${channel.accountId}`,'tweet.fields':'created_at,author_id,conversation_id','user.fields':'name,username,profile_image_url',expansions:'author_id',max_results:'100'}),{headers}),users=new Map((result.includes?.users||[]).map(u=>[u.id,u]));const source={id:post.id,text:post.text||'',timestamp:post.created_at,permalink:`https://x.com/i/web/status/${post.id}`};for(const row of result.data||[]){const user=users.get(row.author_id)||{};upsertComment(channel,{id:row.id,text:row.text||'',timestamp:row.created_at,from:{id:row.author_id,name:user.name||user.username,picture:{data:{url:user.profile_image_url}}},parent:{id:conversationId},permalink:`https://x.com/i/web/status/${row.id}`},source,newerThan(row.created_at,state));}}
 }
 async function syncProviderComments(channel,state,request){
+ if(channel.provider==='reddit')return (await import('./reddit-interactions.mjs')).syncRedditComments(channel,state,request,upsertComment);
  if(['mastodon','bluesky','tumblr'].includes(channel.provider))return syncSocialComments(channel,state,request,upsertComment);
  if(channel.provider==='instagram')return syncInstagram(channel,state,request);
  if(channel.provider==='youtube')return syncYouTube(channel,state,request);

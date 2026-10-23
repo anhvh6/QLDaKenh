@@ -1,6 +1,7 @@
 export function hashtagMatches(text){return [...String(text||'').matchAll(/(^|[\s(])#([\p{L}\p{N}_]+)(?=$|[^\p{L}\p{N}_])/gu)].map(m=>({tag:m[2],index:m.index+m[1].length,text:'#'+m[2]}));}
 export const hashtags=text=>[...new Set(hashtagMatches(text).map(m=>m.tag))];
 export function tumblrCaption(text){let body=String(text||'');for(const m of hashtagMatches(body).reverse())body=body.slice(0,m.index)+body.slice(m.index+m.text.length);return body.split('\n').map(s=>s.replace(/[ \t]{2,}/g,' ').trim()).join('\n').replace(/\n{3,}/g,'\n\n').trim();}
+export function threadsTopic(text){const tag=hashtags(text).find(t=>Array.from(t).length<=50);return tag?{topic_tag:tag}:{};}
 export function hashtagFacets(text){const encoder=new TextEncoder();return hashtagMatches(text).map(m=>({index:{byteStart:encoder.encode(text.slice(0,m.index)).length,byteEnd:encoder.encode(text.slice(0,m.index+m.text.length)).length},features:[{$type:'app.bsky.richtext.facet#tag',tag:m.tag}]}));}
 export function platformTextIssues(provider,{title='',caption=''}={}){
  const out=[],add=(field,message)=>out.push({field,message});title=String(title);caption=String(caption);

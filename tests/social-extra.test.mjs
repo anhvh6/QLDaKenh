@@ -18,7 +18,7 @@ test('new OAuth gateways use official hosts and scoped state',async()=>{
   global.fetch=async(url,options)=>{assert.equal(String(url),'https://mastodon.social/api/v1/apps');assert.equal(options.body.get('scopes'),'read:accounts read:statuses write:statuses write:media write:favourites');return Response.json({client_id:'mastodon-client',client_secret:'mastodon-secret'});};
   for(const [provider,host] of [['reddit','www.reddit.com'],['tumblr','www.tumblr.com'],['mastodon','mastodon.social']]){
    const result=await startOAuth({id:'owner'},{id:`pending-${provider}`,provider},req),url=new URL(result.url);
-   assert.equal(url.hostname,host);assert.equal(get('oauth_states',url.searchParams.get('state')).connectionId,`pending-${provider}`);
+   assert.equal(url.hostname,host);if(provider==='reddit')assert.equal(url.searchParams.get('scope'),'identity submit read vote');assert.equal(get('oauth_states',url.searchParams.get('state')).connectionId,`pending-${provider}`);
    assert.equal(url.searchParams.get('redirect_uri'),`https://hub.example.test/api/oauth/${provider}/callback`);
    assert.ok(!result.url.includes('secret'));
   }

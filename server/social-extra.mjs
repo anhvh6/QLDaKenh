@@ -3,7 +3,7 @@ import {uploadSocialMedia} from './social-media-upload.mjs';
 import {secret,saveSecret} from './store.mjs';
 
 export const extraProviders={
- reddit:{label:'Reddit',publish:true,oauth:true,formats:['text'],hint:'OAuth Reddit với quyền identity, submit. Cần ứng dụng API được Reddit cho phép; mặc định đăng lên hồ sơ của bạn.'},
+ reddit:{label:'Reddit',publish:true,oauth:true,formats:['text'],hint:'OAuth Reddit với quyền identity, submit, read, vote. Cần ứng dụng API được Reddit cho phép; mặc định đăng lên hồ sơ của bạn.'},
  mastodon:{label:'Mastodon',publish:true,oauth:true,formats:['text','image','video'],hint:'Kết nối mastodon.social bằng OAuth, đọc hồ sơ và đăng trạng thái văn bản.'},
  tumblr:{label:'Tumblr',publish:true,oauth:true,formats:['text','image','video'],hint:'OAuth Tumblr để xác minh blog và đăng nội dung văn bản.'},
  bluesky:{label:'Bluesky',publish:true,formats:['text','image','video'],hint:'Nhập handle và mật khẩu ứng dụng Bluesky tại đây; không dùng mật khẩu đăng nhập chính.'},
@@ -79,7 +79,7 @@ export async function publishExtra(c,p,remote){
   const id=r.response?.id_string||r.response?.id;if(!id)throw new Error('Tumblr chưa trả mã bài viết.');return {externalId:String(id),...(p.type==='video'?{processing:true,socialVerification:true,containerId:String(id)}:{}),url:`https://www.tumblr.com/${encodeURIComponent(c.accountId)}/${id}`};
  }
  if(p.visibility==='private')throw new Error('Reddit không hỗ trợ bài riêng tư qua cổng này.');
- const profile=await extraProfile(c,remote,token),title=String(p.title||text.split('\n')[0]).slice(0,300);
+ const profile=await extraProfile(c,remote,token),title=String(p.title||text.split('\n')[0]);if(!title.trim()||Array.from(title).length>300)throw Error('Reddit: tiêu đề phải có từ 1 đến 300 ký tự.');
  r=await remote('https://oauth.reddit.com/api/submit',{method:'POST',headers:{...bearer(token),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({api_type:'json',kind:'self',sr:`u_${profile.handle}`,title,text,resubmit:'false'})});
  if(r.json?.errors?.length)throw new Error(r.json.errors.map(x=>x[1]).join(' · '));
  const result=r.json?.data;if(!result?.name)throw new Error('Reddit chưa xác nhận tạo bài.');return {externalId:result.name,url:result.url};
