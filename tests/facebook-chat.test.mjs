@@ -108,7 +108,7 @@ test('active Instagram conversation polling uses the Instagram platform and impo
 
 test('Instagram standby messages appear in inbox but cannot send until the active stream resumes',async()=>{
  const {sendMessage}=await import('../server/connectors.mjs');
- const channel=put('connections',{id:'ig-standby',provider:'instagram',mode:'api',status:'connected',accountId:'ig-standby-business'});saveSecret(channel.id,{token:'mock'});
+ const channel=put('connections',{id:'ig-standby',provider:'instagram',mode:'api',status:'connected',accountId:'ig-standby-business'});saveSecret(channel.id,{token:'mock',pageId:'ig-linked-page'});
  const event={sender:{id:'ig-standby-person'},recipient:{id:channel.accountId},timestamp:Date.now(),message:{mid:'ig-standby-message',text:'Tin khách gửi khi công cụ khác giữ hội thoại'}};
  ingestFacebookEvents(channel,[{id:channel.accountId,standby:[event]}]);
  const message=all('messages').find(m=>m.externalId===event.message.mid),conv=get('conversations',message.conversationId);

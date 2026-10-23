@@ -10,7 +10,7 @@ const {put,get,db,dataDir,saveSecret}=await import('../server/store.mjs');
 const {sendMessage}=await import('../server/connectors.mjs');
 const {publicMediaFile}=await import('../server/public-media.mjs');
 const channel=put('connections',{id:'ig',provider:'instagram',accountId:'ig-business',mode:'api',status:'connected'});
-saveSecret(channel.id,{token:'test-token'});
+saveSecret(channel.id,{token:'test-token',pageId:'linked-facebook-page'});
 const conv={externalUserId:'customer',lastInboundAt:new Date().toISOString()};
 writeFileSync(join(dataDir,'uploads','asset_photo.png'),Buffer.from('89504e470d0a1a0a','hex'));
 const photo=put('assets',{id:'photo',type:'image',mime:'image/png',url:'/uploads/asset_photo.png'});
@@ -19,7 +19,7 @@ test('Instagram sends text and image, signs retrievable media URL and keeps both
  const before=global.fetch,bodies=[];
  try{
   global.fetch=async(url,options)=>{
-   assert.match(url,/ig-business\/messages$/);
+   assert.match(url,/linked-facebook-page\/messages$/);
    const body=JSON.parse(options.body);bodies.push(body);
    assert.equal(body.recipient.id,'customer');
    if(body.message.attachment){
@@ -77,5 +77,40 @@ test('normal inbox reply permits Instagram images and persists their provider re
   const comment=put('conversations',{connectionId:channel.id,customerId:customer.id,kind:'comment',...conv});
   await assert.rejects(reply(user,comment.id,{text:'',assetIds:[photo.id],version:comment.version}),/Bình luận Instagram/);
   assert.equal(calls,1);
+ }finally{global.fetch=before;}
+});
+
+test('quick reply 36 accepts an image downloaded without MIME metadata and keeps sequence receipts',async()=>{
+ const {runTemplate}=await import('../server/taophacdo.mjs');
+ const legacyPhoto=put('assets',{...photo,id:'legacy-photo',mime:undefined});
+ const customer=put('customers',{name:'Test peer'}),thread=put('conversations',{connectionId:channel.id,customerId:customer.id,kind:'message',status:'open',...conv});
+ const template=put('templates',{shortcut:'36',name:'Ảnh mẫu 36',blocks:[{text:'Ảnh mẫu',assetIds:[legacyPhoto.id]},{text:'Khối tiếp theo'}]});
+ const before=global.fetch,bodies=[];
+ try{
+  global.fetch=async(url,options)=>{
+   // Fail just as Meta would if the Instagram business ID is used as a Facebook Page.
+   assert.equal(new URL(url).pathname,'/v25.0/linked-facebook-page/messages');
+   const body=JSON.parse(options.body);assert.equal(body.messaging_type,'RESPONSE');bodies.push(body);
+   return new Response(JSON.stringify({message_id:'quick-'+bodies.length}));
+  };
+  const run=await runTemplate({id:'owner',role:'owner'},thread.id,{templateId:template.id,requestId:'ig-quick-36'});
+  assert.equal(run.status,'done');assert.equal(bodies.length,3);assert.equal(run.messages.length,2);
+  assert.equal(run.messages[0].externalMessages.length,2);assert.equal(bodies[1].message.attachment.type,'image');
+  await runTemplate({id:'owner',role:'owner'},thread.id,{templateId:template.id,requestId:'ig-quick-36'});
+  assert.equal(bodies.length,3);
+  const invalid=put('assets',{...photo,id:'unsupported',mime:'image/webp'});
+  const bad=put('templates',{blocks:[{text:'Must not be sent first'},{assetIds:[invalid.id]}]});
+  await assert.rejects(runTemplate({id:'owner',role:'owner'},thread.id,{templateId:bad.id}),/JPG|PNG/);
+  assert.equal(bodies.length,3);
+ }finally{global.fetch=before;}
+});
+
+test('missing linked Page never falls back to Instagram business ID',async()=>{
+ const before=global.fetch;let requests=0;
+ try{
+  saveSecret('without-page',{token:'test-token'});
+  global.fetch=async()=>{requests++;return new Response('{}');};
+  await assert.rejects(sendMessage({...channel,id:'without-page'},conv,'text',{assetRefs:[photo]}),/Facebook Page liên kết/);
+  assert.equal(requests,0);
  }finally{global.fetch=before;}
 });
