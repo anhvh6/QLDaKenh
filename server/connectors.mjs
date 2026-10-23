@@ -1,4 +1,5 @@
 import {replySocial,blueskyInteraction,removeBlueskyLike,mastodonReaction} from './social-replies.mjs';
+import {parseProviderJSON} from './provider-json.mjs';
 import {tiktokPublishBlock,tiktokProviderMessage} from './tiktok-publish-policy.mjs';
 import {extraProviders,isExtra,extraProfile,publishExtra} from './social-extra.mjs';
 import {sendCommentPrivateReply} from './comment-private.mjs';
@@ -26,7 +27,7 @@ export const providers = {
 export async function remote(url, options = {}) {
   const readOnly=(!options.method||options.method==='GET');
   let res,raw; try { res = await fetch(url, { ...options, signal: options.signal || AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
-  let data; try { data = JSON.parse(raw); } catch { data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
+  let data; try { data = parseProviderJSON(raw); } catch { data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
   const providerError = data.error && (typeof data.error === 'object' ? data.error.code && !['ok', 0, '0'].includes(data.error.code) : data.error !== 0);
   if (!res.ok || providerError) {
     const error = data.error && typeof data.error === 'object' ? data.error : {};
@@ -137,6 +138,7 @@ export async function publish(c, p) {
   throw new Error('Chức năng tự động đăng chưa có ở connector này.');
 }
 export async function continuePublish(c, p) {
+  if(p.socialVerification)return (await import('./social-publication-check.mjs')).verifySocialPublication(c,p,remote);
   if (c.provider === 'tiktok') {
     const token = await refreshedToken(c), state = await remote('https://open.tiktokapis.com/v2/post/publish/status/fetch/', json({ publish_id: p.containerId }, token)), data = state.data || {};
     if (['FAILED', 'PUBLISH_FAILED'].includes(data.status)) throw new Error('TikTok không xuất bản được video: ' + (data.fail_reason || data.status));

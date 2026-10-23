@@ -16,6 +16,22 @@ export async function uploadSocialMedia(c,p,token,request){
  if(c.provider==='bluesky'){
   if(p.type==='image'&&file.size>1000000)throw Error('Bluesky: ảnh cần không quá 1 MB.');
   if(p.type==='video'&&file.mime!=='video/mp4')throw Error('Bluesky: hãy dùng video MP4.');
+  if(p.type==='video'){
+   if(!/^did:plc:[a-z0-9]+$/.test(c.accountId))throw Error('Chưa xác định được PDS của tài khoản Bluesky.');
+   const doc=await request('https://plc.directory/'+c.accountId),endpoint=doc.service?.find(s=>s.id.endsWith('#atproto_pds'))?.serviceEndpoint;
+   const host=new URL(endpoint).hostname;if(!/(^|\.)bsky\.(network|social)$/.test(host))throw Error('PDS Bluesky chưa được hỗ trợ cho tải video.');
+   const grant=await request('https://bsky.social/xrpc/com.atproto.server.getServiceAuth?'+new URLSearchParams({aud:'did:web:'+host,lxm:'com.atproto.repo.uploadBlob',exp:String(Math.floor(Date.now()/1000)+1800)}),{headers});
+   if(!grant.token)throw Error('Bluesky chưa cấp quyền xử lý video.');
+   let job=await request('https://video.bsky.app/xrpc/app.bsky.video.uploadVideo?'+new URLSearchParams({did:c.accountId,name:file.name}),{method:'POST',headers:{Authorization:'Bearer '+grant.token,'Content-Type':file.mime},body:file.blob,signal:AbortSignal.timeout(600000)});job=job.jobStatus||job;
+   for(let i=0;!job.blob&&i<90;i++){
+    if(job.state==='JOB_STATE_FAILED'||job.error)throw Error('Bluesky xử lý video thất bại: '+(job.message||job.error));
+    if(!job.jobId)throw Error('Bluesky chưa trả mã xử lý video.');
+    await new Promise(resolve=>setTimeout(resolve,2000));
+    const r=await request('https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?'+new URLSearchParams({jobId:job.jobId}));job=r.jobStatus||r;
+   }
+   if(!job.blob)throw Error('Bluesky vẫn xử lý video; chưa tạo bài đăng.');
+   return {$type:'app.bsky.embed.video',video:job.blob};
+  }
   const r=await request('https://bsky.social/xrpc/com.atproto.repo.uploadBlob',{method:'POST',headers:{...headers,'Content-Type':file.mime},body:file.blob,signal:AbortSignal.timeout(600000)});
   if(!r.blob?.ref)throw Error('Bluesky chưa xác nhận tải media.');
   return p.type==='video'?{$type:'app.bsky.embed.video',video:r.blob}:{$type:'app.bsky.embed.images',images:[{alt:String(p.title||''),image:r.blob}]};

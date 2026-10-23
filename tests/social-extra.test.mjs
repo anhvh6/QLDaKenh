@@ -76,6 +76,9 @@ test('video publishing uploads actual bytes and attaches native media on all thr
  for(const provider of ['mastodon','bluesky','tumblr']){
   const c={id:'video-'+provider,provider,accountId:provider==='bluesky'?'did:plc:test':'blog',expectedAccount:''};saveSecret(c.id,{token:'token',refreshToken:provider==='bluesky'?'refresh':undefined,expiresAt:Date.now()+999999});let uploaded=false;
   const r=await publishExtra(c,{id:'publication-'+provider,type:'video',caption:'Test',assets:['video-test']},async(url,opts)=>{
+   if(url.startsWith('https://plc.directory/'))return {service:[{id:'#atproto_pds',serviceEndpoint:'https://test.bsky.network'}]};
+   if(url.includes('getServiceAuth'))return {token:'service-token'};
+   if(url.includes('app.bsky.video.uploadVideo')){uploaded=true;return {blob:{$type:'blob',ref:{$link:'cid'},mimeType:'video/mp4',size:15}};}
    if(url.endsWith('/api/v2/media')){assert.equal(await opts.body.get('file').text(),'fake-video-test');uploaded=true;return {id:'media',url:'https://media.test/video.mp4'};}
    if(url.endsWith('.uploadBlob')){assert.equal(await opts.body.text(),'fake-video-test');uploaded=true;return {blob:{$type:'blob',ref:{$link:'cid'},mimeType:'video/mp4',size:15}};}
    if(url.endsWith('.getSession'))return {did:'did:plc:test',handle:'test.bsky.social'};
