@@ -90,3 +90,4 @@ test('video publishing uploads actual bytes and attaches native media on all thr
 });
 
 test('Tumblr text tags use comma-separated strings',async()=>{saveSecret('tumblr-tags',{token:'fake'});await publishExtra({id:'tumblr-tags',provider:'tumblr',accountId:'blog'},{type:'text',caption:'#yoga #đẹp #yoga'},async(url,opts)=>{assert.equal(JSON.parse(opts.body).tags,'yoga,đẹp');return {response:{id:'123'}};});});
+test('Tumblr validation errors include platform reason and subcode',async()=>{const {remote}=await import('../server/connectors.mjs');const previous=global.fetch;try{global.fetch=async()=>Response.json({meta:{status:400,msg:'Bad Request'},errors:[{code:8001,title:'tags must be a string'}]},{status:400});await assert.rejects(remote('https://api.tumblr.com/v2/blog/test/posts',{method:'POST',body:'{}'}),/8001: tags must be a string/);}finally{global.fetch=previous;}});
