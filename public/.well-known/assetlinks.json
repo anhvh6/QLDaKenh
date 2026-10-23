@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "vn.megaphuong.qldakenh",
+      "sha256_cert_fingerprints": [
+        "0E:70:DD:77:85:8D:CE:42:A6:1E:06:9A:B9:C3:F2:68:5C:8B:61:26:34:61:60:CB:55:46:27:49:EC:17:44:06"
+      ]
+    }
+  }
+]

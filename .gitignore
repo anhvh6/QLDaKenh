@@ -9,3 +9,6 @@ test-results/
 integrations/taophacdoT4/
 .copy-runtime/
 __pycache__/
+
+.android-tools/
+releases/

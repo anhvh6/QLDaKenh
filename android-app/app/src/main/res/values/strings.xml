@@ -1,0 +1,1 @@
+<resources><string name="app_name">MeGa Phương</string><string name="asset_statements">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://quanlydakenh.vercel.app\"}}]</string><color name="brand">#27634B</color></resources>
