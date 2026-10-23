@@ -2,8 +2,8 @@ import test from 'node:test';import assert from 'node:assert/strict';import {Eve
 import {learnerCycleSummary} from '../public/learner-cycle-model.js';import {cpuPercent,metricLevel,metricLimits,createSystemMonitor} from '../server/system-metrics.mjs';
 import {readOverviewSource,metricChart} from '../public/dashboard-overview.js';
 test('overview reads the existing management API with projections and complete pagination, without credentials or personal fields',async()=>{
- const calls=[];const out=await readOverviewSource(async path=>{calls.push(path);const u=new URL('http://test'+path);assert.ok(u.pathname.startsWith('/proxy/supabase/rest/v1/'));assert.ok(!/api_key|token|sdt|customer_name|email/.test(u.searchParams.get('select')));if(u.pathname.endsWith('/products'))return [];const count=Number(u.searchParams.get('offset'))===0?500:1;return Array.from({length:count},(_,i)=>({customer_id:String(i),status:'ACTIVE',created_at:'2020-01-01'}));});assert.equal(out.stats.total,501);assert.equal(calls.filter(p=>p.includes('/customers?')).length,2);
- await assert.rejects(readOverviewSource(async()=>({error:'unavailable'})),/danh sách/);
+ const calls=[];const out=await readOverviewSource(async path=>{if(path==='/overview/learners')throw Object.assign(new Error('old server'),{status:404});calls.push(path);const u=new URL('http://test'+path);assert.ok(u.pathname.startsWith('/proxy/supabase/rest/v1/'));assert.ok(!/api_key|token|sdt|customer_name|email/.test(u.searchParams.get('select')));if(u.pathname.endsWith('/products'))return [];const count=Number(u.searchParams.get('offset'))===0?500:1;return Array.from({length:count},(_,i)=>({customer_id:String(i),status:'ACTIVE',created_at:'2020-01-01'}));});assert.equal(out.stats.total,501);assert.equal(calls.filter(p=>p.includes('/customers?')).length,2);
+ await assert.rejects(readOverviewSource(async()=>({error:'unavailable'})),/hợp lệ/);
 });
 test('learner cycle boundaries use Vietnam time and preserve dashboard groups, daily opens and product costs',()=>{
  const at=Date.parse('2026-10-16T03:00:00Z'),customers=[
@@ -40,3 +40,5 @@ test('HTTP chart keeps threshold labels separate even after a very large outlier
  const html=metricChart('latency',{history:[{latency:3600000},{latency:1974.6}],current:{latency:1974.6}},metricLimits.latency);
  assert.ok(html.includes('Phản hồi chậm'));assert.ok(html.includes('Cảnh báo ≥ 500 ms'));assert.ok(html.includes('Mức cao ≥ 1500 ms'));assert.ok(!html.includes('<text'));
 });
+
+test('overview reads one materialized result, with no source pagination on a current server',async()=>{const calls=[];const data=await readOverviewSource(async path=>{calls.push(path);return {stats:{total:9000},from:'2026-10-15',to:'2026-11-14',updatedAt:123,stale:true};});assert.deepEqual(calls,['/overview/learners']);assert.equal(data.stats.total,9000);assert.equal(data.stale,true);await assert.rejects(readOverviewSource(async()=>{throw Object.assign(new Error('warming'),{status:503});}),/warming/);});

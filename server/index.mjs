@@ -1,3 +1,6 @@
+import {createAggregateStore} from './overview-cache.mjs';
+import {refreshLearnerOverview} from './overview-worker.mjs';
+import {refreshDashboardCounts,dashboardRevision} from './dashboard-aggregate.mjs';
 import {copyStateSummary} from './copy-state-summary.mjs';
 import {socialHealthRoute} from './social-health.mjs';
 import {socialChatTick} from './social-chat.mjs';
@@ -75,6 +78,7 @@ const verify = (p, hash) => { const [salt, h] = hash.split(':'); return timingSa
 const sha = s => createHash('sha256').update(s).digest('hex');
 const json = sendJSON;
 const stateCache = new StateCache();
+const overviewAggregates = createAggregateStore(db);
 const notificationCache = new StateCache();
 async function body(req, limit = 2e6) { let n = 0; const chunks = []; for await (const b of req) { n += b.length; if (n > limit) domain.fail('Dữ liệu quá lớn.', 413); chunks.push(b); } const raw = Buffer.concat(chunks); try { return { raw, value: raw.length ? JSON.parse(raw) : {} }; } catch { domain.fail('JSON không hợp lệ.'); } }
 function userFor(req) { const token = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('hub_session='))?.slice(12); if (!token) return null; const s = db.prepare('SELECT u.id,u.email,u.name,u.role,s.csrf FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1').get(sha(token), Date.now()); return s || null; }
@@ -122,10 +126,10 @@ async function dispatch(req, res, url, user, input) {
   if (path === '/api/state' && method === 'GET') {
     const snapshotView=['dashboard','inbox','workspace'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
     const users = db.prepare('SELECT id,name,email,role,active FROM users').all();
-    const revision = createHash('sha256').update(stateRevision() + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
+    const revision = createHash('sha256').update(stateRevision() + ':' + (overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user };
-    void refreshLearnerStatuses();
+    // Learner status synchronization is scheduled independently of page visits.
     const state = { user, reminderDefaults: get('settings','chat-reminder-defaults-'+user.id) || null, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision, snapshotView }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = k==='messages'&&snapshotView!=='full'?(snapshotView==='dashboard'?dashboardMessages():[]):all(k); }
     Object.assign(state,snapshotView==='inbox'?{copyPlanCalendar:[],copyPlanSummaries:[]}:copyStateSummary(user.id,all));
     const sourcePostIds=new Set(state.contents.filter(c=>c.sourceCopyId&&!c.copyReady).map(c=>c.sourceCopyId));const sourcePosts=new Map(sourcePostIds.size?all('copy_posts').filter(p=>sourcePostIds.has(p.id)).map(p=>[p.id,p]):[]);state.contents=state.contents.map(c=>c.sourceCopyId&&!c.copyReady?{...c,sourceMediaTypes:[...new Set((sourcePosts.get(c.sourceCopyId)?.media||[]).map(m=>m.type))]}:c);
@@ -143,9 +147,10 @@ async function dispatch(req, res, url, user, input) {
     state.settings = get('settings', 'general') || { id: 'general', name: 'Mộc Workspace', timezone: 'Asia/Ho_Chi_Minh' };
     if (user.role !== 'owner') state.connections = state.connections.map(({ accountId, apiVersion, ...c }) => c);
     state.orderWorkspace=orderWorkspaceState(user);state.orders=orderPOSFields(state.orders);state.orderRouting=orderRoutingState();state.pancakePOS=posState(user);state.carrierOrders = carrierOrdersState(user); state.shippingAccounts = shippingState(user); state.integrations = { ai: !!secret('ai').token, aiModel: secret('ai').model || '', ghn: !!secret('shipping').token };
-    state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; const scoped=scopeCareChats(care.scopeState(state,user),user);if(snapshotView==='workspace'){const ids=new Set(scoped.conversations.map(c=>c.id));scoped.messageSummaries=dashboardMessages().filter(m=>ids.has(m.conversationId));}return stateCache.set(cacheKey,revision,scoped);
+    state.users = users; state.careSettings = get('settings', 'care') || { slaMinutes: 3 }; state.taophacdo = user.role === 'owner' ? integrationState(user) : null; const scoped=scopeCareChats(care.scopeState(state,user),user);if(snapshotView==='workspace'){const ids=new Set(scoped.conversations.map(c=>c.id));scoped.messageSummaries=dashboardMessages().filter(m=>ids.has(m.conversationId));}const totals=overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role);if(totals?.sourceRevision===dashboardRevision()&&!totals.stale){scoped.dashboardCounts=totals.counts;scoped.operationalReportTotals=totals.reports;}return stateCache.set(cacheKey,revision,scoped);
   }
   if(path==='/api/order-routing'&&method==='POST')return saveOrderRouting(user,input);
+  if(path==='/api/overview/learners'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được xem số liệu học viên.',403);const result=overviewAggregates.read('learners:v1');if(!result)domain.fail('Số liệu đang được tổng hợp nền. Vui lòng thử lại sau.',503);return result;}
   if(path==='/api/system/metrics'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được xem chỉ số hệ thống.',403);return systemMonitor.snapshot();}
   if (path === '/api/logout' && method === 'POST') { db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id, user.csrf); res.setHeader('Set-Cookie', 'hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'); return { ok: true }; }
   if(path==='/api/product-catalog'&&method==='GET'){domain.permission(user,'read');res.setHeader('Cache-Control','no-store');return planProducts(all('products'),{includeInactive:true});}
@@ -311,3 +316,11 @@ recoverPosJobs();setInterval(()=>void posTick().catch(e=>console.error('POS work
 recoverCommunication();setInterval(()=>void communicationTick().catch(e=>console.error('Communication worker:',e.message)),1000).unref();
 
 recoverTrackingNotifications();setInterval(()=>void trackingNotificationTick().catch(e=>console.error('Tracking notification:',e.message)),2000).unref();
+
+let overviewTickRunning=false;
+async function overviewTick(){if(overviewTickRunning)return;overviewTickRunning=true;try{await refreshDashboardCounts(overviewAggregates);}catch(error){console.error('Dashboard counts worker:',error.message);}finally{overviewTickRunning=false;}}
+void overviewTick();setInterval(()=>void overviewTick(),10000).unref();
+const learnerOverviewTick=()=>void refreshLearnerOverview(overviewAggregates).catch(error=>console.error('Learner overview worker:',error.message));
+learnerOverviewTick();setInterval(learnerOverviewTick,15000).unref();
+const learnerStatusTick=()=>void refreshLearnerStatuses().catch(error=>console.error('Learner status worker:',error.message));
+learnerStatusTick();setInterval(learnerStatusTick,30000).unref();
