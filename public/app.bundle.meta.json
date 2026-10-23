@@ -1,5 +1,5 @@
 {
-  "version": "77072fe600e9",
+  "version": "cd6b706ff492",
   "compiler": "0.25.12",
   "files": {
     "public/social-capabilities.js": "c84a192f2cf0016a10f3e61c051f1f6f99ae9ec872e632b91b7efcf7651b4050",
@@ -52,7 +52,7 @@
     "public/comment-post-media.js": "3e09adcf2617a6205556dd40d72038b36ad360d4250978c20aadd13be72db52e",
     "public/comment-detail.js": "23189d6f985a9cb865ba5a2eaa9e85e657a13dd8f2847fb7eb9943e19c07249c",
     "public/api-response.js": "fe1ca887d268d9c2d75fe47ff0068114cc15397a2e034f5e64137c44d28aea6c",
-    "public/copy-job-table.js": "d2b77df49bee015014f672ad6fbdfbc2796e478963b7ab2cb4ece6d65a16ad73",
+    "public/copy-job-table.js": "f450fc8f8b177329e17443d198961a4d860f079199bfac3ce506bdf653fb2c32",
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
     "public/copy-layout-model.js": "1fb8deff67667b988bf4cc43932323675affca23c7b6e79c8ad42693060a9027",
     "public/copy-automation.js": "6976d2d53c05b458fa46e1182281ecfea9ce5001d3045be78daded9f87b92880",
@@ -98,6 +98,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "c8fe1ada33e1620d7c26d18ba504719f5ecd78ea08164ac4ae140d53ac251284",
-    "public/app.bundle.js": "77072fe600e9fec7282701530f7c8ec3dec962758c38cb515c39cb5c34fdc59b"
+    "public/app.bundle.js": "cd6b706ff4922803a06e1ba272e614ff7513221d979737da468add59a7e9dcbe"
   }
 }
