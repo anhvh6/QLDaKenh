@@ -2280,3 +2280,21 @@ table .btn {
 }
 .dashboard-event>span{overflow:hidden;grid-column:3;grid-row:1;max-height:3em}
 .dashboard-event>.schedule-state{grid-column:2/-1;grid-row:2;margin-left:0;max-width:none;line-height:1.4}
+/* Keep the two chat panes side by side above the phone breakpoint.
+   The 900px shell breakpoint must not stack two visible panes. */
+@media (min-width:761px) {
+  .content.inbox-page .inbox-layout { display:grid; grid-template-columns:minmax(230px,30%) minmax(0,1fr); grid-template-rows:minmax(0,1fr); min-height:0; }
+  .content.inbox-page .conversation-list, .content.inbox-page .chat { min-height:0; height:100%; }
+}
+@media (max-width:760px), (hover:none) and (pointer:coarse) and (max-width:1400px) {
+  .main:has(>.inbox-topbar)>.content.inbox-page { height:calc(100dvh - 52px - 76px - env(safe-area-inset-bottom)); }
+  .content.inbox-page { height:calc(100dvh - 68px - 76px - env(safe-area-inset-bottom)); padding:0; min-height:0; }
+  .content.inbox-page .inbox-layout { height:100%; min-height:0; }
+  .content.inbox-page .chat-compose { flex-shrink:0; }
+  .content.inbox-page .chat-messages { min-height:0; }
+}
+@media (max-width:760px) {
+  .content.inbox-page .inbox-layout { display:block; }
+  .content.inbox-page .inbox-layout.has-selection .conversation-list { display:none; }
+  .content.inbox-page .inbox-layout:not(.has-selection) .chat { display:none; }
+}
