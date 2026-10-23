@@ -5357,3 +5357,39 @@ body.comments-route .comment-tag-filter>summary:hover,body.comments-route .comme
 .copy-platform-icon{min-width:22px;max-width:22px;overflow:hidden;white-space:nowrap;line-height:1;padding:0;border:0;box-sizing:border-box;text-decoration:none}
 .copy-platform-icon>span{display:inline-flex;align-items:center;justify-content:center;max-width:100%;line-height:1}
 .copy-status>span:has(>.copy-publication-icon){display:inline-flex;flex-shrink:0}
+/* Touch tablets and unfolded phones keep the same navigation as phones.
+   Width alone cannot distinguish a Fold inner display from a desktop window. */
+@media (max-width:760px), (hover:none) and (pointer:coarse) and (max-width:1400px) {
+    .layout { display:block; }
+    .main, .sidebar-collapsed .main { width:100%; margin-left:0; min-width:0; }
+    .sidebar, .sidebar-collapsed .sidebar {
+        width:min(290px,85vw); height:100dvh; overflow-y:auto; overflow-x:hidden;
+        overscroll-behavior:contain; padding:52px 18px 100px;
+        transform:translateX(-100%); transition:transform .2s;
+    }
+    .sidebar > * { flex-shrink:0; }
+    .sidebar .nav-item, .sidebar-collapsed .sidebar .nav-item { justify-content:flex-start; padding:10px 12px; }
+    .sidebar-collapsed .sidebar .nav-text, .sidebar-collapsed .sidebar .nav-label,
+    .sidebar-collapsed .sidebar .brand-word, .sidebar-collapsed .sidebar small { display:block!important; }
+    .sidebar-collapsed .sidebar .brand { display:flex; padding:0 13px 24px; }
+    .sidebar .sidebar-toggle, .sidebar-collapsed .sidebar .sidebar-toggle {
+        display:flex; position:absolute; left:auto; right:12px; top:12px;
+        width:32px; height:32px; transform:none;
+    }
+    .menu-open .sidebar { transform:translateX(0); }
+    .menu-open .mobile-scrim { display:block; position:fixed; inset:0; background:#1b2f2560; z-index:34; }
+    .topbar .mobile-only { display:inline-grid; }
+    .topbar .desktop-profile { display:none; }
+    .content { padding-bottom:calc(90px + env(safe-area-inset-bottom)); }
+    .mobile-bottom {
+        display:flex; position:fixed; bottom:0; left:0; right:0; background:#fffffff5;
+        border-top:1px solid var(--line); z-index:40; justify-content:space-around;
+        padding:8px 8px max(8px,env(safe-area-inset-bottom));
+    }
+    .mobile-bottom button {
+        border:0; background:none; display:flex; flex-direction:column; align-items:center;
+        gap:3px; color:#929e87; min-width:48px; min-height:44px; font-size:10px;
+    }
+    .mobile-bottom button.active { color:var(--green); }
+    .mobile-bottom button.new-button { background:var(--green); color:white; border-radius:12px; width:48px; justify-content:center; margin-top:-15px; }
+}

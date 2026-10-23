@@ -500,7 +500,7 @@ document.addEventListener('submit', async event => {
 document.addEventListener('click', async event => {
   if(event.target.closest('.channel-card a'))return;
   const routeEl = event.target.closest('[data-route]'); if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; } const target = event.target.closest('[data-action]'); if (!target) return; event.preventDefault(); const action = target.dataset.action, id = target.dataset.id;
-  if (action === 'toggle-sidebar') { document.body.classList.toggle('sidebar-collapsed'); localStorage.setItem('hub-sidebar-collapsed', String(document.body.classList.contains('sidebar-collapsed'))); return; }
+  if (action === 'toggle-sidebar') { if(window.matchMedia('(max-width:760px), (hover:none) and (pointer:coarse) and (max-width:1400px)').matches){document.body.classList.remove('menu-open');return;} document.body.classList.toggle('sidebar-collapsed'); localStorage.setItem('hub-sidebar-collapsed', String(document.body.classList.contains('sidebar-collapsed'))); return; }
   try {
     if(action==='channel-details'){const content=target.querySelector('template.channel-detail-template');if(content)modal(target.querySelector('h3')?.textContent||'Thông tin kênh',content.innerHTML,btn('Đóng','close-modal'));return;}
     if (action === 'retry-load') { target.disabled = true; try { await boot(); } finally { target.disabled = false; } return; }
