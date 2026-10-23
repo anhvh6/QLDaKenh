@@ -27,6 +27,25 @@ test('plan validation rejects invalid times, weekdays, channels and campaign',()
 test('new-video plans honor the selected source publication priority',()=>{const {input}=fixture();assert.equal(validatePlan(u,{...input,mode:'new',order:'newest'}).order,'newest');assert.equal(validatePlan(u,{...input,mode:'new',order:'oldest'}).order,'oldest');});
 test('reserves one video per future slot without duplicate reservations',()=>{const {p}=fixture();reserveSlots(p);const rows=all('copy_plan_items').filter(i=>i.planId===p.id&&i.state==='scheduled');assert.equal(rows.length,1);assert.ok(Date.parse(rows[0].scheduleAt)>Date.now());const video=get('copy_videos',rows[0].videoId);assert.equal(video.publishedAt,'2026-01-02T00:00:00.000Z');reserveSlots(p);assert.equal(all('copy_plan_items').filter(i=>i.planId===p.id&&i.state==='scheduled').length,1);});
 test('newest-first bulk plan selects the newest source publication',()=>{const {p}=fixture();put('copy_plans',{...p,order:'newest'});reserveSlots(get('copy_plans',p.id));const i=all('copy_plan_items').find(i=>i.planId===p.id&&i.state==='scheduled');assert.equal(get('copy_videos',i.videoId).publishedAt,'2026-01-03T00:00:00.000Z');});
+
+test('random priority works in both modes, matches preview, and preserves reserved slots',async()=>{
+ const {orderedCopyVideos}=await import('../server/copy-automation.mjs');
+ for(const mode of ['bulk','new']){
+  const {p,input,videos}=fixture(mode),plan=put('copy_plans',{...p,order:validatePlan(u,{...input,order:'random'}).order});
+  assert.equal(plan.order,'random');
+  const expected=orderedCopyVideos(videos,plan).map(v=>v.id);
+  assert.deepEqual(orderedCopyVideos([...videos].reverse(),plan).map(v=>v.id),expected);
+  const preview=await automationRoute('/api/copy/automation/preview','POST',{...input,order:'random'},u);
+  assert.deepEqual(preview.videos.map(v=>v.id),expected);
+  reserveSlots(plan);let reserved=all('copy_plan_items').find(i=>i.planId===p.id&&i.state==='scheduled');assert.equal(reserved.videoId,expected[0]);
+  const snapshot=get('copy_plan_items',reserved.id);reserveSlots(plan);assert.deepEqual(get('copy_plan_items',reserved.id),snapshot);
+ }
+});
+
+test('random ranking shuffles the pool without duplication or input mutation',async()=>{
+ const {orderedCopyVideos}=await import('../server/copy-automation.mjs'),videos=Array.from({length:30},(_,n)=>({id:'video-'+n,publishedAt:new Date(2026,0,n+1).toISOString()})),original=structuredClone(videos),plan={sourceId:'s',campaignId:'c',startAt:'2026-10-23T00:00:00Z',order:'random'};
+ const ids=orderedCopyVideos(videos,plan).map(v=>v.id);assert.equal(new Set(ids).size,30);assert.deepEqual(videos,original);assert.notDeepEqual(ids,videos.map(v=>v.id));assert.notDeepEqual(ids,videos.map(v=>v.id).reverse());assert.notDeepEqual(ids,orderedCopyVideos(videos,{...plan,startAt:'2026-10-24T00:00:00Z'}).map(v=>v.id));
+});
 test('pausing cancels undispatched publications and releases schedules',()=>{const {p}=fixture();reserveSlots(p);const i=all('copy_plan_items').find(i=>i.planId===p.id&&i.state==='scheduled');put('publications',{id:'pause-pub',copyPlanItemId:i.id,status:'scheduled'});pauseItems(p);assert.equal(get('publications','pause-pub').status,'cancelled');assert.equal(get('copy_plan_items',i.id).state,'pending');});
 test('campaign pause blocks publishing and releases reservation',async()=>{const {p}=fixture();reserveSlots(p);put('campaigns',{...get('campaigns',p.campaignId),status:'paused'});await automationTick(Date.now(),tickDeps);assert.ok(all('copy_plan_items').filter(i=>i.planId===p.id).every(i=>i.state==='pending'));assert.match(copyPlanBlock({copyPlanId:p.id,scheduleAt:new Date().toISOString()}),/tạm dừng/);});
 test('preparation starts at minus 30 minutes and queues a single Drive job',async()=>{const {p}=fixture();reserveSlots(p);let i=all('copy_plan_items').find(i=>i.planId===p.id&&i.state==='scheduled'),calls=0;const deps={...tickDeps,extract:async()=>({title:'Title',caption:'Caption',engine:'video',media:[{type:'video'}]}),startCopy:(user,postId,target,extra)=>{calls++;return put('copy_jobs',{userId:user.id,postId,target,status:'queued',...extra});}};await automationTick(Date.parse(i.scheduleAt)-1800001,deps);assert.equal(calls,0);await automationTick(Date.parse(i.scheduleAt)-1800000,deps);i=get('copy_plan_items',i.id);assert.equal(calls,1);assert.equal(i.state,'preparing');await automationTick(Date.parse(i.scheduleAt)-1700000,deps);assert.equal(calls,1);});
