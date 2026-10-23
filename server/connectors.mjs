@@ -1,3 +1,4 @@
+import {hashtags} from '../public/platform-text-rules.js';
 import {replySocial,blueskyInteraction,removeBlueskyLike,mastodonReaction} from './social-replies.mjs';
 import {parseProviderJSON} from './provider-json.mjs';
 import {tiktokPublishBlock,tiktokProviderMessage} from './tiktok-publish-policy.mjs';
@@ -113,8 +114,8 @@ export async function publish(c, p) {
   const s = secret(c.id); if (!s.token) throw new Error('Chưa cấu hình token.'); const id = encodeURIComponent(c.accountId || ''); let r;
   if (c.provider === 'youtube') return publishYouTube(c, p);
   if (c.provider === 'tiktok') return publishTikTok(c, p);
-  if (c.provider === 'devto') { const content = devtoContent(p); if (content.media) await assertPublicMediaURL(content.media, p.type); r = await remote('https://dev.to/api/articles', { ...json({ article: { title: p.title, body_markdown: content.bodyMarkdown, published: true } }), headers: { 'Content-Type': 'application/json', 'api-key': s.token, Accept: 'application/vnd.forem.api-v1+json' } }); return { externalId: String(r.id), url: r.url }; }
-  if (c.provider === 'blogger') { const content = bloggerContent(p); if (content.media) await assertPublicMediaURL(content.media, p.type); r = await remote(`https://www.googleapis.com/blogger/v3/blogs/${id}/posts`, json({ kind: 'blogger#post', title: p.title, content: content.html }, await refreshedToken(c))); return { externalId: r.id, url: r.url }; }
+  if (c.provider === 'devto') { const content = devtoContent(p); if (content.media) await assertPublicMediaURL(content.media, p.type); r = await remote('https://dev.to/api/articles', { ...json({ article: { title: p.title, tags:hashtags(p.caption).filter(t=>/^[a-z0-9]+$/i.test(t)).map(t=>t.toLowerCase()), body_markdown: content.bodyMarkdown, published: true } }), headers: { 'Content-Type': 'application/json', 'api-key': s.token, Accept: 'application/vnd.forem.api-v1+json' } }); return { externalId: String(r.id), url: r.url }; }
+  if (c.provider === 'blogger') { const content = bloggerContent(p); if (content.media) await assertPublicMediaURL(content.media, p.type); r = await remote(`https://www.googleapis.com/blogger/v3/blogs/${id}/posts`, json({ kind: 'blogger#post', title: p.title, labels:hashtags(p.caption), content: content.html }, await refreshedToken(c))); return { externalId: r.id, url: r.url }; }
   if (c.provider === 'x') { r = await remote('https://api.x.com/2/tweets', json({ text: p.caption }, await refreshedToken(c))); return { externalId: r.data.id, url: `https://x.com/i/web/status/${r.data.id}` }; }
   if (c.provider === 'facebook') {
     const base = `https://graph.facebook.com/${graphVersion(c)}/${id}`;

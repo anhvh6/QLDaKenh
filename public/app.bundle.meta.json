@@ -1,7 +1,8 @@
 {
-  "version": "cd6b706ff492",
+  "version": "88e4ec618c3a",
   "compiler": "0.25.12",
   "files": {
+    "public/platform-text-rules.js": "e10e412817809f885faeac241a21e8f5cdce8d37f5add66ebe3171deb294bc0f",
     "public/social-capabilities.js": "c84a192f2cf0016a10f3e61c051f1f6f99ae9ec872e632b91b7efcf7651b4050",
     "public/social-health.js": "97736e5df003d0014b75315b75601def3e42cb0c832922e00ad3b3d3f58b1166",
     "public/connection-groups.js": "39ba85d29bc94212fdd225b0f36c73b1db6678fe010401be8174ccc87d85166a",
@@ -97,7 +98,7 @@
     "public/inbox.js": "fecf8c6da56158634ebc278aacab47d998fb6decd7019553d7fca23d3239eb19",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "c8fe1ada33e1620d7c26d18ba504719f5ecd78ea08164ac4ae140d53ac251284",
-    "public/app.bundle.js": "cd6b706ff4922803a06e1ba272e614ff7513221d979737da468add59a7e9dcbe"
+    "public/app.js": "2c55579222229cee8f37bd708a5ba577f545f7ff6b38bd2667e642168ff4a3e7",
+    "public/app.bundle.js": "88e4ec618c3a336736720f7bda247c9a6241ae57b1f7b569e9e3d5479ce49e69"
   }
 }

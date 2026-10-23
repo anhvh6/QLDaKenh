@@ -1,3 +1,4 @@
+import {hashtagFacets,hashtags} from '../public/platform-text-rules.js';
 import {uploadSocialMedia} from './social-media-upload.mjs';
 import {secret,saveSecret} from './store.mjs';
 
@@ -70,11 +71,11 @@ export async function publishExtra(c,p,remote){
  if(c.provider==='bluesky'){
   if([...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text)].length>300)throw new Error('Bluesky: nội dung vượt 300 ký tự.');
   const profile=await extraProfile(c,remote,token);
-  r=await remote('https://bsky.social/xrpc/com.atproto.repo.createRecord',post({repo:profile.accountId,collection:'app.bsky.feed.post',record:{$type:'app.bsky.feed.post',text,...(media?{embed:media}:{}),createdAt:new Date().toISOString()}},token));
+  r=await remote('https://bsky.social/xrpc/com.atproto.repo.createRecord',post({repo:profile.accountId,collection:'app.bsky.feed.post',record:{$type:'app.bsky.feed.post',text,facets:hashtagFacets(text),...(media?{embed:media}:{}),createdAt:new Date().toISOString()}},token));
   if(!r.uri)throw new Error('Bluesky chưa trả mã bài viết.');return {externalId:r.uri,...(p.type==='video'?{processing:true,socialVerification:true,containerId:r.uri}:{}),url:`https://bsky.app/profile/${profile.handle}/post/${r.uri.split('/').pop()}`};
  }
  if(c.provider==='tumblr'){
-  r=await remote(`https://api.tumblr.com/v2/blog/${encodeURIComponent(c.accountId)}/posts`,media?{method:'POST',headers:bearer(token),body:media,signal:AbortSignal.timeout(600000)}:post({content:[{type:'text',text}],state:p.visibility==='private'?'private':'published'},token));
+  r=await remote(`https://api.tumblr.com/v2/blog/${encodeURIComponent(c.accountId)}/posts`,media?{method:'POST',headers:bearer(token),body:media,signal:AbortSignal.timeout(600000)}:post({tags:hashtags(text),content:[{type:'text',text}],state:p.visibility==='private'?'private':'published'},token));
   const id=r.response?.id_string||r.response?.id;if(!id)throw new Error('Tumblr chưa trả mã bài viết.');return {externalId:String(id),...(p.type==='video'?{processing:true,socialVerification:true,containerId:String(id)}:{}),url:`https://www.tumblr.com/${encodeURIComponent(c.accountId)}/${id}`};
  }
  if(p.visibility==='private')throw new Error('Reddit không hỗ trợ bài riêng tư qua cổng này.');

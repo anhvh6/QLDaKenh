@@ -1,3 +1,4 @@
+import {platformTextIssues} from '../public/platform-text-rules.js';
 import {reupText} from '../public/reup-text.js';
 import {tiktokPublishBlock} from './tiktok-publish-policy.mjs';
 import {createHash} from 'node:crypto';
@@ -43,6 +44,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
       const files=media.filter(m=>m.type===type);if(files.length!==1)add(ch,'Kênh này cần đúng một file media đính kèm; không chỉ đường dẫn.');
       if(files.some(m=>Number(m.size)>100*1024*1024))add(ch,'Media vượt giới hạn 100 MB của cổng này.');
     }
+    for(const issue of platformTextIssues(ch.provider,{title,caption}))add(ch,issue.message,'text_'+issue.field);
     const limits = { threads: 500, instagram: 2200, x: 280, tiktok: 2200 };
     // TikTok's limit uses UTF-16; Threads counts Unicode code points.
     const count = ch.provider === 'tiktok' || ch.provider === 'x' ? caption.length : Array.from(caption).length;

@@ -1,3 +1,4 @@
+import {platformTextIssues} from '../public/platform-text-rules.js';
 import {tiktokPublishBlock} from './tiktok-publish-policy.mjs';
 import {facebookVideoReceipt} from './facebook-publish-reconcile.mjs';
 import {withPlatformSend,recordStaffSend,finishCommunicationSend,communicationLock,communicationAutomatic} from './communication-send-guard.mjs';
@@ -108,6 +109,11 @@ export function schedule(user, id, input, { prepared = false } = {}) {
 }
 export async function publicationAction(user, id, input) {
   permission(user, 'content'); const p = get('publications', id); if (!p) fail('Không tìm thấy lịch.', 404);
+  if(input.action==='edit_queued'){
+    assertChannel(user,p.connectionId);if(p.status!=='scheduled'&&!(p.status==='blocked'&&p.textRuleBlocked))fail('Chỉ sửa tác vụ còn trong hàng đợi.',409);if(input.version!==p.version)fail('Tác vụ đã thay đổi. Mở lại để sửa.',409);
+    const title=String(input.title??p.title),caption=String(input.caption??p.caption),issues=platformTextIssues(get('connections',p.connectionId)?.provider,{title,caption});if(issues.length)fail(issues.map(i=>i.message).join(' '));
+    audit(user.id,'queued_variant_edited',id);return put('publications',{...p,title,caption,status:'scheduled',textRuleBlocked:false,copyTextMapped:true,error:'',textEditedAt:now()});
+  }
   if (input.action === 'cancel') { if (!['scheduled', 'awaiting_manual', 'failed', 'blocked'].includes(p.status)) fail('Không thể hủy tác vụ đã gửi hoặc chưa rõ kết quả.'); return put('publications', { ...p, status: 'cancelled' }); }
   if (input.action === 'confirm') { if (p.status !== 'awaiting_manual') fail('Đích này không chờ xác nhận thủ công.'); let u; try { u = new URL(input.url); } catch { fail('Nhập URL bài đã đăng.'); } if (!['https:', 'http:'].includes(u.protocol)) fail('URL không hợp lệ.'); return put('publications', { ...p, status: 'manually_confirmed', url: u.href, publishedAt: now() }); }
   if (input.action === 'retry') { const block=tiktokPublishBlock(get('connections',p.connectionId),p.visibility||'public');if(block)fail(block);if (!['failed', 'blocked'].includes(p.status)) fail('Chỉ thử lại tác vụ đã thất bại rõ ràng. Tác vụ chưa rõ kết quả cần đối soát.'); return put('publications', { ...p, status: 'scheduled', scheduleAt: now(), error: '' }); }
@@ -257,6 +263,7 @@ export async function tick() {
       if (p.mode === 'assisted') { put('publications', { ...p, status: 'awaiting_manual' }); notification('Đến giờ đăng: ' + p.title, `Mở gói đăng cho ${ch.name}.`, 'calendar'); continue; }
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }
       if (ch.status !== 'connected') { put('publications', { ...p, status: 'blocked', error: 'Kênh chưa được kiểm tra kết nối.' }); continue; }
+      const textIssues=platformTextIssues(ch.provider,p);if(textIssues.length){put('publications',{...p,status:'blocked',textRuleBlocked:true,error:textIssues.map(i=>i.message).join(' ')});continue;}
       put('publications', { ...p, status: 'dispatching', dispatchedAt:now(), attempts: p.attempts + 1 });
       try { const r = await publish(ch, p); put('publications', { ...get('publications', p.id), ...r, status: r.processing ? 'processing' : 'published', ...(r.processing?{processingStartedAt:now(),nextCheckAt:''}:{}), publishedAt: r.processing ? null : now(), error: '' }); }
       catch (e) { put('publications', { ...get('publications', p.id), status: e.unknown ? 'unknown' : 'failed', error: e.message }); notification('Cần xử lý bài đăng', `${ch.name}: ${e.message}`, 'calendar'); }
