@@ -1,6 +1,17 @@
 const text=value=>String(value||'').replace(/<br\s*\/?\s*>|<\/p>/gi,'\n').replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
 const bskyUrl=post=>`https://bsky.app/profile/${encodeURIComponent(post.author?.handle||post.author?.did)}/post/${encodeURIComponent(post.uri.split('/').pop())}`;
 export async function syncSocialComments(channel,state,request,upsert){
+ if(channel.provider==='tumblr'){
+  const {extraToken}=await import('./social-extra.mjs'),token=await extraToken(channel,request),headers={Authorization:'Bearer '+token};
+  const data=await request(`https://api.tumblr.com/v2/blog/${encodeURIComponent(channel.accountId)}/notifications?rollups=false&types%5B%5D=reply`,{headers});
+  if(!Array.isArray(data.response?.notifications))throw Error('Tumblr chưa trả danh sách bình luận.');
+  for(const n of data.response.notifications){
+   if(n.type!=='reply'||!n.id||!n.target_post_id||!n.from_tumblelog_name)continue;
+   const timestamp=new Date(n.timestamp*1000).toISOString(),url=`https://www.tumblr.com/${encodeURIComponent(channel.accountId)}/${encodeURIComponent(n.target_post_id)}`;
+   upsert(channel,{id:String(n.id),text:n.reply_text||'',timestamp,from:{id:n.from_tumblelog_name,name:n.from_tumblelog_name,profileUrl:`https://www.tumblr.com/${encodeURIComponent(n.from_tumblelog_name)}`},parent:{id:String(n.target_post_id)},permalink:url},{id:String(n.target_post_id),text:'Bài viết Tumblr',permalink:url},Date.parse(timestamp)>=Date.parse(state.startedAt||new Date().toISOString()));
+  }
+  return;
+ }
  const live=timestamp=>state.completedAt?Date.parse(timestamp)>=Date.now()-3600000:Date.parse(timestamp)>=Date.parse(state.startedAt||'');
  if(channel.provider==='mastodon'){
   const posts=await request(`https://mastodon.social/api/v1/accounts/${encodeURIComponent(channel.accountId)}/statuses?limit=20&exclude_replies=true&exclude_reblogs=true`);

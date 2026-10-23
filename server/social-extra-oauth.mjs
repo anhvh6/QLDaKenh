@@ -2,7 +2,7 @@ import {secret,saveSecret} from './store.mjs';
 import {extraProfile} from './social-extra.mjs';
 
 export const extraOAuthRequirements={reddit:['REDDIT_CLIENT_ID','REDDIT_CLIENT_SECRET'],tumblr:['TUMBLR_CLIENT_ID','TUMBLR_CLIENT_SECRET'],mastodon:[]};
-const scopes='read:accounts write:statuses write:favourites';
+const scopes='read:accounts read:statuses read:conversations write:statuses write:favourites';
 const env=name=>{if(!process.env[name])throw new Error(`Chưa cấu hình ${name}.`);return process.env[name];};
 const formRequest=body=>({method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'QLDaKenh/2.1 (social account integration)'},body:new URLSearchParams(body)});
 export function extraAuthorization(c,state,redirect,remote){

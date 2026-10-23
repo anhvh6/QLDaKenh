@@ -2,6 +2,7 @@ import {socialOperations,socialOperationLabels} from '../public/social-capabilit
 import {get,put,secret,now,audit,db} from './store.mjs';
 import {remote,refreshedToken} from './connectors.mjs';
 import {extraProfile} from './social-extra.mjs';
+import {socialChatRequest} from './social-chat.mjs';
 import {blueskyInteraction} from './social-replies.mjs';
 import {permission,fail} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
@@ -29,6 +30,7 @@ export async function checkSocialHealth(c,request=remote){
   throw new Error('Chưa có phép kiểm tra hồ sơ cho cổng này.');
  });
  if(checks[0]?.status==='ok'){
+  if(['mastodon','bluesky'].includes(c.provider))await probe('chat',()=>socialChatRequest(c,'GET',c.provider==='mastodon'?'conversations?limit=1':'chat.bsky.convo.listConvos?limit=1',null,request));
   if(c.provider==='tiktok'){
    await probe('publish',async()=>{
     const r=await request('https://open.tiktokapis.com/v2/post/publish/creator_info/query/',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}'});

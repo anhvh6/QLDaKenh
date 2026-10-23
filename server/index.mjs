@@ -1,4 +1,5 @@
 import {socialHealthRoute} from './social-health.mjs';
+import {socialChatTick} from './social-chat.mjs';
 import {describeMetaWebhook,channelWebhookSummary} from './meta-webhook-diagnostics.mjs';
 import {addressCatalog,resolveOrderAddress,validateOrderAddress} from './order-address.mjs';
 import {planProducts} from './product-catalog.mjs';
@@ -296,6 +297,7 @@ setInterval(() => resumePurges().catch(e => console.error('Customer purge:', e.m
 recoverCopyJobs(); setInterval(copyTick, 2000).unref();
 
 void facebookChatTick(); setInterval(() => void facebookChatTick(), 10000).unref();
+void socialChatTick(); setInterval(() => void socialChatTick(), 10000).unref();
 
 recoverCustomerReminders();setInterval(() => void customerReminderTick().catch(e=>console.error('Customer reminders:',e.message)), 5000).unref();
 

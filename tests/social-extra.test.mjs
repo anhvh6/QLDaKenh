@@ -15,7 +15,7 @@ const req={headers:{host:'127.0.0.1:4317'}};
 test('new OAuth gateways use official hosts and scoped state',async()=>{
  const original=global.fetch;
  try{
-  global.fetch=async(url,options)=>{assert.equal(String(url),'https://mastodon.social/api/v1/apps');assert.equal(options.body.get('scopes'),'read:accounts write:statuses write:favourites');return Response.json({client_id:'mastodon-client',client_secret:'mastodon-secret'});};
+  global.fetch=async(url,options)=>{assert.equal(String(url),'https://mastodon.social/api/v1/apps');assert.equal(options.body.get('scopes'),'read:accounts read:statuses read:conversations write:statuses write:favourites');return Response.json({client_id:'mastodon-client',client_secret:'mastodon-secret'});};
   for(const [provider,host] of [['reddit','www.reddit.com'],['tumblr','www.tumblr.com'],['mastodon','mastodon.social']]){
    const result=await startOAuth({id:'owner'},{id:`pending-${provider}`,provider},req),url=new URL(result.url);
    assert.equal(url.hostname,host);assert.equal(get('oauth_states',url.searchParams.get('state')).connectionId,`pending-${provider}`);
@@ -69,3 +69,4 @@ test('profile importer uses active owner, stays pending, and is idempotent',()=>
  assert.equal(run(false)[0].status,'would_add');assert.equal(run(true)[0].status,'added_pending');assert.equal(run(true)[0].status,'existing');
  const channels=all('connections').filter(c=>c.profileUrl==='https://mastodon.social/@demo');assert.equal(channels.length,1);assert.equal(channels[0].status,'configured');assert.equal(channels[0].expectedAccount,'demo@mastodon.social');
 });
+

@@ -214,6 +214,7 @@ export async function deleteComment(c, externalCommentId) {
   const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(externalCommentId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });if(result!==true&&result.success!==true)throw Object.assign(Error(`${c.provider === 'instagram' ? 'Instagram' : 'Facebook'} chưa xác nhận xóa bình luận.`),{unknown:true});return result;
 }
 export async function sendMessage(c, conv, text, options = {}) {
+  if(conv.kind!=='comment'&&['mastodon','bluesky'].includes(c.provider))return (await import('./social-chat.mjs')).sendSocialChat(c,conv,text,options,remote);
   if(conv.kind==='comment'&&['youtube','x','mastodon','bluesky'].includes(c.provider))return replySocial(c,conv,text,options,remote,refreshedToken);
   if (c.provider === 'zalo_personal') {
     if (!conv.externalUserId) throw new Error('Thiếu người nhận Zalo.');

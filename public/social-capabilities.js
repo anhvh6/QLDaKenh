@@ -6,9 +6,9 @@ export const socialOperations={
  youtube:{publish:true,comments:true,reply:true},
  x:{publish:true,comments:true,reply:true},
  blogger:{publish:true,comments:true},devto:{publish:true,comments:true},
- mastodon:{publish:true,comments:true,reply:true,like:true},
- bluesky:{publish:true,comments:true,reply:true,like:true,share:true},
- tumblr:{publish:true},reddit:{publish:true},
+ mastodon:{publish:true,chat:true,comments:true,reply:true,like:true},
+ bluesky:{publish:true,chat:true,comments:true,reply:true,like:true,share:true},
+ tumblr:{publish:true,comments:true},reddit:{publish:true},
  tiktok:{publish:true},
  zalo:{chat:true},zalo_personal:{chat:true}
 };
