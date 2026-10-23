@@ -54,3 +54,14 @@ Không lấy benchmark cục bộ làm cam kết thời gian tải trên mạng 
 - node scripts/benchmark-pages.mjs — server QA riêng, không có dữ liệu thật, 15 route trên PC và Fold; kiểm tra endpoint owner/nhân viên, số liệu từ bảng, lỗi JS và tràn ngang.
 
 Báo cáo JSON lưu trong test-results/overview-performance (không đưa cookie hoặc dữ liệu thật lên Git).
+
+
+## Compact dashboard response (2026-10-23)
+
+`/api/state?view=dashboard` now takes a dedicated early return. It reads the numeric aggregate and the materialized learner result, four recent content summaries, and publishing/reminder events for yesterday through tomorrow. It does not construct shipping/POS, bot, media-usage or full chat snapshots. Private details are not persisted in an additional cache; existing short-lived authorized state caching still applies. Calendar range/content lookup indexes are created in SQLite at startup; no Supabase migration is needed.
+
+Dashboard navigation loads full authorized workspace data before opening a content editor; other routes show a loading state until their snapshot is ready. Chat notification badges retain the background aggregate unread count. Numeric aggregates refresh at most once per minute for ordinary data writes; permission/care-scope changes invalidate restricted-user results and trigger a refresh. Missing aggregates display a pending state rather than false zero counts. Administrators can continue seeing the last successful numeric result while it refreshes.
+
+The authenticated first state response is sufficient to open the workspace: it no longer waits for a second bootstrap request. Learner numbers render independently from slow system-health metrics. Request errors retain HTTP status for backward-compatible 404 handling.
+
+Validation: `node scripts/test-dashboard-light.mjs` seeds 5,000 historical content/publication pairs and 500 customers in an isolated database. One local run measured a 11,287,830-byte workspace response versus a 7,664-byte dashboard response (183 ms versus 20 ms). Fresh browser pages at phone/Fold/landscape/desktop sizes became usable in 166–309 ms. These are local QA results, not production WAN timings. Tests delay system metrics and verify that no workspace/bootstrap/Supabase source request blocks the dashboard, and that editing retrieves the complete caption first.

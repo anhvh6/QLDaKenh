@@ -6,3 +6,5 @@ test('background page keys ignore notifications and sync metadata but detect vis
  next.contents[0].title='Changed';for(const route of ['dashboard','content'])assert.notEqual(pageDataKey(route,source),pageDataKey(route,next));
  next.contents=source.contents;next.conversations[0].lastMessage='New customer message';assert.equal(pageDataKey('content',source),pageDataKey('content',next));assert.notEqual(pageDataKey('dashboard',source),pageDataKey('dashboard',next));
 });
+
+test('dashboard repaint detects independently refreshed aggregate values',()=>{const a={dashboardCounts:{messages:1}},b={dashboardCounts:{messages:2}};assert.notEqual(pageDataKey('dashboard',a),pageDataKey('dashboard',b));assert.equal(pageDataKey('content',a),pageDataKey('content',b));});

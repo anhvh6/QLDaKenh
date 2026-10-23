@@ -1,3 +1,4 @@
+import {dashboardSnapshot} from './dashboard-snapshot.mjs';
 import {createAggregateStore} from './overview-cache.mjs';
 import {refreshLearnerOverview} from './overview-worker.mjs';
 import {refreshDashboardCounts,dashboardRevision} from './dashboard-aggregate.mjs';
@@ -126,9 +127,10 @@ async function dispatch(req, res, url, user, input) {
   if (path === '/api/state' && method === 'GET') {
     const snapshotView=['dashboard','inbox','workspace'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
     const users = db.prepare('SELECT id,name,email,role,active FROM users').all();
-    const revision = createHash('sha256').update(stateRevision() + ':' + (overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
+    const revision = createHash('sha256').update(stateRevision() + ':' + (overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + (snapshotView==='dashboard'?overviewAggregates.read('learners:v1')?.updatedAt||0:0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user };
+    if(snapshotView==='dashboard')return stateCache.set(cacheKey,revision,dashboardSnapshot(user,{aggregates:overviewAggregates,revision,providers,sourceRevision:dashboardRevision()}));
     // Learner status synchronization is scheduled independently of page visits.
     const state = { user, reminderDefaults: get('settings','chat-reminder-defaults-'+user.id) || null, chatFilters: get('settings','chat-filter-'+user.id)?.filters || null, providers, oauthConfiguration: oauthConfiguration(req), snapshotRevision: revision, snapshotView }; for (const k of [...domain.kinds, ...care.extraKinds]) { if (['settings'].includes(k)) continue; state[k] = k==='messages'&&snapshotView!=='full'?(snapshotView==='dashboard'?dashboardMessages():[]):all(k); }
     Object.assign(state,snapshotView==='inbox'?{copyPlanCalendar:[],copyPlanSummaries:[]}:copyStateSummary(user.id,all));
