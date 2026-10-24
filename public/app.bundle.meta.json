@@ -1,5 +1,5 @@
 {
-  "version": "a11e7da28b6d",
+  "version": "d824b38e1722",
   "compiler": "0.25.12",
   "files": {
     "public/media-cover.js": "add015c3574543451301d8ccd0e2544abcb92f55b641a847a0d3f20998cf66cc",
@@ -64,8 +64,8 @@
     "public/copy-plan-selection.js": "eedfc31ddb0ea23c5c0de4ac7c77dc44245d46d9518ed61fe3b114da7133c538",
     "public/copy-job-table.js": "f450fc8f8b177329e17443d198961a4d860f079199bfac3ce506bdf653fb2c32",
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
-    "public/copy-automation.js": "4e7a8817b2a4aac10191edf2e82a655f5d7edac9f70e6a9d7c49e4ac991fe497",
-    "public/social-copy.js": "5733706b5443f44a2b9f553bdcc2b2c669bd6dbce7cff19b7035764f75601f7d",
+    "public/copy-automation.js": "9284a87291eff7c9c7e32d729598c55c4a6197e81e1cbce0f976270925199983",
+    "public/social-copy.js": "9a30f8a5a36163dc63757285671c8d20aebf8a5fb8a0b521f85f424299d4eed7",
     "public/group-learner.js": "b05abac67afcab33565401e14e1d5b6c0fdd8f132b49584a83cf376c05d34ab3",
     "public/student-care.js": "0add02bb57c381d66e24c6e2d33223951d66d1fce3bd32ca0db67636cae879f5",
     "public/student-care-settings.js": "eb49cec69a149ab2faf4d82cb5d48ca2825bb59ff18d88978ee48ab1b3c1785c",
@@ -107,7 +107,7 @@
     "public/inbox.js": "280fc736dd9432a9c8f4a81ec000e752827954431e4f603e6e0478ff95fecbea",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "ce7ad312bd29ff20ff24eb62ac2634d16e88d77a24f86150b3d706a89bcd2393",
-    "public/app.bundle.js": "a11e7da28b6d1fed4e366ad00381d57f5ec5791c8df6cd26ae6191a1dee73898"
+    "public/app.js": "8c2d52399d41ae9b06ae0f378ca14350007ded953cb10d3fa7faba541bdd81df",
+    "public/app.bundle.js": "d824b38e17228d3fa26e5beca5f8578b20c2490f66aacaf2db7035729a7fdc97"
   }
 }

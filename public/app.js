@@ -33,7 +33,7 @@ import {initPancakePOS,pancakeSettingsPage} from './pancake-pos.js';
 import {commentContextHTML} from './comment-detail.js';
 import { reconcileMessageNodes } from './chat-message-sync.js';
 import { requestJSON } from './api-response.js';
-import { initCopy, copyPage, openDriveSettings, enhanceCopy, captureCopyScroll, restoreCopyScroll } from './social-copy.js';
+import { initCopy, copyPage, copyModeTabs, openDriveSettings, enhanceCopy, captureCopyScroll, restoreCopyScroll } from './social-copy.js';
 import { studentCareSettingsPage, initStudentCareSettings } from './student-care-settings.js';
 import { initQuickReplies, quickRepliesPage } from './quick-replies.js';
 import { initProductsManagement, productsManagementPage } from './products-management.js';
@@ -240,7 +240,7 @@ function libraryResults(items){if(innerWidth>600)return `<div class="content-gri
 function contentPage() {
  const driveIcon='<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#0f9d58" d="M8 2h8L8 16H0z"/><path fill="#f4b400" d="m16 2 8 14h-8L8 2z"/><path fill="#4285f4" d="M0 16h24l-4 7H4z"/></svg>';
  const header=`<div class="publishing-page-head library-page-head"><div class="library-header-actions"><button type="button" data-copy-action="folders" aria-label="Từ Google Drive" title="Từ Google Drive">${driveIcon}</button><button type="button" data-action="new-content" aria-label="Tạo bài viết" title="Tạo bài viết">${icon('plus',23)}</button><button type="button" data-action="filter" data-id="${filter==='copy'?'all':'copy'}" aria-label="${filter==='copy'?'Về danh sách nội dung':'Sao chép'}" title="${filter==='copy'?'Về danh sách nội dung':'Sao chép'}">${icon(filter==='copy'?'left':'copy',21)}</button>${filter==='copy'?'':`<button type="button" class="library-mobile-search" data-action="library-search" aria-label="Tìm nội dung" title="Tìm nội dung" aria-expanded="${librarySearchOpen}">${icon('search',19)}</button>`}</div></div>`;
- if(filter==='copy')return header+copyPage();
+ if(filter==='copy')return `<div class="copy-page-toolbar">${header}${copyModeTabs()}</div>`+copyPage();
  filter='all';
  const key=JSON.stringify({...contentLibraryFilters,query});if(key!==contentLibraryKey){contentLibraryKey=key;contentLibraryPage=0;}
  const items=contentGroups(S.contents.filter(libraryContentMatches)).flatMap(g=>g.items),result=libraryPage(items,contentLibraryPage,libraryColumns);contentLibraryPage=result.page;

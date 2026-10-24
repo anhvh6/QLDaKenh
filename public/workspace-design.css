@@ -1016,6 +1016,15 @@ table .btn {
 .published-destinations { display: grid; gap: 10px; }
 .published-destinations > a,.published-destinations > div { display: flex; align-items: center; gap: 10px; padding: 12px; color: var(--primary); text-decoration: none; border-bottom: 1px solid var(--line); }
 .published-destinations > a:hover { background: #edf5f0; }
+.copy-page-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 16px; }
+.copy-page-toolbar .library-page-head,.copy-page-toolbar .copy-mode-tabs { margin: 0; width: auto; flex: 0 0 auto; }
+.copy-page-toolbar .copy-mode-tabs { display: flex; gap: 12px; padding: 0; flex-wrap: wrap; }
+.copy-page-toolbar .copy-mode-tabs button { flex: 0 0 auto; min-width: 0; padding: 6px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); font-size: 13px; }
+.copy-page-toolbar .copy-mode-tabs button[aria-selected=true] { color: var(--primary); box-shadow: inset 0 -2px var(--primary); font-weight: 650; }
+.auto-campaign-title,#auto-plan-rows .auto-section-head h3 { display: flex; align-items: center; gap: 6px; }
+.auto-heading-icon { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--primary); cursor: pointer; }
+.auto-heading-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+@media(max-width:600px){.copy-page-toolbar{gap:8px;}.copy-page-toolbar .library-header-actions button{width:28px;}.copy-page-toolbar .copy-mode-tabs{gap:10px;}.copy-page-toolbar .copy-mode-tabs button{font-size:12px;}}
 .card-cover[data-action="open-published-content"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 @media(max-width:600px){
   .library-list-toolbar { gap: 8px; margin-top: 0; }

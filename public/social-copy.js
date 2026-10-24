@@ -24,7 +24,8 @@ async function waitImport(jobId,contentId){while(document.querySelector('#drive-
 const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={queued:'Chờ tải',downloading:'Đang tải bài gốc',uploading:'Đang lưu Google Drive',done:'Hoàn tất',failed:'Lỗi'};
 const button=(text,action,id='',primary=false)=>`<button type="button" class="btn ${primary?'primary':''}" data-copy-action="${action}" data-id="${e(id)}">${text}</button>`;
-export function copyPage(){return automationTabs()+(automationMode()==='manual'?manualCopyPage():'<div id="copy-auto-body">'+automationPage()+'</div>');}
+export const copyModeTabs=()=>automationTabs();
+export function copyPage(){return (automationMode()==='manual'?manualCopyPage():'<div id="copy-auto-body">'+automationPage()+'</div>');}
 function manualCopyPage(){return `<section class="panel"><div class="panel-body"><h2>Sao chép bài viết</h2><p class="help-text">Dán link bài viết để xem nội dung và media. Khi Reup: kênh có tiêu đề riêng dùng dòng đầu làm tiêu đề, phần còn lại làm nội dung; kênh chỉ có caption giữ toàn bộ bài viết.</p><form id="copy-preview-form" class="row"><input class="input" name="url" type="url" required placeholder="https://www.facebook.com/… hoặc TikTok, Instagram, YouTube…" aria-label="Link bài viết cần Reup" value="${e(sourceInput||post?.url)}"><button class="btn primary" ${busy?'disabled':''}>${busy?'Đang xem trước…':'Xem trước'}</button></form><div id="copy-preview">${preview()}</div></div></section><section class="panel" style="margin-top:20px"><div class="panel-body"><h2>Các bài đã tải</h2>${jobControls({...jobView,connectedPlatforms:connectedPlatforms()})}<div id="copy-jobs">${jobRows()}</div></div></section>`;}
 function preview(){
  if(!post)return '';
