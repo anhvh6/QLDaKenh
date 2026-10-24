@@ -66,7 +66,7 @@ export async function publishExtra(c,p,remote){
  if(c.provider==='mastodon'){
   if(Array.from(text).length>500)throw new Error('Mastodon: nội dung vượt 500 ký tự.');
   r=await remote('https://mastodon.social/api/v1/statuses',{...post({status:text,...(media?{media_ids:media}:{}),visibility:p.visibility==='private'?'private':'public'},token),headers:{...post({},token).headers,...(p.id?{'Idempotency-Key':String(p.id)}:{})}});
-  if(!r.id)throw new Error('Mastodon chưa trả mã bài viết.');return {externalId:String(r.id),url:r.url};
+  if(!r.id)throw Object.assign(new Error('Mastodon chưa trả mã bài viết; cần đối soát trước khi thử lại.'),{unknown:true});return {externalId:String(r.id),url:r.url};
  }
  if(c.provider==='bluesky'){
   if([...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text)].length>300)throw new Error('Bluesky: nội dung vượt 300 ký tự.');

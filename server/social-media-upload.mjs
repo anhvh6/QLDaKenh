@@ -1,3 +1,4 @@
+import {mediaStageRequest} from './media-stage-request.mjs';
 import {hashtags,tumblrCaption} from '../public/platform-text-rules.js';
 import {openAsBlob,statSync} from 'node:fs';
 import {basename,join} from 'node:path';
@@ -13,6 +14,7 @@ export async function socialMediaBlob(p){
  return {blob:await openAsBlob(path,{type:mime}),name:basename(path),mime,size};
 }
 export async function uploadSocialMedia(c,p,token,request){
+ const originalRequest=request;request=(url,options)=>mediaStageRequest(originalRequest,url,options);
  const file=await socialMediaBlob(p),headers={Authorization:'Bearer '+token};
  if(c.provider==='bluesky'){
   if(p.type==='image'&&file.size>1000000)throw Error('Bluesky: ảnh cần không quá 1 MB.');
@@ -25,7 +27,7 @@ export async function uploadSocialMedia(c,p,token,request){
    if(!grant.token)throw Error('Bluesky chưa cấp quyền xử lý video.');
    let job=await request('https://video.bsky.app/xrpc/app.bsky.video.uploadVideo?'+new URLSearchParams({did:c.accountId,name:file.name}),{method:'POST',headers:{Authorization:'Bearer '+grant.token,'Content-Type':file.mime},body:file.blob,signal:AbortSignal.timeout(600000)});job=job.jobStatus||job;
    for(let i=0;!job.blob&&i<90;i++){
-    if(job.state==='JOB_STATE_FAILED'||job.error)throw Error('Bluesky xử lý video thất bại: '+(job.message||job.error));
+    if(job.state==='JOB_STATE_FAILED'||job.error&&job.error!=='already_exists')throw Error('Bluesky xử lý video thất bại: '+(job.message||job.error));
     if(!job.jobId)throw Error('Bluesky chưa trả mã xử lý video.');
     await new Promise(resolve=>setTimeout(resolve,2000));
     const r=await request('https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?'+new URLSearchParams({jobId:job.jobId}));job=r.jobStatus||r;

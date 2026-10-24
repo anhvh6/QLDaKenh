@@ -5,7 +5,7 @@ import {tiktokPublishBlock,tiktokProviderMessage} from './tiktok-publish-policy.
 import {extraProviders,isExtra,extraProfile,publishExtra} from './social-extra.mjs';
 import {sendCommentPrivateReply} from './comment-private.mjs';
 import {facebookMessageMedia} from './facebook-media.mjs';
-import { createReadStream, statSync } from 'node:fs';
+import { createReadStream, statSync, openAsBlob } from 'node:fs';
 import { basename, join } from 'node:path';
 import { secret, get, saveSecret, dataDir } from './store.mjs';
 import { publicMediaUrl } from './public-media.mjs';
@@ -42,7 +42,7 @@ export async function remote(url, options = {}) {
           ? 'Threads từ chối quyền API. Kiểm tra quyền của thao tác trong Meta App Dashboard và kết nối lại Threads (đọc bình luận: threads_read_replies; quản lý trả lời: threads_manage_replies; xóa bài: threads_delete).'
           : rawMessage);
     const details = [message, error.code != null ? `code ${error.code}` : '', error.error_subcode != null ? `subcode ${error.error_subcode}` : '', error.error_user_msg || '', error.fbtrace_id ? `trace ${error.fbtrace_id}` : ''].filter(Boolean);
-    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, providerCode: error.code, providerSubcode: error.error_subcode, retryable:readOnly&&(res.status===429||res.status>=500||error.is_transient===true) });
+    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, unknown:!readOnly&&res.status>=500, providerCode: error.code ?? (typeof data.error==='string'?data.error:undefined), providerData:data, providerSubcode: error.error_subcode, retryable:readOnly&&(res.status===429||res.status>=500||error.is_transient===true) });
   }
   return data;
 }
@@ -121,8 +121,17 @@ export async function publish(c, p) {
   if (c.provider === 'x') { r = await remote('https://api.x.com/2/tweets', json({ text: p.caption }, await refreshedToken(c))); return { externalId: r.data.id, url: `https://x.com/i/web/status/${r.data.id}` }; }
   if (c.provider === 'facebook') {
     const base = `https://graph.facebook.com/${graphVersion(c)}/${id}`;
-      if (p.type !== 'text' && !p.mediaItems?.length) await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
+      if (p.type !== 'text' && !p.mediaItems?.length && !(p.type==='video'&&p.assets?.length)) await assertPublicMediaURL(validMediaURL(p.mediaUrl), p.type);
     if (p.mediaItems?.length > 1) { const attached = []; for (const item of p.mediaItems) { const photo = await remote(base + '/photos', json({ url: validMediaURL(item.url), published: false }, s.token)); attached.push({ media_fbid: photo.id }); } r = await remote(base + '/feed', json({ message: p.caption, attached_media: attached }, s.token)); return { externalId: r.id, url: 'https://facebook.com/' + r.id }; }
+    if(p.type==='video'&&p.assets?.length){
+      const asset=publicationAsset(p,'video'),file=assetFile(asset),form=new FormData();
+      // UTF-8 byte cap also covers providers deriving an internal filename from title.
+      let title='';for(const character of String(p.title||'Video')){if(Buffer.byteLength(title+character)>240)break;title+=character;}
+      form.set('title',title);form.set('description',String(p.caption||''));form.set('source',await openAsBlob(file.path,{type:file.mime}),'video'+(file.mime==='video/webm'?'.webm':file.mime==='video/quicktime'?'.mov':'.mp4'));
+      r=await remote(base+'/videos',{method:'POST',headers:{Authorization:'Bearer '+s.token},body:form,signal:AbortSignal.timeout(30*60*1000)});
+      if(!r.id&&!r.post_id)throw Object.assign(Error('Facebook chưa trả mã video; cần đối soát trước khi thử lại.'),{unknown:true});
+      return {externalId:r.post_id||r.id,url:'https://facebook.com/'+(r.post_id||r.id)};
+    }
     const body = p.type === 'image' ? { url: validMediaURL(p.mediaUrl), caption: p.caption } : p.type === 'video' ? { file_url: validMediaURL(p.mediaUrl), description: p.caption, title: p.title } : { message: p.caption };
     r = await remote(`${base}/${p.type === 'image' ? 'photos' : p.type === 'video' ? 'videos' : 'feed'}`, json(body, s.token));
     return { externalId: r.post_id || r.id, url: `https://facebook.com/${r.post_id || r.id}` };
