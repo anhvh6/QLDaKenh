@@ -1,5 +1,5 @@
 {
-  "version": "8e87e4b0ce8b",
+  "version": "b484912ea117",
   "compiler": "0.25.12",
   "files": {
     "public/media-cover.js": "add015c3574543451301d8ccd0e2544abcb92f55b641a847a0d3f20998cf66cc",
@@ -110,7 +110,7 @@
     "public/inbox.js": "280fc736dd9432a9c8f4a81ec000e752827954431e4f603e6e0478ff95fecbea",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "d7e83c4240fd693031e5be0695d3e7343b5f43f24e0b30c437ae74143c68ca79",
-    "public/app.bundle.js": "8e87e4b0ce8bd417033976c4f2db98b53bc25ef96f46f39fc6fe50a100ea06be"
+    "public/app.js": "9cb7aa168363b3124581c36e14a10b0fe709b9a96dc47a1aa81db5f9ffd6326c",
+    "public/app.bundle.js": "b484912ea1176c84cc7250bce5f80ebd1cf4b30a25d94377e4b51c6148ea0dff"
   }
 }

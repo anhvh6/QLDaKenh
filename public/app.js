@@ -199,11 +199,11 @@ function stat(label, value, ic, foot) { return `<div class="stat"><div class="st
 function publicationWarning(p){const ch=find('connections',p.connectionId),issues=platformTextIssues(ch?.provider,p);return (p.status==='scheduled'||p.textRuleBlocked)&&issues.length?`<button type="button" class="btn small publication-warning" data-action="publication" data-id="${e(p.id)}" title="${e(issues.map(i=>i.message).join(' '))}" style="color:#92400e;background:#fffbeb;white-space:normal;text-align:left">⚠ ${e(connectionName(ch))}: ${e(issues.map(i=>i.message).join(' '))} · Sửa riêng kênh</button>`:'';}
 function queuedAlerts(c){return S.publications.filter(p=>p.contentId===c.id&&p.status==='scheduled').map(publicationWarning).join('');}
 let contentLibraryFilters={...defaultLibraryDates(),statuses:null,providers:null},contentLibraryPage=0,contentLibraryKey='';
-const contentLibraryColumns=()=>innerWidth<=600?6:innerWidth<=980?2:4;
+const contentLibraryColumns=()=>6;
 let librarySearchOpen=false;
-let libraryColumns=contentLibraryColumns(),libraryHistorySort={key:'time',direction:-1};
+let libraryMobile=innerWidth<=600,libraryColumns=contentLibraryColumns(),libraryHistorySort={key:'time',direction:-1};
 initLibraryDatePicker(()=>contentLibraryFilters);
-window.addEventListener('resize',()=>{const next=contentLibraryColumns();if(next!==libraryColumns){libraryColumns=next;if(S&&route==='content'&&filter!=='copy')render();}});
+window.addEventListener('resize',()=>{const next=contentLibraryColumns(),mobile=innerWidth<=600;if(next!==libraryColumns||mobile!==libraryMobile){libraryColumns=next;libraryMobile=mobile;if(S&&route==='content'&&filter!=='copy')render();}});
 function contentCard(c) {
  const schedule=c.scheduleAt?date(c.scheduleAt)+' · '+time(c.scheduleAt):'Chưa lên lịch';
  const publishedCover=contentStatus(c)==='published'?` data-action="open-published-content" data-id="${e(c.id)}" role="link" tabindex="0" aria-label="Mở bài đã đăng"`:'';
