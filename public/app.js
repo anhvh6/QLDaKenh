@@ -1,3 +1,4 @@
+import {createNotificationFeed} from './notification-feed.js';
 import {mediaCover,mediaPreview,setMediaThumbnailSupport} from './media-cover.js';
 import {calendarEvents,calendarDayKey,calendarDayPreview} from './calendar-model.js';
 import {operationalReportTotals} from './report-model.js';
@@ -756,13 +757,14 @@ document.addEventListener('click', async event => {
     if (action === 'toggle-user') { const u = S.users.find(u => u.id === id); await api(`/users/${id}`, { method: 'PATCH', body: { active: !u.active } }); await refresh(); toast('Đã cập nhật quyền đăng nhập.'); return; }
     if (action === 'password') { modal('Đổi mật khẩu', `<form id="password-form"><div class="form-error"></div>${field('Mật khẩu hiện tại', 'current', '', 'password', 'required autocomplete="current-password"')}${field('Mật khẩu mới (ít nhất 10 ký tự)', 'password', '', 'password', 'required minlength="10" autocomplete="new-password"')}</form>`, formFooter('Đổi mật khẩu', 'password-form')); return; }
     if (action === 'logout') { await disableDeviceNotifications(); await api('/logout', { method: 'POST', body: {} }); S = null; await boot(); return; }
-    if (action === 'notifications') { S.notifications = await api('/notifications'); modal('Thông báo', `<div class="notification-list">${S.notifications.map(n => `<article class="notification-item ${n.route || n.conversationId ? 'clickable' : ''}" ${n.route || n.conversationId ? `data-action="open-notification" data-notification-route="${e(n.route || 'dashboard')}" data-conv="${e(n.conversationId || '')}"` : ''}><div class="row between"><h3>${e(n.title)}</h3>${n.read ? '' : '<span class="tag">Mới</span>'}</div><p>${e(n.body)}</p><small class="muted">${date(n.createdAt)} ${time(n.createdAt)}</small></article>`).join('') || empty('Không có thông báo', 'Các nhắc việc quan trọng sẽ xuất hiện ở đây.')}</div>`, btn('Đánh dấu đã đọc', 'read-notifications', 'check', 'primary') + '<button class="btn" data-device-notifications="settings">Cài đặt thông báo thiết bị</button>'); return; }
+    if (action === 'retry-notifications') { openNotifications(); return; }
+    if (action === 'notifications') { openNotifications(); return; }
     if (action === 'open-notification') { closeModal();target.closest('.toast')?.remove();filter='all';query='';commentChannels=null; const conv = target.dataset.conv; if (conv) { selectedConversation = conv; route = S.conversations.find(c => c.id === conv)?.kind === 'comment' ? 'comments' : 'inbox'; } else route = target.dataset.notificationRoute || 'dashboard'; location.hash = route; render(); return; }
-    if (action === 'read-notifications') { await api('/notifications/read', { method: 'POST', body: {} }); closeModal(); await refresh(); return; }
+    if (action === 'read-notifications') { await notificationFeed.markRead(); paintNotifications(); return; }
     if (action === 'backup') { target.disabled = true; const r = await api('/backup', { method: 'POST', body: {} }); modal('Đã tạo bản sao database', `<p class="small">${e(r.name)}</p><p class="help-text" style="margin-top:15px">${e(r.note)}</p>`); return; }
     if (action === 'export') { const res = await fetch('/api/export'); if (!res.ok) { const r = await res.json(); throw new Error(r.error); } const blob = await res.blob(); downloadBlob(blob, 'moc-export-' + new Date().toISOString().slice(0, 10) + '.json'); toast('Đã xuất dữ liệu không chứa khóa bí mật.'); return; }
     if (action === 'audit') { const rows = await api('/audit'); modal('Nhật ký hoạt động', rows.map(r => `<div class="audit-row"><div class="row between"><strong>${e(r.action)}</strong><span class="muted">${date(r.created_at)} ${time(r.created_at)}</span></div><p class="muted">${e(S.users.find(u => u.id === r.actor)?.name || r.actor)} · ${e(r.entity)}</p></div>`).join('') || empty('Chưa có hoạt động', 'Nhật ký được ghi khi bạn làm việc.')); return; }
-  } catch (err) { toast(err.message, true); } finally { target.disabled = false; }
+  } catch (err) { toast(err.message, true); } finally { target.disabled = false; paintNotifications(); }
 });
 function downloadBlob(blob, name) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
 document.addEventListener('keydown',event=>{const cover=event.target.closest('.card-cover[data-action="open-published-content"]');if(cover&&event.target===cover&&['Enter',' '].includes(event.key)){event.preventDefault();cover.click();}});
@@ -827,12 +829,18 @@ const loadInbox = initInbox({ get state() { return S; }, route: () => route, api
 
 initMedia({ get state() { return S; }, api, refresh, render, modal, closeModal, toast, newPost: id => { contentModal(); draftAssets = [id]; syncContentType(find('assets', id)); $('#upload-list').innerHTML = assetPreviews(); $('#preview-media').innerHTML = composerCover({ assets: draftAssets }); }, attachChat: (c, id) => { selectedConversation = c; route = 'inbox'; location.hash = 'inbox'; attachLibraryMedia(c, id); render(); } });
 initBot({ get state() { return S; }, route: () => route, api, refresh, render, modal, closeModal, toast, openConversation: id => { selectedConversation = id; route = 'inbox'; location.hash = 'inbox'; render(); } });
+const notificationFeed=createNotificationFeed({getState:()=>S,api,changed:updateChatNotifications});
+function notificationHTML(){return (S.notifications||[]).map(n=>`<article class="notification-item ${n.route||n.conversationId?'clickable':''}" ${n.route||n.conversationId?`data-action="open-notification" data-notification-route="${e(n.route||'dashboard')}" data-conv="${e(n.conversationId||'')}"`:''}><div class="row between"><h3>${e(n.title)}</h3>${n.read?'':'<span class="tag">Mới</span>'}</div><p>${e(n.body)}</p><small class="muted">${date(n.createdAt)} ${time(n.createdAt)}</small></article>`).join('')||empty('Không có thông báo','Các nhắc việc quan trọng sẽ xuất hiện ở đây.');}
+function paintNotifications(){const list=$('#notification-panel-list');if(!list)return;const html=notificationHTML();if(list.innerHTML!==html)list.innerHTML=html;const b=$('[data-action=read-notifications]');if(b)b.disabled=!(S.notifications||[]).some(n=>!n.read);}
+function openNotifications(){S.notifications=notificationFeed.reconcile(S.notifications);modal('Thông báo','<div class="notification-list" id="notification-panel-list"></div><p id="notification-panel-status" class="help-text" role="status"></p>',btn('Đánh dấu đã đọc','read-notifications','check','primary')+'<button class="btn" data-device-notifications="settings">Cài đặt thông báo thiết bị</button>');paintNotifications();const status=$('#notification-panel-status');status.textContent='Đang cập nhật…';void notificationFeed.sync({force:true}).then(()=>{if(status.isConnected)status.textContent='';}).catch(()=>{if(status.isConnected){status.innerHTML='Chưa cập nhật được. <button type="button" class="btn small" data-action="retry-notifications">Thử lại</button>';}});}
+
 boot();
 
 // Passive notification updates must never open details or replay a backlog of toasts.
 // The bell and device badge remain live; the user opens the notification list explicitly.
 function updateChatNotifications(rows) {
  if (!S?.user) return;
+ rows=notificationFeed.reconcile(rows);S.notifications=rows;paintNotifications();
  const count=rows.filter(n=>!n.read).length;
  updateDeviceBadge(count+(S.dashboardCompact?Number(S.dashboardCounts?.unreadInbox||0):S.conversations.filter(c=>c.unread&&S.notificationConversationIds?.includes(c.id)).length));
  const button=document.querySelector('[data-action=notifications]');if(!button)return;
@@ -842,8 +850,8 @@ function updateChatNotifications(rows) {
  if(!count)dot?.remove();
 }
 
-let pollingNotifications = false, notificationRevision = '', notificationRevisionUser = '', notificationRetryAt = 0, notificationFailures = 0;
-setInterval(async () => { if (!S?.user || pollingNotifications || document.hidden || Date.now() < notificationRetryAt) return; pollingNotifications = true; const userId = S.user.id; if (notificationRevisionUser !== userId) { notificationRevisionUser = userId; notificationRevision = ''; } try { const result = await api('/notifications?since=' + encodeURIComponent(notificationRevision)); if (S?.user?.id !== userId) return; notificationRevision = result.revision; notificationFailures = 0; notificationRetryAt = 0; if (!result.unchanged) { S.notifications = result.rows; updateChatNotifications(result.rows); } } catch { notificationFailures++; notificationRetryAt = Date.now() + Math.min(60000, 2000 * 2 ** Math.min(notificationFailures, 5)); } finally { pollingNotifications = false; } }, 2000);
+let pollingNotifications=false,notificationRetryAt=0,notificationFailures=0;
+setInterval(async()=>{if(!S?.user||pollingNotifications||document.hidden||Date.now()<notificationRetryAt)return;pollingNotifications=true;try{await notificationFeed.sync();notificationFailures=0;notificationRetryAt=0;}catch{notificationFailures++;notificationRetryAt=Date.now()+Math.min(60000,2000*2**Math.min(notificationFailures,5));}finally{pollingNotifications=false;}},5000);
 
 async function enhanceCommentStatus(){
  if(route!=='comments'||commentSyncLoading)return;commentSyncLoading=true;
