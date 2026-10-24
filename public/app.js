@@ -713,6 +713,12 @@ document.addEventListener('click', async event => {
   } catch (err) { toast(err.message, true); } finally { target.disabled = false; }
 });
 function downloadBlob(blob, name) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
+document.addEventListener('input',event=>{
+ const el=event.target;if(!el.matches('[data-library-date]'))return;
+ const before=el.value.slice(0,el.selectionStart).replace(/\D/g,'').length,digits=el.value.replace(/\D/g,'').slice(0,6);
+ el.value=[digits.slice(0,2),digits.slice(2,4),digits.slice(4,6)].filter(Boolean).join('/');
+ let caret=0,count=0;while(caret<el.value.length&&count<before){if(/\d/.test(el.value[caret]))count++;caret++;}el.setSelectionRange(caret,caret);el.setCustomValidity('');
+});
 document.addEventListener('change', async event => {
   const el = event.target; try {
     if(el.matches('[data-library-all],[data-library-option]')){
