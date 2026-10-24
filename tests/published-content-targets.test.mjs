@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {publishedContentTargets as targets} from '../public/published-content-targets.js';
+const channels=[{id:'fb',provider:'facebook'},{id:'ig',provider:'instagram'}];
+test('uses the exact saved successful post URLs and platform filter',()=>{const rows=[{id:'1',contentId:'c',connectionId:'fb',status:'published',url:'https://facebook.com/123/posts/456'},{id:'2',contentId:'c',connectionId:'ig',status:'manually_confirmed',url:'https://instagram.com/p/abc/'}];assert.equal(targets('c',rows,channels).length,2);assert.equal(targets('c',rows,channels,['instagram'])[0].url,'https://instagram.com/p/abc/');assert.equal(targets('other',rows,channels).length,0);});
+test('does not reuse a stale URL after a destination was removed or failed',()=>{const rows=[{contentId:'c',connectionId:'fb',status:'published',url:'https://facebook.com/old',updatedAt:'2026-10-23'},{contentId:'c',connectionId:'fb',status:'deleted_remote',updatedAt:'2026-10-24'}];assert.equal(targets('c',rows,channels).length,0);});
+test('missing or unsafe links remain missing rather than opening a homepage or script',()=>{for(const url of [undefined,'javascript:alert(1)','data:text/html,test','https://user:password@example.test/post']){const result=targets('c',[{contentId:'c',connectionId:'fb',status:'published',url}],channels);assert.equal(result[0].url,'');}});

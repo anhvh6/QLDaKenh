@@ -1013,6 +1013,10 @@ table .btn {
 .publication-icon.danger { color: #b72b45; }
 .publication-icon:hover { opacity: .7; }
 .publication-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
+.published-destinations { display: grid; gap: 10px; }
+.published-destinations > a,.published-destinations > div { display: flex; align-items: center; gap: 10px; padding: 12px; color: var(--primary); text-decoration: none; border-bottom: 1px solid var(--line); }
+.published-destinations > a:hover { background: #edf5f0; }
+.card-cover[data-action="open-published-content"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 @media(max-width:600px){
   .library-list-toolbar { gap: 8px; margin-top: 0; }
   .library-list-toolbar .library-filters { display: contents; }

@@ -19,6 +19,7 @@ import {commentChannels as availableCommentChannels,commentChannelPicker,comment
 import {composerType,formatLabels,formatHint} from './composer-format.js';
 import {contentGroups} from './content-groups.js';
 import {initLibraryDatePicker} from './library-date-picker.js';
+import {publishedContentTargets} from './published-content-targets.js';
 import {libraryStatuses,defaultLibraryDates,displayLibraryDate,parseLibraryDate,libraryMatches,libraryPage,sortLibraryHistory} from './content-library-model.js';
 import {dashboardData,dashboardDays,dashboardLabels} from './dashboard-model.js';
 import {openOrderEditor} from './order-detail-editor.js';
@@ -203,8 +204,9 @@ initLibraryDatePicker(()=>contentLibraryFilters);
 window.addEventListener('resize',()=>{const next=contentLibraryColumns();if(next!==libraryColumns){libraryColumns=next;if(S&&route==='content'&&filter!=='copy')render();}});
 function contentCard(c) {
  const schedule=c.scheduleAt?date(c.scheduleAt)+' · '+time(c.scheduleAt):'Chưa lên lịch';
- if(filter==='all')return `<article class="content-card content-card-compact" data-action="edit-content" data-id="${e(c.id)}"><div class="card-cover">${thumb(c,'card-cover')}<div class="content-cover-toolbar">${channelIcons(c.channels)}${badge(contentStatus(c))}<div class="content-cover-actions"><button type="button" data-action="edit-content" data-id="${e(c.id)}" aria-label="Sửa bài viết" title="Sửa bài viết">${icon('edit',16)}</button><button type="button" data-action="delete-content" data-id="${e(c.id)}" aria-label="Xóa bài viết" title="Xóa bài viết">${icon('trash',16)}</button></div></div>${c.scheduleAt?`<time class="content-cover-time" datetime="${e(c.scheduleAt)}">${e(schedule)}</time>`:''}</div><div class="card-info"><h3 title="${e(c.title)}">${e(c.title)}</h3>${queuedAlerts(c)}</div></article>`;
- return `<article class="content-card" data-action="edit-content" data-id="${e(c.id)}"><div class="card-cover">${thumb(c, 'card-cover')}${badge(contentStatus(c))}${c.type === 'video' ? `<span class="play-icon">${icon('play', 13)}</span>` : ''}</div><div class="card-info"><h3>${e(c.title)}</h3><div class="row between content-card-meta">${channelIcons(c.channels)}<span>${schedule}</span></div>${queuedAlerts(c)}<div class="content-card-actions"><button class="btn small" data-action="edit-content" data-id="${e(c.id)}">${icon('edit', 14)}Sửa</button><button class="btn small danger" data-action="delete-content" data-id="${e(c.id)}">${icon('close', 14)}Xóa</button></div></div></article>`;
+ const publishedCover=contentStatus(c)==='published'?` data-action="open-published-content" data-id="${e(c.id)}" role="link" tabindex="0" aria-label="Mở bài đã đăng"`:'';
+ if(filter==='all')return `<article class="content-card content-card-compact" data-action="edit-content" data-id="${e(c.id)}"><div class="card-cover"${publishedCover}>${thumb(c,'card-cover')}<div class="content-cover-toolbar">${channelIcons(c.channels)}${badge(contentStatus(c))}<div class="content-cover-actions"><button type="button" data-action="edit-content" data-id="${e(c.id)}" aria-label="Sửa bài viết" title="Sửa bài viết">${icon('edit',16)}</button><button type="button" data-action="delete-content" data-id="${e(c.id)}" aria-label="Xóa bài viết" title="Xóa bài viết">${icon('trash',16)}</button></div></div>${c.scheduleAt?`<time class="content-cover-time" datetime="${e(c.scheduleAt)}">${e(schedule)}</time>`:''}</div><div class="card-info"><h3 title="${e(c.title)}">${e(c.title)}</h3>${queuedAlerts(c)}</div></article>`;
+ return `<article class="content-card" data-action="edit-content" data-id="${e(c.id)}"><div class="card-cover"${publishedCover}>${thumb(c, 'card-cover')}${badge(contentStatus(c))}${c.type === 'video' ? `<span class="play-icon">${icon('play', 13)}</span>` : ''}</div><div class="card-info"><h3>${e(c.title)}</h3><div class="row between content-card-meta">${channelIcons(c.channels)}<span>${schedule}</span></div>${queuedAlerts(c)}<div class="content-card-actions"><button class="btn small" data-action="edit-content" data-id="${e(c.id)}">${icon('edit', 14)}Sửa</button><button class="btn small danger" data-action="delete-content" data-id="${e(c.id)}">${icon('close', 14)}Xóa</button></div></div></article>`;
 }
 function calendarCard(item,compact=false){
  const appointment=item.type==='call',action=appointment?'open-conversation':item.type==='copy'?'copy-plan-open':item.contentId?'edit-content':'publication',id=appointment?item.conversationId:item.type==='copy'?item.planId:item.contentId||item.publicationId;
@@ -536,12 +538,18 @@ document.addEventListener('submit', async event => {
 });
 
 document.addEventListener('click', async event => {
+  if(event.target.closest('.published-destinations a'))return;
   document.querySelectorAll('[data-library-picker][open]').forEach(picker=>{if(!picker.contains(event.target))picker.open=false;});
   if(event.target.closest('.channel-card a'))return;
   const libraryNav=event.target.closest('[data-action=library-page]');if(libraryNav){contentLibraryPage=Number(libraryNav.dataset.id);const y=scrollY;render();scrollTo({top:Math.min(y,document.querySelector('.library-filters')?.getBoundingClientRect().top+scrollY||0),behavior:'instant'});return;}
   const routeEl = event.target.closest('[data-route]'); if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; } const target = event.target.closest('[data-action]'); if (!target) return; event.preventDefault(); const action = target.dataset.action, id = target.dataset.id;
   if (action === 'toggle-sidebar') { if(window.matchMedia('(max-width:760px), (hover:none) and (pointer:coarse) and (max-width:1400px)').matches){document.body.classList.remove('menu-open');return;} document.body.classList.toggle('sidebar-collapsed'); localStorage.setItem('hub-sidebar-collapsed', String(document.body.classList.contains('sidebar-collapsed'))); return; }
   try {
+    if(action==='open-published-content'){
+      const targets=publishedContentTargets(id,S.publications,S.connections,contentLibraryFilters.providers);
+      if(targets.length===1&&targets[0].url){window.open(targets[0].url,'_blank','noopener,noreferrer');return;}
+      modal('Bài viết đã đăng',`<div class="published-destinations">${targets.map(({publication:p,channel:ch,url})=>url?`<a href="${e(url)}" target="_blank" rel="noopener noreferrer">${social(ch?.provider)}<span>${e(connectionName(ch))}</span>${icon('arrow',16)}</a>`:`<div>${social(ch?.provider)}<span>${e(connectionName(ch))} · Chưa có liên kết bài đã đăng</span>${publicationIcon('Chi tiết đích đăng','publication','eye','',p.id)}</div>`).join('')||'<p class="help-text">Chưa có liên kết bài đã đăng trên nền tảng. Bạn có thể kiểm tra đích đăng trong lịch sử xuất bản.</p>'}</div>`);return;
+    }
     if(action==='library-search'){librarySearchOpen=!librarySearchOpen;render();if(librarySearchOpen)document.querySelector('.library-filters input[type=search]')?.focus();return;}
     if(action==='library-history-sort'){libraryHistorySort={key:id,direction:libraryHistorySort.key===id?-libraryHistorySort.direction:1};const y=scrollY;render();scrollTo(0,y);return;}
     if(action==='channel-details'){const content=target.querySelector('template.channel-detail-template');if(content)modal(target.querySelector('h3')?.textContent||'Thông tin kênh',content.innerHTML,btn('Đóng','close-modal'));return;}
@@ -722,6 +730,7 @@ document.addEventListener('click', async event => {
   } catch (err) { toast(err.message, true); } finally { target.disabled = false; }
 });
 function downloadBlob(blob, name) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
+document.addEventListener('keydown',event=>{const cover=event.target.closest('.card-cover[data-action="open-published-content"]');if(cover&&event.target===cover&&['Enter',' '].includes(event.key)){event.preventDefault();cover.click();}});
 document.addEventListener('input',event=>{
  const el=event.target;if(!el.matches('[data-library-date]'))return;
  const before=el.value.slice(0,el.selectionStart).replace(/\D/g,'').length,digits=el.value.replace(/\D/g,'').slice(0,6);
