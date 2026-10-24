@@ -7,7 +7,7 @@ import {filterDisconnectedChats} from '../public/chat-connection-state.js';
 import {commentPresentation} from './comment-presentation.mjs';
 export const commentsRevision=()=>kindsRevision(['conversations','connections','customers','templates','quick_reply_topics','tags','assets','media_categories','notifications','teams','team_members','channel_teams','settings','staff_handoffs','chat_reminders','orders','journeys','study_plans','learner_source_facts','plan_handoffs']);
 export function commentsSnapshot(user,{revision,providers,users}={}){
- const state={user,providers,snapshotView:'comments',snapshotRevision:revision,commentsCompact:true};
+ const state={user,providers,snapshotView:'comments',snapshotRevision:revision,commentsCompact:true,contentFeatures:{snapshot:true,thumbnails:true}};
  for(const k of [...kinds,...extraKinds,'staffHandoffs','chatMentions','chatbotRuns','chatbotConversations','savedPlanSummaries','chatPlanSummaries','mediaCategories'])state[k]=[];
  for(const k of ['connections','conversations','templates','quick_reply_topics','tags','assets','notifications','teams','team_members','channel_teams'])state[k]=all(k);
  filterDeletedChats(state);filterDisconnectedChats(state);state.conversations=commentPresentation(state.conversations);

@@ -1,9 +1,11 @@
+import {storedMediaUsage} from './media-usage-store.mjs';
 import {all,get,put,audit} from './store.mjs';
 import {permission,fail,required} from './domain.mjs';
 import {assertChannel,permittedChannels} from './taophacdo.mjs';
-export function usageFor(a,messages=all('messages'),publications=all('publications')){const events=[...messages.filter(m=>m.direction==='outgoing'&&['accepted','sent','delivered'].includes(m.status)&&(m.attachments||[]).some(x=>x.assetId===a.id||x.url===a.url)),...publications.filter(p=>['published','manually_confirmed'].includes(p.status)&&(p.assets||[]).includes(a.id))];return {count:events.length,lastAt:events.map(x=>x.publishedAt||x.createdAt).sort().at(-1)||null};}
+export function usageFor(a,messages=all('messages'),publications=all('publications')){const events=[...messages.filter(m=>m.direction==='outgoing'&&['accepted','sent','delivered','read'].includes(m.status)&&(m.attachments||[]).some(x=>x.assetId===a.id||x.url===a.url)),...publications.filter(p=>['published','manually_confirmed'].includes(p.status)&&(p.assets||[]).includes(a.id))];return {count:events.length,lastAt:events.map(x=>x.publishedAt||x.createdAt).sort().at(-1)||null};}
 export function mediaReferences(id){return ['contents','publications','templates'].flatMap(kind=>all(kind).filter(r=>(r.assets||r.assetIds||[]).includes(id)||(r.blocks||[]).some(b=>(b.assetIds||[]).includes(id))).map(r=>({kind,id:r.id,name:r.name||r.title||r.id})));}
 export async function mediaRoute(path,method,input,user){
+ if(path==='/api/media/usage'&&method==='GET'){permission(user,'read');const allowed=permittedChannels(user),usage=storedMediaUsage();return {usage:all('assets').filter(a=>!a.connectionId||!allowed||allowed.has(a.connectionId)).map(a=>({id:a.id,...usage.get(a.id)}))};}
  const m=path.match(/^\/api\/media\/(assets|categories)(?:\/([^/]+))?$/);if(!m)return;
  const [,type,id]=m;permission(user,'read');const kind=type==='assets'?'assets':'media_categories',p=id?get(kind,id):null;if(id&&!p)fail('Không tìm thấy media/danh mục.',404);if(p?.connectionId)assertChannel(user,p.connectionId);
  if(method==='GET')return type==='assets'?{...p,usage:usageFor(p),references:mediaReferences(id).filter(r=>{const allowed=permittedChannels(user),record=get(r.kind,r.id);return !allowed||(!record.connectionId||allowed.has(record.connectionId))&&(record.channels||[]).every(id=>allowed.has(id));})}:all(kind);
