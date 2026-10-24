@@ -16,6 +16,8 @@ CREATE INDEX IF NOT EXISTS idx_records_kind_updated ON records(kind,updated_at);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON records(json_extract(data,'$.conversationId')) WHERE kind='messages';
 CREATE INDEX IF NOT EXISTS idx_messages_live_revision ON records(json_extract(data,'$.conversationId'),id,version) WHERE kind='messages';
 CREATE INDEX IF NOT EXISTS idx_messages_live_order ON records(json_extract(data,'$.conversationId'),json_extract(data,'$.createdAt'),id) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_messages_pinned ON records(json_extract(data,'$.conversationId')) WHERE kind='messages' AND json_extract(data,'$.pinned')=1;
+CREATE INDEX IF NOT EXISTS idx_messages_external ON records(json_extract(data,'$.conversationId'),json_extract(data,'$.externalId')) WHERE kind='messages';
 CREATE INDEX IF NOT EXISTS idx_zalo_conversation ON records(json_extract(data,'$.connectionId'),json_extract(data,'$.externalUserId'),coalesce(json_extract(data,'$.threadType'),0)) WHERE kind='conversations';
 CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,password TEXT NOT NULL,active INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),csrf TEXT NOT NULL,expires INTEGER NOT NULL);
@@ -40,6 +42,25 @@ CREATE TRIGGER IF NOT EXISTS state_revision_update AFTER UPDATE ON records WHEN 
  json_extract(NEW.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error') IS NOT json_extract(OLD.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error'))
  BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;`);
 export const stateRevision=()=>db.prepare('SELECT value FROM state_revision WHERE id=1').get().value;
+// Small invalidation counters, not another copy of private message payloads.
+db.exec(`CREATE TABLE IF NOT EXISTS kind_revision(kind TEXT PRIMARY KEY,value INTEGER NOT NULL);
+
+CREATE TRIGGER IF NOT EXISTS kind_revision_insert AFTER INSERT ON records BEGIN INSERT INTO kind_revision VALUES(NEW.kind,1) ON CONFLICT(kind) DO UPDATE SET value=value+1; END;
+CREATE TRIGGER IF NOT EXISTS kind_revision_delete AFTER DELETE ON records BEGIN INSERT INTO kind_revision VALUES(OLD.kind,1) ON CONFLICT(kind) DO UPDATE SET value=value+1; END;
+CREATE TRIGGER IF NOT EXISTS kind_revision_update AFTER UPDATE ON records WHEN NEW.kind!='connections' OR
+ json_extract(NEW.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error') IS NOT json_extract(OLD.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error')
+ BEGIN INSERT INTO kind_revision VALUES(NEW.kind,1) ON CONFLICT(kind) DO UPDATE SET value=value+1; END;
+CREATE TABLE IF NOT EXISTS chat_message_revision(conversation_id TEXT PRIMARY KEY,value INTEGER NOT NULL);
+
+CREATE TRIGGER IF NOT EXISTS chat_message_revision_insert AFTER INSERT ON records WHEN NEW.kind='messages' AND json_extract(NEW.data,'$.conversationId') IS NOT NULL BEGIN
+ INSERT INTO chat_message_revision VALUES(json_extract(NEW.data,'$.conversationId'),1) ON CONFLICT(conversation_id) DO UPDATE SET value=value+1; END;
+CREATE TRIGGER IF NOT EXISTS chat_message_revision_delete AFTER DELETE ON records WHEN OLD.kind='messages' AND json_extract(OLD.data,'$.conversationId') IS NOT NULL BEGIN
+ INSERT INTO chat_message_revision VALUES(json_extract(OLD.data,'$.conversationId'),1) ON CONFLICT(conversation_id) DO UPDATE SET value=value+1; END;
+CREATE TRIGGER IF NOT EXISTS chat_message_revision_update AFTER UPDATE ON records WHEN NEW.kind='messages' BEGIN
+ INSERT INTO chat_message_revision SELECT json_extract(NEW.data,'$.conversationId'),1 WHERE json_extract(NEW.data,'$.conversationId') IS NOT NULL ON CONFLICT(conversation_id) DO UPDATE SET value=value+1;
+ INSERT INTO chat_message_revision SELECT json_extract(OLD.data,'$.conversationId'),1 WHERE json_extract(OLD.data,'$.conversationId') IS NOT NULL AND json_extract(OLD.data,'$.conversationId') IS NOT json_extract(NEW.data,'$.conversationId') ON CONFLICT(conversation_id) DO UPDATE SET value=value+1; END;`);
+export function kindsRevision(kinds){return kinds.map(kind=>kind+':'+(db.prepare('SELECT value FROM kind_revision WHERE kind=?').get(kind)?.value||0)).join('|');}
+export const chatMessageRevision=id=>db.prepare('SELECT value FROM chat_message_revision WHERE conversation_id=?').get(id)?.value||0;
 export const uid = (prefix='id') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();
 import {supabaseAuth} from './supabase-auth.mjs';

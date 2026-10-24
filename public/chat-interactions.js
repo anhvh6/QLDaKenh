@@ -7,7 +7,7 @@ import {showQuickChatOrder} from './quick-order.js';
 import {icon} from './icons.js';
 import {openForward} from './chat-forward.js';
 let typingPeers=[];const typingDevice=crypto.randomUUID();
-let H,typingId='',lastInput=0,lastPost=0,polled=false,selectionConversation='',selected=new Set(),selecting=false;
+let H,typingId='',lastInput=0,lastPost=0,polled=false,lastTypingPoll=0,lastTypingPollId='',selectionConversation='',selected=new Set(),selecting=false;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const form=()=>document.querySelector('#reply-form');
 const typingUnavailable=new Set();
@@ -18,7 +18,7 @@ function paintTyping(users){const f=form();if(!f)return;let status=f.querySelect
 async function tick(){if(polled||!H.state?.user)return;polled=true;try{
  const f=form(),id=f?.dataset.id;if(typingId&&(typingId!==id||f?.elements.note.checked||Date.now()-lastInput>5000||document.visibilityState!=='visible'))await stopTyping();
  if(!id||typingUnavailable.has(id)||H.route()!=='inbox'||document.hidden||!H.state.conversations.some(c=>c.id===id&&!c.deletedAt))return;
- if(typingId===id&&Date.now()-lastPost>1500&&Date.now()-lastInput<5000){lastPost=Date.now();const data=await H.api('/chat/conversations/'+id+'/typing',{method:'POST',body:{active:true,deviceId:typingDevice}});if(form()?.dataset.id===id)paintTyping(data.users);}else{const data=await H.api('/chat/conversations/'+id+'/typing');if(form()?.dataset.id===id)paintTyping(data.users);}
+ if(typingId===id&&Date.now()-lastPost>1500&&Date.now()-lastInput<5000){lastPost=Date.now();const data=await H.api('/chat/conversations/'+id+'/typing',{method:'POST',body:{active:true,deviceId:typingDevice}});if(form()?.dataset.id===id)paintTyping(data.users);}else{if(lastTypingPollId===id&&Date.now()-lastTypingPoll<3000)return;lastTypingPoll=Date.now();lastTypingPollId=id;const data=await H.api('/chat/conversations/'+id+'/typing');if(form()?.dataset.id===id)paintTyping(data.users);}
  }catch(error){if(error.status===404){const id=form()?.dataset.id;if(id)typingUnavailable.add(id);}}finally{polled=false;}}
 function selectionBar(){const f=form();if(!f)return;let bar=f.querySelector('.message-selection-bar');if(!selecting){bar?.remove();document.querySelectorAll('.message-selecting,.message-selected').forEach(row=>{row.classList.remove('message-selecting','message-selected');const box=row.querySelector('.message-select-box');if(box)box.checked=false;});return;}if(!bar){bar=document.createElement('div');bar.className='message-selection-bar';f.prepend(bar);}bar.innerHTML=`<button type="button" data-message-action="select-all">Chọn tất cả</button><strong>${selected.size} đã chọn</strong><button type="button" data-message-action="forward-many" ${selected.size?'':'disabled'}>Chuyển tiếp</button><button type="button" data-message-action="delete-many" ${selected.size?'':'disabled'}>Xóa trong hệ thống</button><button type="button" data-message-action="cancel-select" aria-label="Bỏ chọn tin nhắn">✕</button>`;
  for(const row of document.querySelectorAll('[data-message]')){row.classList.toggle('message-selected',selected.has(row.dataset.message));row.classList.toggle('message-selecting',selecting);row.querySelector('.message-select-box').checked=selected.has(row.dataset.message);}}

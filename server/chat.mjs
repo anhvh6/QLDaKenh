@@ -12,7 +12,7 @@ import {sendContactCard} from './zalo.mjs';
 import {purgeChats,purgePreview} from './customer-purge.mjs';
 import {studyPlanStatus} from './plan-access.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
-import {all,get,put,db,transaction,audit,now} from './store.mjs';
+import {all,get,put,db,transaction,audit,now,chatMessageRevision} from './store.mjs';
 import {permission,fail,required,reply} from './domain.mjs';
 import {assertChannel,permittedChannels} from './taophacdo.mjs';
 import {groupDetails,changeGroup,newGroup,friendAction,openPhoneConversation} from './zalo.mjs';
@@ -80,8 +80,7 @@ export async function chatRoute(path,method,input,user,url){
   assertChannel(user,conversation.connectionId);
   if(conversation.kind!=='comment'){void refreshZaloPins(conversation);void syncFacebookConversation(get('connections',conversation.connectionId),conversation).catch(()=>{});}
   // Check a covering index before loading potentially large media/quote payloads.
-  const rows=db.prepare("SELECT id,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY id").all(conversation.id);
-  const revision=createHash('sha256').update(JSON.stringify(conversation)).update(JSON.stringify(rows.map(r=>[r.id,r.version]))).update(url?.searchParams.get('limit')||'full').update(url?.searchParams.get('before')||'').digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
+  const revision=createHash('sha256').update(JSON.stringify(conversation)).update(String(chatMessageRevision(conversation.id))).update(url?.searchParams.get('limit')||'full').update(url?.searchParams.get('before')||'').digest('hex');if(url?.searchParams.get('since')===revision)return {unchanged:true,revision};
   if(url?.searchParams.has('limit'))return {conversation,...chatWindow(conversation.id,url.searchParams,conversation.platformPins||[]),revision};
   const messages=db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? ORDER BY json_extract(data,'$.createdAt'),id").all(conversation.id).map(r=>({...JSON.parse(r.data),id:r.id,version:r.version}));return {conversation,messages,revision};
  }
