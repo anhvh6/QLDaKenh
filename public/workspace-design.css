@@ -915,6 +915,48 @@ table .btn {
   height: 100%;
   object-fit: cover;
 }
+.content-cover-toolbar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  color: white;
+  background: linear-gradient(#0009, transparent);
+}
+.content-cover-toolbar .social-stack { flex-shrink: 0; }
+.content-cover-toolbar .badge {
+  position: static;
+  min-width: 0;
+  font-size: 10px;
+  padding: 3px 5px;
+}
+.content-cover-actions { display: flex; margin-left: auto; flex-shrink: 0; }
+.content-cover-actions button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+}
+.content-cover-actions button:hover { color: #d6f1e4; }
+.content-cover-actions button:focus-visible { outline: 2px solid white; outline-offset: -2px; }
+.content-card-compact .card-info h3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: 0;
+  margin-bottom: 6px;
+}
+.content-card-time { text-align: right; font-size: 11px; color: var(--muted); }
 .card-info {
   padding: 16px;
 }
