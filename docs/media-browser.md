@@ -33,3 +33,17 @@ to open an unframed media preview; its close and selection controls are icons.
 Escape closes only the preview and restores focus. Videos use preload=none
 and never autoplay. Library edit/favorite/use/download actions are borderless
 icons with accessible labels. This styling update is frontend-only.
+
+The Library route uses `GET /api/state?view=media`, a media-only snapshot
+with channel-scoped assets, categories, favorites and cached usage. It omits
+contents, customers, messages, plans and publication histories. Destination
+choices are fetched only when the user selects the use action. This requires
+`features.mediaCompact` on the VPS. No database migration is required.
+
+Library image covers use authenticated, bounded thumbnails; small images are
+served directly. Generating a missing preview waits at most 200 ms before
+serving the original image or video placeholder. Cached previews revalidate
+with private ETags; permission checks run before any 304. Video bytes still
+require explicit playback. `scripts/test-media-compact.mjs` measures payload
+size with synthetic data and verifies route selection, image display and 304
+access control. Production latency must be measured after the VPS update.
