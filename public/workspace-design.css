@@ -899,6 +899,22 @@ table .btn {
 .card-cover {
   background: var(--background);
 }
+.content-grid-portrait .content-card > .card-cover {
+  height: auto;
+  aspect-ratio: 9 / 16;
+}
+.content-grid-portrait .content-card > .card-cover > .card-cover {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.content-grid-portrait .card-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .card-info {
   padding: 16px;
 }
