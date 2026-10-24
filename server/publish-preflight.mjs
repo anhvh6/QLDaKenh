@@ -39,7 +39,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     const tiktokBlock=tiktokPublishBlock(ch,variant.visibility||content.visibility||'public');if(tiktokBlock)add(ch,tiktokBlock,'tiktok_public_access');
     const provider = providers[ch.provider];
     if(ch.provider==='bluesky'&&(variant.visibility||input.visibility||content.visibility)==='private')add(ch,'Bluesky không hỗ trợ bài riêng tư. Chọn công khai trước khi đăng.');
-    if (!provider?.publish || !provider.formats.includes(type)) add(ch,formatHint(ch.provider,type)||`API của kênh chưa hỗ trợ định dạng ${formatLabels[type]||type}. Chọn định dạng hoặc kênh khác.`);
+    if (!provider?.publish || !provider.formats.includes(type)) add(ch,formatHint(ch.provider,type)||`API của kênh chưa hỗ trợ định dạng ${formatLabels[type]||type}. Chọn định dạng hoặc kênh khác.`,'post_format');
     if(['mastodon','bluesky','tumblr'].includes(ch.provider)&&type!=='text'){
       const files=media.filter(m=>m.type===type);if(files.length!==1)add(ch,'Kênh này cần đúng một file media đính kèm; không chỉ đường dẫn.');
       if(files.some(m=>Number(m.size)>100*1024*1024))add(ch,'Media vượt giới hạn 100 MB của cổng này.');
@@ -48,12 +48,12 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     const limits = { threads: 500, instagram: 2200, x: 280, tiktok: 2200 };
     // TikTok's limit uses UTF-16; Threads counts Unicode code points.
     const count = ch.provider === 'tiktok' || ch.provider === 'x' ? caption.length : Array.from(caption).length;
-    if (limits[ch.provider] && count > limits[ch.provider]) add(ch, `Nội dung ${count}/${limits[ch.provider]} ký tự, vượt ${count - limits[ch.provider]} ký tự. Rút gọn bản riêng của kênh này.`);
+    if (limits[ch.provider] && count > limits[ch.provider]) add(ch, `Nội dung ${count}/${limits[ch.provider]} ký tự, vượt ${count - limits[ch.provider]} ký tự. Rút gọn nội dung.`, 'text_caption');
     if (ch.provider === 'youtube') {
-      if (Array.from(title).length > 100) add(ch, `Tiêu đề ${Array.from(title).length}/100 ký tự. Cần rút gọn tiêu đề.`);
+      if (Array.from(title).length > 100) add(ch, `Tiêu đề ${Array.from(title).length}/100 ký tự. Cần rút gọn tiêu đề.`, 'text_title');
       const bytes = Buffer.byteLength(caption, 'utf8');
-      if (bytes > 5000) add(ch, `Mô tả ${bytes}/5000 byte UTF-8. Cần rút gọn nội dung.`);
-      if (/[<>]/.test(title + caption)) add(ch, 'Tiêu đề và mô tả YouTube không được chứa dấu < hoặc >.');
+      if (bytes > 5000) add(ch, `Mô tả ${bytes}/5000 byte UTF-8. Cần rút gọn nội dung.`, 'text_caption');
+      if (/[<>]/.test(title + caption)) add(ch, 'Tiêu đề và mô tả YouTube không được chứa dấu < hoặc >.', 'text_caption');
     }
     const album = type!=='text'&&(!!source || content.copyReady);
     if (album && media.length > 1 && !['facebook', 'instagram', 'threads'].includes(ch.provider)) add(ch, 'Kênh này chưa hỗ trợ tự động đăng nhiều media trong một bài.');
@@ -62,6 +62,7 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
     if (type !== 'text' && url && !['youtube', 'tiktok'].includes(ch.provider) && !/^https:\/\//i.test(url)) add(ch, 'Media cần đường dẫn HTTPS công khai.');
     if (['youtube', 'tiktok'].includes(ch.provider) && !source && !media.some(m => m.type === 'video')) add(ch, 'Cần đính kèm file video để hệ thống tải lên kênh này.');
   }
+  if(input.advisoryRules===true)for(let n=issues.length-1;n>=0;n--){const issue=issues[n];if(issue.code?.startsWith('text_')||issue.code==='post_format'){issues.splice(n,1);warnings.push({...issue,field:issue.code==='post_format'?'type':issue.code.slice(5)});}}
   const reviewToken=createHash('sha256').update(JSON.stringify({rules:reviewRulesVersion,contentId:content.id,reviewed,warnings})).digest('hex');
   return { ok: issues.length === 0, issues,warnings,reviewToken,rulesVersion:reviewRulesVersion,requiresAcknowledgement:warnings.length>0&&input.warningAcknowledgement!==reviewToken };
 }
@@ -69,6 +70,6 @@ export function publicationPreflight(user, content, input = {}, { prepared = fal
 export function assertPublicationPreflight(user, content, input, options) {
   const result = publicationPreflight(user, content, input, options);
   if (!result.ok) throw Object.assign(new Error(result.issues.map(i => `${i.channel}: ${i.message}`).join('\n')), { status: 400 });
-  if(input.reviewWarnings===true&&result.requiresAcknowledgement)throw Object.assign(new Error('Có cảnh báo nội dung cần xác nhận. Kiểm tra lại bài viết rồi chọn quay lại sửa hoặc vẫn tiếp tục đăng.'),{status:409});
+  if((input.reviewWarnings===true||input.advisoryRules===true)&&result.requiresAcknowledgement)throw Object.assign(new Error('Có cảnh báo nội dung cần xác nhận. Kiểm tra lại bài viết rồi chọn quay lại sửa hoặc vẫn tiếp tục đăng.'),{status:409});
   return result;
 }

@@ -14,6 +14,17 @@ const { scheduleCopied } = await import('../server/social-copy.mjs');
 const owner = { id: 'qa', role: 'owner' };
 for (const provider of ['threads','instagram','youtube','tiktok','facebook']) put('connections', { id: provider, name: provider, provider, mode: 'api', status: 'connected' });
 const content = (extra = {}) => ({ id: 'qa-content', title: 'QA', caption: 'Nội dung 💚', type: 'text', channels: ['threads'], assets: [], ...extra });
+test('manual composer text rules become explicit warnings but require acknowledgement',()=>{
+ const c=content({id:'advisory-test',caption:'a'.repeat(501)}),input={immediate:true,reviewWarnings:true,advisoryRules:true};
+ const review=publicationPreflight(owner,c,input);assert.equal(review.ok,true);assert.equal(review.requiresAcknowledgement,true);assert.ok(review.warnings.some(w=>w.code==='text_caption'));
+ assert.throws(()=>assertPublicationPreflight(owner,c,input));assert.doesNotThrow(()=>assertPublicationPreflight(owner,c,{...input,warningAcknowledgement:review.reviewToken}));
+ assert.equal(publicationPreflight(owner,{...c,caption:'b'.repeat(502)},{...input,warningAcknowledgement:review.reviewToken}).requiresAcknowledgement,true);
+ const stored=put('contents',c),jobs=schedule(owner,c.id,{...input,version:stored.version,warningAcknowledgement:review.reviewToken});assert.ok(jobs.length);assert.equal(jobs[0].contentReview.advisoryRules,true);assert.equal(jobs[0].contentReview.acknowledgedBy,owner.id);
+});
+test('advisory rules cannot bypass missing media, duplicate posts or disconnected channels',()=>{
+ const review=publicationPreflight(owner,content({channels:['youtube'],type:'video'}),{immediate:true,advisoryRules:true});assert.equal(review.ok,false);assert.ok(review.issues.some(i=>i.message.includes('media')||i.message.includes('video')));
+ put('connections',{id:'lost',provider:'threads',mode:'api',status:'disconnected'});assert.equal(publicationPreflight(owner,content({channels:['lost']}),{immediate:true,advisoryRules:true}).ok,false);
+});
 
 test('aggregates every destination error and respects channel-specific caption without mutating records', () => {
  const before = all('publications').length;

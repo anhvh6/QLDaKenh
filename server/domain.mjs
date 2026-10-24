@@ -98,14 +98,14 @@ export function schedule(user, id, input, { prepared = false } = {}) {
     if (mode === 'api') {
       if (!providers[ch.provider].publish) fail(`${ch.name}: chỉ hỗ trợ nhắn tin, hãy chọn chế độ hỗ trợ đăng.`);
       if (ch.status !== 'connected') fail(`${ch.name}: cần kiểm tra kết nối trước.`);
-      if (!providers[ch.provider].formats.includes(type)) fail(`${ch.name}: API hiện chưa hỗ trợ định dạng ${type}; chuyển sang hỗ trợ đăng.`);
+      if (!(input.advisoryRules===true&&input.warningAcknowledgement===contentReview.reviewToken)&&!providers[ch.provider].formats.includes(type)) fail(`${ch.name}: API hiện chưa hỗ trợ định dạng ${type}; chuyển sang hỗ trợ đăng.`);
       if (type !== 'text' && !localUpload) validMediaURL(mediaUrl);
-      if(ch.provider==='threads')validateThreadsText(text.caption);
-      if (ch.provider === 'x' && text.caption.length > 280) fail('Bản X đang giới hạn văn bản ở 280 ký tự.');
+      if(ch.provider==='threads'&&!(input.advisoryRules===true&&input.warningAcknowledgement===contentReview.reviewToken))validateThreadsText(text.caption);
+      if (ch.provider === 'x' && text.caption.length > 280&&!(input.advisoryRules===true&&input.warningAcknowledgement===contentReview.reviewToken)) fail('Bản X đang giới hạn văn bản ở 280 ký tự.');
     }
     if (mode === 'api' && mediaItems.length > 1 && !['facebook', 'instagram', 'threads'].includes(ch.provider)) fail('Kênh này chưa hỗ trợ tự động đăng nhiều media. Chọn chế độ hỗ trợ đăng.');
     if (mode === 'api' && ch.provider === 'facebook' && mediaItems.length > 1 && mediaItems.some(item => item.type !== 'image')) fail('Facebook API hiện hỗ trợ album ảnh; bài nhiều video cần đăng hỗ trợ.');
-    return { ...(input.reviewWarnings?{contentReview:{rulesVersion:contentReview.rulesVersion,reviewToken:contentReview.reviewToken,warnings:contentReview.warnings.filter(w=>w.channelId===cid),acknowledgedBy:contentReview.warnings.length?user.id:null,reviewedAt:now()}}:{}),sourceVideoKey:contentSourceKey(c),contentId: id, connectionId: cid, title:text.title,caption:text.caption,copySourceCaption:(v.caption||c.caption),copyTextMapped:!!(c.sourceCopyId||c.sourceVideoKey||c.sourceURL||c.copyPlanId),type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, mediaItems, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
+    return { ...(input.reviewWarnings?{contentReview:{rulesVersion:contentReview.rulesVersion,reviewToken:contentReview.reviewToken,advisoryRules:input.advisoryRules===true,warnings:contentReview.warnings.filter(w=>w.channelId===cid),acknowledgedBy:contentReview.warnings.length?user.id:null,reviewedAt:now()}}:{}),sourceVideoKey:contentSourceKey(c),contentId: id, connectionId: cid, title:text.title,caption:text.caption,copySourceCaption:(v.caption||c.caption),copyTextMapped:!!(c.sourceCopyId||c.sourceVideoKey||c.sourceURL||c.copyPlanId),type, visibility: v.visibility || c.visibility || 'public', assets: c.assets || [], mediaUrl, mediaItems, status: 'scheduled', mode, scheduleAt, revision: c.version, attempts: 0, error: '' };
   }); return transaction(() => { const jobs = frozen.map(next => { const prev = active.find(p => p.connectionId === next.connectionId); return put('publications', { ...prev, ...next, ...(prev ? { id: prev.id } : {}) }); }); for (const p of active.filter(p => !channels.includes(p.connectionId))) put('publications', { ...p, status: 'cancelled' }); put('contents', { ...c, status: 'scheduled', scheduleAt, approval: 'approved' }); audit(user.id, active.length ? 'reschedule' : 'schedule', id, { targets: jobs.length }); return jobs; });
 }
 export async function publicationAction(user, id, input) {
@@ -113,7 +113,7 @@ export async function publicationAction(user, id, input) {
   if(input.action==='edit_queued'){
     assertChannel(user,p.connectionId);if(p.status!=='scheduled'&&!(p.status==='blocked'&&p.textRuleBlocked))fail('Chỉ sửa tác vụ còn trong hàng đợi.',409);if(input.version!==p.version)fail('Tác vụ đã thay đổi. Mở lại để sửa.',409);
     const title=String(input.title??p.title),caption=String(input.caption??p.caption),issues=platformTextIssues(get('connections',p.connectionId)?.provider,{title,caption});if(issues.length)fail(issues.map(i=>i.message).join(' '));
-    audit(user.id,'queued_variant_edited',id);return put('publications',{...p,title,caption,status:'scheduled',textRuleBlocked:false,copyTextMapped:true,error:'',textEditedAt:now()});
+    audit(user.id,'queued_variant_edited',id);return put('publications',{...p,title,caption,status:'scheduled',contentReview:null,textRuleBlocked:false,copyTextMapped:true,error:'',textEditedAt:now()});
   }
   if (input.action === 'cancel') { if (!['scheduled', 'awaiting_manual', 'failed', 'blocked'].includes(p.status)) fail('Không thể hủy tác vụ đã gửi hoặc chưa rõ kết quả.'); return put('publications', { ...p, status: 'cancelled' }); }
   if (input.action === 'confirm') { if (p.status !== 'awaiting_manual') fail('Đích này không chờ xác nhận thủ công.'); let u; try { u = new URL(input.url); } catch { fail('Nhập URL bài đã đăng.'); } if (!['https:', 'http:'].includes(u.protocol)) fail('URL không hợp lệ.'); return put('publications', { ...p, status: 'manually_confirmed', url: u.href, publishedAt: now() }); }
@@ -269,7 +269,7 @@ export async function tick() {
       if (p.mode === 'assisted') { put('publications', { ...p, status: 'awaiting_manual' }); notification('Đến giờ đăng: ' + p.title, `Mở gói đăng cho ${ch.name}.`, 'calendar'); continue; }
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }
       if (ch.status !== 'connected') { put('publications', { ...p, status: 'blocked', error: 'Kênh chưa được kiểm tra kết nối.' }); continue; }
-      const textIssues=platformTextIssues(ch.provider,p);if(textIssues.length){put('publications',{...p,status:'blocked',textRuleBlocked:true,error:textIssues.map(i=>i.message).join(' ')});continue;}
+      const textIssues=platformTextIssues(ch.provider,p);if(textIssues.length&&!(p.contentReview?.advisoryRules&&p.contentReview?.acknowledgedBy&&p.contentReview?.warnings?.some(w=>w.code?.startsWith('text_')))){put('publications',{...p,status:'blocked',textRuleBlocked:true,error:textIssues.map(i=>i.message).join(' ')});continue;}
       put('publications', { ...p, status: 'dispatching', dispatchedAt:now(), attempts: p.attempts + 1 });
       try { const r = await publish(ch, p); put('publications', { ...get('publications', p.id), ...r, status: r.processing ? 'processing' : 'published', ...(r.processing?{processingStartedAt:now(),nextCheckAt:''}:{}), publishedAt: r.processing ? null : now(), error: '' }); }
       catch (e) { put('publications', { ...get('publications', p.id), status: e.unknown ? 'unknown' : 'failed', error: e.message }); notification('Cần xử lý bài đăng', `${ch.name}: ${e.message}`, 'calendar'); }
