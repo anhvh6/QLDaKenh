@@ -1,5 +1,5 @@
 {
-  "version": "b484912ea117",
+  "version": "ca48b2cfb220",
   "compiler": "0.25.12",
   "files": {
     "public/media-cover.js": "add015c3574543451301d8ccd0e2544abcb92f55b641a847a0d3f20998cf66cc",
@@ -12,12 +12,11 @@
     "public/connection-groups.js": "39ba85d29bc94212fdd225b0f36c73b1db6678fe010401be8174ccc87d85166a",
     "public/connection-profile.js": "69db23f182cb225afae37cc294a0c948565591d3bd119d90365130f117c393b7",
     "public/shipping-address.js": "af082b129ddae8e7e59627d7206e1b13888a878d1f90374e0d781e126f440497",
-    "public/comment-post-media.js": "3e09adcf2617a6205556dd40d72038b36ad360d4250978c20aadd13be72db52e",
     "public/icons.js": "a3e997cac0f378a83b6069cddb5bcc38395cbadc33fab32ea0bcedb37f5c40c5",
-    "public/comment-detail.js": "84c48e1e0a4e4bd04d4baa85d4dc4de53ca3e91a0aa997684716fab0ef81fbe4",
     "public/media-browser-model.js": "bf505337ae7873006be8f212afda2fdafbf211d741475d86fe8cfed09a0b6bee",
     "public/media-browser-view.js": "54e12271ea781db355dffea4be75970b92ba02262ccd1b35087300515198367e",
-    "public/chat-media-picker.js": "eec8c4052cebc2998b15a71e819b61e71cb074f586b1830caf5e7121b5a35e12",
+    "public/media-lightbox.js": "37883c2716088277a6a8ff3f2b27c13de9a187129f699d75373e066f9c6babb7",
+    "public/chat-media-picker.js": "ce7a8a13280fa3d2f3d68f05c180c2d2c194be3c60fb01463754aa481db46785",
     "public/chat-connection-state.js": "81e885e80b8e0485c6a91bd9af0552b9eae2a3fdbb93be1a3c1ab6d606eaea21",
     "public/comment-presentation.js": "ee4cc16af48db8f2044b56e916d7aca3444a19eb0992ad196546498a172ebea8",
     "public/calendar-presentation.js": "d0c1fcf446afa41b257b0d76d543e8d31037ba7c2d9912662afa3c5df7b478e8",
@@ -62,6 +61,8 @@
     "public/dashboard-overview.js": "ba7844ed41df4215a86cb6e3f3eccb1872bcbfadd7d80460f9fdc2168846ae7f",
     "public/calendar-filter.js": "c14177bea5f5c82f7cdcdec46aa262f9d816309707508417b9f1f8d257b6422a",
     "public/pancake-pos.js": "a698b78a8f406f63594cb04bcdcc0acd1d43c5020e0421639726017db204f940",
+    "public/comment-post-media.js": "3e09adcf2617a6205556dd40d72038b36ad360d4250978c20aadd13be72db52e",
+    "public/comment-detail.js": "84c48e1e0a4e4bd04d4baa85d4dc4de53ca3e91a0aa997684716fab0ef81fbe4",
     "public/api-response.js": "fe1ca887d268d9c2d75fe47ff0068114cc15397a2e034f5e64137c44d28aea6c",
     "public/copy-layout-model.js": "1fb8deff67667b988bf4cc43932323675affca23c7b6e79c8ad42693060a9027",
     "public/copy-plan-selection.js": "eedfc31ddb0ea23c5c0de4ac7c77dc44245d46d9518ed61fe3b114da7133c538",
@@ -78,7 +79,7 @@
     "public/conversation-tags.js": "644e4cd45868a44eb3b0490029d85c09cabb8444ac0439469b9ca928bf49fadb",
     "public/handoff-card.js": "1da31938d1a0e8e06dd8a712a7917fbab74896a77ab0811fa0e86de9e848dec5",
     "public/chatbot-ui.js": "2be635f7663e609dea4d2379f54343628f9d5dc525a5b8d5df96c2e3f876c236",
-    "public/media-library.js": "9ade1b861f13d626beeeecbffe8f6041fd23eee42bbfbed83215a0c0a6b8aa1e",
+    "public/media-library.js": "20a8443314ba2088e1d554e8bd0223711ab48ef29fbec0bad1f5e3d3fbdc3cce",
     "public/chat-send-draft.js": "f4cb96acd3b417d056fc5d43086ae8ef8c4fbfd06f709443575c9de9075277e9",
     "public/private-chat-state.js": "bbd52fe67a7561e4a2ffa4cd87bb8c161e6c6e41b5f5f1af81f45eeca3d89e88",
     "public/chat-composer-state.js": "cf59f4cfd3b02b8b5b8c756d7071d8dce9e9fed81168bdc7bdb85e136bb05acc",
@@ -111,6 +112,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "9cb7aa168363b3124581c36e14a10b0fe709b9a96dc47a1aa81db5f9ffd6326c",
-    "public/app.bundle.js": "b484912ea1176c84cc7250bce5f80ebd1cf4b30a25d94377e4b51c6148ea0dff"
+    "public/app.bundle.js": "ca48b2cfb22040fc5aff1b9943d40b9691395b50115e085a7ae0f78070f4c8fa"
   }
 }
