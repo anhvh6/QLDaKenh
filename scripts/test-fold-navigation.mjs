@@ -34,7 +34,7 @@ try{
    if(route==='inbox'){
     await page.locator('.conversation-item').first().click();await page.locator('#reply-form').waitFor();
     const list=await page.locator('.conversation-list').boundingBox(),chat=await page.locator('.chat').boundingBox(),compose=await page.locator('.chat-compose').boundingBox(),bottom=await page.locator('.mobile-bottom').boundingBox();
-    if(width>760){assert.ok(list&&chat&&Math.abs(list.y-chat.y)<3,'chat stacked '+name);assert.ok(chat.x>=list.x+list.width-2,'chat overlaps list '+name);}else assert.equal(await page.locator('.conversation-list').isVisible(),false);
+    assert.equal(await page.locator('.conversation-list').isVisible(),false,'selected list hidden '+name);
     assert.ok(compose.y+compose.height<=bottom.y+2,'composer behind bottom navigation '+name);
    }
    await page.screenshot({path:'test-results/fold-navigation/'+name+'-'+route+'.png'});

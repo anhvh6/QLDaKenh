@@ -147,7 +147,7 @@ function composerExtras(c){const d=draft(c.id),q=H.state.messages.find(m=>m.id==
 function menu(label,body,cls=''){return '<details class="chat-menu '+cls+'"><summary>'+label+'</summary><div class="chat-menu-panel">'+body+'</div></details>';}
 function placeInboxToolbar(){
  const root=document.querySelector('.inbox-layout'),list=root?.querySelector('.conversation-list'),topbar=document.querySelector('.topbar');if(H?.route()!=='inbox'||!list||!topbar)return;
- const desktop=matchMedia('(min-width:761px)').matches;let portal=topbar.querySelector('.inbox-topbar-tools');
+ const desktop=matchMedia('(min-width:761px)').matches&&!matchMedia('(hover:none) and (pointer:coarse) and (max-width:1400px)').matches;let portal=topbar.querySelector('.inbox-topbar-tools');
  if(desktop){if(!portal){portal=document.createElement('div');portal.className='inbox-topbar-tools';portal.setAttribute('aria-label','Công cụ hội thoại');topbar.append(portal);}for(const selector of ['.toolbar','.conversation-search','.chat-toolbar','.chat-bulk']){const tools=list.querySelector(':scope > '+selector);if(tools)portal.append(tools);}topbar.classList.add('inbox-topbar');}
  else{if(portal){const tools=portal.querySelector('.toolbar'),search=portal.querySelector('.conversation-search'),manage=portal.querySelector('.chat-toolbar');const bulk=portal.querySelector('.chat-bulk');if(bulk)list.prepend(bulk);if(manage)list.prepend(manage);if(search)list.prepend(search);if(tools)list.prepend(tools);portal.remove();}topbar.classList.remove('inbox-topbar');}
 }

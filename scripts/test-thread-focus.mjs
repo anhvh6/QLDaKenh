@@ -1,0 +1,23 @@
+import {createRequire} from 'node:module';import {spawn,execFileSync} from 'node:child_process';import {mkdirSync,mkdtempSync,writeFileSync} from 'node:fs';import {join,resolve} from 'node:path';import assert from 'node:assert/strict';
+const {chromium}=createRequire(import.meta.url)('C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');mkdirSync('test-data',{recursive:true});mkdirSync('test-results/thread-focus',{recursive:true});
+const env={...process.env,HOST:'127.0.0.1',PORT:'4445',DATA_DIR:mkdtempSync(join(resolve('test-data'),'thread-focus-')),PLAN_REMOTE_CATALOG:'0'},base='http://127.0.0.1:4445',server=spawn(process.execPath,['server/index.mjs'],{env,stdio:'pipe',windowsHide:true});let browser;
+try{
+ for(let i=0;i<100;i++){try{await fetch(base+'/api/health');break;}catch{await new Promise(r=>setTimeout(r,100));}}
+ browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const setup=await browser.newContext();assert.equal((await setup.request.post(base+'/api/setup',{data:{name:'Thread QA',email:'thread@example.test',password:'ThreadLayout2026!',demo:false}})).status(),200);const storageState=await setup.storageState();
+ execFileSync(process.execPath,['--input-type=module','-e',`const {put}=await import('./server/store.mjs');put('connections',{id:'demo',provider:'facebook',name:'Demo',status:'connected',mode:'demo'});put('customers',{id:'customer',name:'Thread QA',tags:[]});for(const kind of ['message','comment']){put('conversations',{id:kind,customerId:'customer',connectionId:'demo',kind,mode:'demo',externalCommentId:kind==='comment'?'parent':null,status:'open',lastMessage:'QA',lastAt:new Date().toISOString()});put('messages',{id:'initial-'+kind,conversationId:kind,direction:'incoming',status:'received',text:'QA'});}`],{env,stdio:'pipe'});
+ const cases=[];
+ for(const [name,width,height,touch] of [['phone',390,844,true],['fold-open',840,700,true],['fold-landscape',1100,600,true],['desktop',1440,900,false]]){
+  const context=await browser.newContext({storageState,viewport:{width,height},hasTouch:touch,isMobile:touch}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  for(const [route,id,listSelector] of [['inbox','message','.conversation-list'],['comments','comment','.comment-post-list']]){
+   await page.goto(base+'/#'+route);const card=page.locator('[data-action=open-conversation][data-id='+id+']');await card.click();const box=page.locator('#reply-form textarea');await box.waitFor();await page.waitForTimeout(200);assert.equal(await page.locator(listSelector).isVisible(),!touch);
+   await page.screenshot({path:'test-results/thread-focus/'+name+'-'+route+'-initial.png'});assert.ok((await box.boundingBox()).height<=46,'one line '+name+' '+route);await box.focus();await page.waitForTimeout(100);assert.equal(await page.locator('.mobile-bottom').isVisible(),false);
+   await box.fill('Dòng một\nDòng hai\nDòng ba');await page.waitForTimeout(100);assert.ok((await box.boundingBox()).height>65);await box.fill('');await page.waitForTimeout(100);assert.ok((await box.boundingBox()).height<=46);
+   await box.fill('Bản nháp '+route);if(touch){await page.setViewportSize({width,height:Math.max(330,height-300)});await page.waitForTimeout(100);const compose=await page.locator('#reply-form').boundingBox();assert.ok(compose.y+compose.height<=Math.max(330,height-300)+2,'composer remains in keyboard viewport');}
+   await page.screenshot({path:'test-results/thread-focus/'+name+'-'+route+'-typing.png'});
+   if(touch){await page.setViewportSize({width,height});await page.goBack();await page.waitForTimeout(150);assert.equal(await page.locator(listSelector).isVisible(),true,'hardware back restores list');assert.equal(await page.locator('.mobile-bottom').isVisible(),true);await card.click();await box.waitFor();assert.equal(await box.inputValue(),'Bản nháp '+route);await page.locator('[data-action='+ (route==='inbox'?'back-inbox':'back-comments')+']').click();await page.waitForTimeout(150);assert.equal(await page.locator(listSelector).isVisible(),true,'header back restores list');await page.screenshot({path:'test-results/thread-focus/'+name+'-'+route+'-list.png'});}
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);
+  }
+  assert.deepEqual(errors,[]);cases.push({name,passed:true});await context.close();
+ }
+ writeFileSync('test-results/thread-focus/report.json',JSON.stringify(cases,null,2));console.log(JSON.stringify(cases));
+}finally{await browser?.close();server.kill();}

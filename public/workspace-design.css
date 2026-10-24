@@ -2502,3 +2502,18 @@ table .btn {
 .media-picker-grid .media-picker-item{border:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;border-radius:0}.media-library-browser .media-card .row{padding:0;overflow:visible}.media-library-browser .media-image-cover img{height:100%;background:transparent}
 
 .media-lightbox{background:#111}
+
+/* Focused touch conversations, including unfolded phones. */
+.content.inbox-page #reply-form textarea{min-height:40px;line-height:22px;padding:8px 10px;resize:none;box-sizing:border-box}
+body.thread-compact #page.content.inbox-page,body.thread-compact .main:has(>.inbox-topbar)>#page.content.inbox-page{height:var(--thread-height);padding:0;min-height:0}
+body.thread-compact .inbox-layout,body.thread-compact .comments-workspace{display:block!important;height:100%;min-height:0;margin:0;grid-template-columns:minmax(0,1fr)!important}
+body.thread-compact .inbox-layout.has-selection>.conversation-list,body.thread-compact .inbox-layout:not(.has-selection)>.chat,body.thread-compact .comments-workspace.has-selection>.comment-post-list,body.thread-compact .comments-workspace:not(.has-selection)>.comment-work-area{display:none!important}
+body.thread-compact .inbox-layout>.chat,body.thread-compact .conversation-list,body.thread-compact .comment-post-list{height:100%;min-height:0}
+body.thread-compact .comments-workspace.has-selection>.comment-work-area{display:grid;height:100%;min-height:0;grid-template-rows:auto minmax(0,1fr) auto}
+body.thread-compact .chat-head [data-action=back-inbox],body.thread-compact .comment-chat-head [data-action=back-comments]{display:inline-flex!important;flex-shrink:0}
+body.thread-compact .chat-side{display:none!important}
+body.thread-typing .mobile-bottom{display:none!important}
+body.thread-typing .main{padding-bottom:0!important}
+body.thread-selected .topbar .inbox-topbar-tools{display:none!important}
+body.thread-compact #reply-form{padding:6px 10px;min-height:0}
+body.thread-compact #reply-form .chat-compose-row{margin-top:4px}
