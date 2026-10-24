@@ -1,0 +1,8 @@
+export const libraryStatuses={draft:'Nháp',scheduled:'Đã lên lịch',published:'Đã đăng',failed:'Lỗi'};
+export function libraryDay(value){const n=Date.parse(value);return Number.isFinite(n)?new Date(n+7*3600000).toISOString().slice(0,10):'';}
+export function defaultLibraryDates(now=Date.now()){return {from:libraryDay(new Date(now-86400000).toISOString()),to:libraryDay(new Date(now).toISOString())};}
+export const displayLibraryDate=value=>value?value.slice(8,10)+'/'+value.slice(5,7)+'/'+value.slice(2,4):'';
+export function parseLibraryDate(value){const m=/^(\d{2})\/(\d{2})\/(\d{2})$/.exec(value);if(!m)return null;const iso=`20${m[3]}-${m[2]}-${m[1]}`;const n=Date.parse(iso+'T00:00:00Z');return Number.isFinite(n)&&new Date(n).toISOString().slice(0,10)===iso?iso:null;}
+export function libraryStatus(status){if(['failed','blocked','unknown'].includes(status))return 'failed';if(['scheduled','dispatching','processing','awaiting_manual'].includes(status))return 'scheduled';if(['published','demo_published','manually_confirmed'].includes(status))return 'published';return 'draft';}
+export function libraryMatches({status,at,providers=[],text=''},filters){const day=libraryDay(at);return (!filters.statuses||filters.statuses.includes(libraryStatus(status)))&&(!filters.providers||providers.some(p=>filters.providers.includes(p)))&&!!day&&day>=filters.from&&day<=filters.to&&(!filters.query||text.toLocaleLowerCase('vi').includes(filters.query.toLocaleLowerCase('vi')));}
+export function libraryPage(items,page,columns){const size=Math.max(1,columns)*3,pages=Math.max(1,Math.ceil(items.length/size)),current=Math.min(Math.max(0,page),pages-1);return {items:items.slice(current*size,(current+1)*size),page:current,pages,total:items.length};}

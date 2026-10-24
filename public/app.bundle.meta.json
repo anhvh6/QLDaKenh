@@ -1,5 +1,5 @@
 {
-  "version": "e8de5ee4b75f",
+  "version": "1c23eca5913e",
   "compiler": "0.25.12",
   "files": {
     "public/media-cover.js": "add015c3574543451301d8ccd0e2544abcb92f55b641a847a0d3f20998cf66cc",
@@ -31,6 +31,7 @@
     "public/comment-channel-filter.js": "a829404ad45e82ef5c84c87f822ca10ed236662822c01b9325394227e5e75bf8",
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
+    "public/content-library-model.js": "03aa21dcffb31af4ca9ec3636ece24d26310cc89e7a448c64715b8c4007045dd",
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
     "public/dashboard-model.js": "5d866fbb69d197873ede52e15149422f38f8b15faa87c8df65ab6a014e14340e",
     "public/order-editor-tools.js": "05c9b8299615dcfe5677f21b5a92f781d0694b7364de7b64670d7985002462d2",
@@ -104,7 +105,7 @@
     "public/inbox.js": "280fc736dd9432a9c8f4a81ec000e752827954431e4f603e6e0478ff95fecbea",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "fccec53a26a2ceccd7a498b752ac47263a7ae31ab6dd56129dab16b42f6dfc94",
-    "public/app.bundle.js": "e8de5ee4b75fa5f6787c80b57649ca3ad698651b86f4bd077a0c1b05f2104141"
+    "public/app.js": "936e94ec2a542a0003af6ae5d023d060f52403fe2f78507a33fa4a16c265aab4",
+    "public/app.bundle.js": "1c23eca5913ecd413ef4819ba1961ac1403f0542432fd59496ba2963c74d85ee"
   }
 }
