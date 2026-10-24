@@ -1,3 +1,4 @@
+import {commentsSnapshot,commentsRevision} from './comments-snapshot.mjs';
 import {inboxSnapshot,inboxRevision} from './inbox-snapshot.mjs';
 import {contentSnapshot} from './content-snapshot.mjs';
 import {mediaThumbnail} from './media-thumbnail.mjs';
@@ -134,11 +135,12 @@ async function dispatch(req, res, url, user, input) {
   const genericObject = path.match(/^\/api\/records\/(customers|contents)\/([^/]+)$/); if (genericObject) { const r = get(genericObject[1], genericObject[2]); if (r) { if (genericObject[1] === 'customers') care.assertCustomer(user, r.id); else for (const id of r.channels || []) care.assertChannel(user, id); } }
 
   if (path === '/api/state' && method === 'GET') {
-    const snapshotView=['dashboard','inbox','workspace','content'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
+    const snapshotView=['dashboard','inbox','comments','workspace','content'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
     const users = db.prepare('SELECT id,name,email,role,active FROM users').all();
-    const revision = createHash('sha256').update((snapshotView==='inbox'?inboxRevision():stateRevision()) + ':' + (snapshotView==='inbox'?0:overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + (snapshotView==='dashboard'?overviewAggregates.read('learners:v1')?.updatedAt||0:0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
+    const revision = createHash('sha256').update((snapshotView==='comments'?commentsRevision():snapshotView==='inbox'?inboxRevision():stateRevision()) + ':' + (['inbox','comments'].includes(snapshotView)?0:overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + (snapshotView==='dashboard'?overviewAggregates.read('learners:v1')?.updatedAt||0:0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user };
+    if(snapshotView==='comments')return stateCache.set(cacheKey,revision,commentsSnapshot(user,{revision,providers,users}));
     if(snapshotView==='inbox')return stateCache.set(cacheKey,revision,inboxSnapshot(user,{revision,providers,users}));
     if(snapshotView==='content')return stateCache.set(cacheKey,revision,contentSnapshot(user,{revision,providers}));
     if(snapshotView==='dashboard')return stateCache.set(cacheKey,revision,dashboardSnapshot(user,{aggregates:overviewAggregates,revision,providers,sourceRevision:dashboardRevision()}));
@@ -251,9 +253,9 @@ const systemMonitor=createSystemMonitor({onSlowSample:sample=>console.warn('[htt
 const server = http.createServer(async (req, res) => {
   systemMonitor.request(req,res);
   try {
-    res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+    res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com https://www.youtube-nocookie.com https://www.facebook.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);
-    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true} });
+    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true} });
     const publicMedia = publicMediaFile(path); if (publicMedia) return serveFile(req, res, publicMedia, false);
     if (path.match(/^\/api\/oauth\/[^/]+\/callback$/)) return await finishOAuth(req, res, url);
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }

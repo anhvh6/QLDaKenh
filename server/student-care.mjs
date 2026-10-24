@@ -64,10 +64,10 @@ function exceptionPreview(stages,previous,includeAll=false,source=studentCareSta
  rows.sort((a,b)=>a.stage.localeCompare(b.stage)||a.employee.localeCompare(b.employee)||a.customer.localeCompare(b.customer));
  return {rows,exceptionToken:createHash('sha256').update(JSON.stringify({version:previous?.version||0,stages,rows})).digest('hex')};
 }
-export function scopeCareChats(state,user){
+export function scopeCareChats(state,user,{includeExceptions=true}={}){
  const source=studentCareState();
  const policies=new Map(source.conversations.map(c=>[c.id,carePolicy(source,c)]));
- if(user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true,source,policies).rows;
+ if(includeExceptions&&user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true,source,policies).rows;
  if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source,policies);
  state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user,policies.get(c.id))).map(c=>c.id);
  state.conversationCare=state.conversations.map(c=>({id:c.id,...policies.get(c.id)}));

@@ -2483,3 +2483,5 @@ table .btn {
 
 /* Video lists use image covers; decoding begins only after Play. */
 .media-video-cover{position:relative;display:block;width:100%;padding:0;border:0;background:#e9f0ed;cursor:pointer;min-height:100px;overflow:hidden;border-radius:inherit}.media-video-cover img{display:block;width:100%;height:100%;max-height:320px;object-fit:cover}.media-video-cover>span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 12px;border-radius:20px;background:#ffffffeb;color:#28664f;white-space:nowrap}
+
+.comment-video-shell{width:100%}.comment-video-launch{position:relative;display:grid;place-items:center;width:100%;min-height:180px;aspect-ratio:16/9;padding:0;border:0;background:#e9edeb;cursor:pointer;overflow:hidden;border-radius:8px}.comment-video-launch img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0}.comment-video-launch>span{position:relative;display:grid;place-items:center;background:#244f40;color:#fff;border-radius:50%;width:56px;height:56px}.comment-video-shell video,.comment-video-shell iframe{width:100%;max-height:420px;aspect-ratio:16/9;border:0}

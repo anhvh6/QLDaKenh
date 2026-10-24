@@ -17,7 +17,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation ON records(json_extract(dat
 CREATE INDEX IF NOT EXISTS idx_messages_live_revision ON records(json_extract(data,'$.conversationId'),id,version) WHERE kind='messages';
 CREATE INDEX IF NOT EXISTS idx_messages_live_order ON records(json_extract(data,'$.conversationId'),json_extract(data,'$.createdAt'),id) WHERE kind='messages';
 CREATE INDEX IF NOT EXISTS idx_messages_pinned ON records(json_extract(data,'$.conversationId')) WHERE kind='messages' AND json_extract(data,'$.pinned')=1;
-CREATE INDEX IF NOT EXISTS idx_messages_external ON records(json_extract(data,'$.conversationId'),json_extract(data,'$.externalId')) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_external ON records(json_extract(data,'$.conversationId'),json_extract(data,'$.externalId')) WHERE kind='messages';
+CREATE INDEX IF NOT EXISTS idx_identities_channel_external ON records(json_extract(data,'$.connectionId'),json_extract(data,'$.externalUserId')) WHERE kind='identities';
 CREATE INDEX IF NOT EXISTS idx_zalo_conversation ON records(json_extract(data,'$.connectionId'),json_extract(data,'$.externalUserId'),coalesce(json_extract(data,'$.threadType'),0)) WHERE kind='conversations';
 CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,password TEXT NOT NULL,active INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),csrf TEXT NOT NULL,expires INTEGER NOT NULL);
@@ -32,6 +33,9 @@ INSERT OR IGNORE INTO record_revision VALUES(1,0);
 CREATE TRIGGER IF NOT EXISTS records_revision_insert AFTER INSERT ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS records_revision_update AFTER UPDATE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS records_revision_delete AFTER DELETE ON records BEGIN UPDATE record_revision SET value=value+1 WHERE id=1; END;`);
+// Repair the name collision from the first inbox release without rebuilding healthy indexes.
+if(db.prepare("SELECT sql FROM sqlite_master WHERE name='idx_messages_external'").get()?.sql.includes('conversationId'))db.exec('DROP INDEX idx_messages_external');
+db.exec("CREATE INDEX IF NOT EXISTS idx_messages_external ON records(json_extract(data,'$.externalId')) WHERE kind='messages'");
 export const recordRevision=()=>db.prepare('SELECT value FROM record_revision WHERE id=1').get().value;
 // Channel sync timestamps/progress must not broadcast a full CRM refresh.
 db.exec(`CREATE TABLE IF NOT EXISTS state_revision(id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER NOT NULL);

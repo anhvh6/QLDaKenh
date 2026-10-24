@@ -1,4 +1,4 @@
-import {all,get,put,secret,now} from './store.mjs';
+import {get,put,secret,now,db} from './store.mjs';
 import {remote} from './connectors.mjs';
 import {updateCommentAuthor} from './comments.mjs';
 import {permission,fail} from './domain.mjs';
@@ -6,6 +6,17 @@ import {assertChannel} from './taophacdo.mjs';
 import {commentPostMedia} from '../public/comment-post-media.js';
 
 const pending=new Map();
+const previewRefreshes=new Map();
+// Opening a thread never waits for Graph. Persisted context stays available
+// while its refresh runs independently; direct refresh remains awaitable.
+export function commentContextPreview(user,id,request=remote){
+ permission(user,'inbox');const c=get('conversations',id);if(!c||c.kind!=='comment'||c.deletedAt||c.remoteDeleted)fail('Không tìm thấy bình luận.',404);assertChannel(user,c.connectionId);
+ if(get('connections',c.connectionId)?.status!=='connected')fail('Kênh chưa kết nối.',409);
+ const cached=get('comment_context',id),valid=cached?.mediaVersion===1;
+ if(valid&&Date.now()-Date.parse(cached.loadedAt)<60000)return cached;
+ if(!previewRefreshes.has(id)){const job=commentContext(user,id,request).catch(()=>null).finally(()=>previewRefreshes.delete(id));previewRefreshes.set(id,job);}
+ return {...(valid?cached:localCommentContext(c)),refreshing:true};
+}
 const safeUrl=value=>{try{const u=new URL(value);return u.protocol==='https:'?u.href:'';}catch{return '';}};
 function contextError(label,error,provider){
  const message=String(error?.message||error||'');
@@ -16,8 +27,9 @@ export function summarizeComment(item,local={}){
  return {id:String(item.id||local.externalId||''),text:String(item.message??item.text??local.text??''),name:item.from?.name||item.username||local.senderName||local.name||'Người bình luận',createdAt:item.created_time||item.timestamp||local.createdAt||'',likes:item.like_count??local.likeCount??null,dislikes:null,deleted:!!local.deletedAt,parentId:String(item.parent?.id||item.replied_to?.id||local.parentCommentId||'')};
 }
 export function localCommentContext(c){
- const root=all('messages').find(m=>m.conversationId===c.id&&m.externalId===c.externalCommentId)||all('messages').find(m=>m.conversationId===c.id&&m.direction==='incoming');
- const current=summarizeComment({},root||{}),parent=current.parentId&&current.parentId!==c.postId?all('messages').find(m=>m.externalId===current.parentId&&get('conversations',m.conversationId)?.connectionId===c.connectionId):null;
+ const decode=r=>r?{...JSON.parse(r.data),id:r.id,version:r.version}:null;
+ const root=decode(db.prepare("SELECT id,data,version FROM records INDEXED BY idx_messages_conversation_external WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.externalId')=? LIMIT 1").get(c.id,c.externalCommentId||''))||decode(db.prepare("SELECT id,data,version FROM records INDEXED BY idx_messages_live_order WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND json_extract(data,'$.direction')='incoming' ORDER BY json_extract(data,'$.createdAt'),id LIMIT 1").get(c.id));
+ const current=summarizeComment({},root||{}),parent=current.parentId&&current.parentId!==c.postId?decode(db.prepare("SELECT m.id,m.data,m.version FROM records m INDEXED BY idx_messages_external JOIN records c ON c.kind='conversations' AND c.id=json_extract(m.data,'$.conversationId') WHERE m.kind='messages' AND json_extract(m.data,'$.externalId')=? AND json_extract(c.data,'$.connectionId')=? LIMIT 1").get(current.parentId,c.connectionId)):null;
  return {conversationId:c.id,post:{id:c.postId||'',text:c.postTitle||'',url:safeUrl(c.postUrl),media:c.postMedia?.length?c.postMedia:commentPostMedia({url:c.postUrl}),createdAt:c.postCreatedAt||'',likes:null,shares:null,comments:null},current,parent:parent?summarizeComment({},parent):null,parentId:current.parentId&&current.parentId!==c.postId?current.parentId:'',errors:[],loadedAt:''};
 }
 export async function commentContext(user,id,request=remote){

@@ -22,7 +22,7 @@ test('original post supports albums, direct videos, Instagram media and YouTube 
  const media=commentPostMedia({full_picture:'https://cdn.test/cover.jpg',attachments:{data:[{subattachments:{data:[{type:'photo',media:{image:{src:'https://cdn.test/photo.jpg'}}},{type:'video_inline',media:{source:'https://cdn.test/clip.mp4',image:{src:'https://cdn.test/poster.jpg'}}}]}}]}});
  assert.deepEqual(media.map(x=>x.type),['image','video']);assert.equal(media[1].poster,'https://cdn.test/poster.jpg');assert.equal(commentPostMedia({media_type:'VIDEO',media_url:'https://cdn.test/reel.mp4'})[0].type,'video');assert.equal(commentPostMedia({url:'https://www.youtube.com/watch?v=abcdefghijk'})[0].type,'embed');
  assert.deepEqual(commentPostMedia({full_picture:'javascript:alert(1)'}),[]);
- const html=commentPostMediaHTML({media});assert.match(html,/<img /);assert.match(html,/<video .*controls playsinline/);assert.doesNotMatch(html,/autoplay/);
+ const html=commentPostMediaHTML({media});assert.match(html,/<img /);assert.match(html,/data-comment-video=/);assert.doesNotMatch(html,/<video |<iframe /);assert.doesNotMatch(html,/autoplay/);
  assert.equal(commentPostMediaHTML({media:[{type:'embed',url:'https://evil.test/'}]}),'<div class="comment-post-media"></div>');
 });
 test('long original text is collapsed with native Show more and safely escaped',()=>{

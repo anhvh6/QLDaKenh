@@ -35,7 +35,7 @@ export function inboxSnapshot(user,{revision,providers,users}={}){
  state.mediaCategories=all('media_categories');state.mediaFavorites=get('settings','media-favorites-'+user.id)?.ids||[];
  state.orderWorkspace=orderWorkspaceState(user);state.orderRouting=orderRoutingState();state.integrations={};
  if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
- const scoped=scopeCareChats(scopeState(state,user),user);
+ const scoped=scopeCareChats(scopeState(state,user),user,{includeExceptions:false});
  const first=[...scoped.conversations].filter(c=>c.kind!=='comment'&&!c.careHidden).sort((a,b)=>String(b.lastAt||b.updatedAt).localeCompare(String(a.lastAt||a.updatedAt)))[0];
  if(first){scoped.initialChatWindow={conversationId:first.id,...chatWindow(first.id,new URLSearchParams({limit:'60'}),first.platformPins||[])};}
  return scoped;

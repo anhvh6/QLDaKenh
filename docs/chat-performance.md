@@ -38,3 +38,30 @@ Deployment requires both Vercel frontend and VPS backend updates. Health must
 report `features.inboxCompact` and `features.chatRevisionCounters` true. Android
 TWA receives the same frontend from the website on reload; no APK change is
 needed. Confirm live authenticated inbox timings after VPS deployment.
+
+## Comments
+
+Comments now request `view=comments`, with only comment customers and linked
+private-chat peers. Chat and comment snapshots omit the owner-only care exception
+editor payload; the settings view continues to provide it. The existing
+`comment_context` records serve original-post detail immediately while authorized
+background refresh runs. Local context lookups use indexes, not `all('messages')`.
+
+The first inbox release reused `idx_messages_external` for a different column
+order. Startup now repairs that index only when necessary and gives the
+conversation/external-ID index its own name. This preserves fast webhook and
+comment-sync lookups on existing installations. No manual SQL is required.
+
+Original-post and comment videos use explicit click-to-load placeholders. Neither
+native video sources nor embedded players are inserted before Play. Connected
+players are patched in place during updates so replies/read acknowledgements do
+not trigger another player download. Read acknowledgement is idempotent and
+independent of stale conversation versions. A comment reply retries once only
+for the explicit pre-send version-conflict error, never for unknown send results.
+
+Run `node scripts/test-comments-performance.mjs` for the isolated browser fixture
+(500 customers, 5,040 messages, 40 comments). Local JSON measurements: shared
+inbox 1,267,086 bytes / 74 ms; comments 127,643 bytes / 16 ms. Live receipt tests
+in that fixture exercise database-to-UI polling, not external provider latency.
+Production health additionally reports `commentsCompact` and
+`commentContextBackground`. Both frontend and VPS must be deployed.

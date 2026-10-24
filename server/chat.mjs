@@ -72,6 +72,7 @@ export async function chatRoute(path,method,input,user,url){
  }
  const unpin=path.match(/^\/api\/chat\/conversations\/([^/]+)\/platform-pins\/([^/]+)$/);
  if(unpin&&method==='DELETE'){const c=chatConversation(user,unpin[1]);await changeZaloPin(c,null,false,decodeURIComponent(unpin[2]));audit(user.id,'zalo_message_unpinned',c.id,{topicId:unpin[2]});return get('conversations',c.id);}
+ const markRead=path.match(/^\/api\/chat\/conversations\/([^/]+)\/read$/);if(markRead&&method==='POST'){permission(user,'inbox');const c=get('conversations',markRead[1]);if(!c||c.deletedAt||c.remoteDeleted)fail('Không tìm thấy hội thoại.',404);assertChannel(user,c.connectionId);if(c.kind!=='comment')assertCareConversation(user,c);return c.unread?put('conversations',{...c,unread:false}):c;}
  const live=path.match(/^\/api\/chat\/conversations\/([^/]+)\/live$/);
  if(live&&method==='GET'){
   permission(user,'inbox');const candidate=get('conversations',live[1]);
