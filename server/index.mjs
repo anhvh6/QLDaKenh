@@ -15,6 +15,8 @@ import {copyStateSummary} from './copy-state-summary.mjs';
 import {socialHealthRoute} from './social-health.mjs';
 import {socialChatTick} from './social-chat.mjs';
 import {describeMetaWebhook,channelWebhookSummary} from './meta-webhook-diagnostics.mjs';
+import {validThreadsSignature} from './threads-webhook.mjs';
+import {ingestThreadsNotification} from './comments.mjs';
 import {addressCatalog,resolveOrderAddress,validateOrderAddress} from './order-address.mjs';
 import {planProducts} from './product-catalog.mjs';
 import {updateConversationTags} from './conversation-tag-update.mjs';
@@ -245,16 +247,24 @@ async function dispatch(req, res, url, user, input) {
 }
 
 async function webhook(req, res, url) {
-  const routeId = url.pathname.split('/').pop(); const channels = routeId === 'meta' ? all('connections').filter(c => ['facebook', 'instagram'].includes(c.provider) && c.mode === 'api') : [get('connections', routeId)].filter(c => ['facebook', 'instagram'].includes(c?.provider)); if (!channels.length) domain.fail('Webhook không tồn tại.', 404);
-  const verifyTokens = [process.env.META_WEBHOOK_VERIFY_TOKEN, secret('meta-webhook').verifyToken, ...channels.map(c => secret(c.id).verifyToken)].filter(Boolean);
+  const routeId = url.pathname.split('/').pop(); const channels = routeId === 'meta' ? all('connections').filter(c => ['facebook', 'instagram','threads'].includes(c.provider) && c.mode === 'api') : [get('connections', routeId)].filter(c => ['facebook', 'instagram','threads'].includes(c?.provider)); if (!channels.length) domain.fail('Webhook không tồn tại.', 404);
+  const verifyTokens = [process.env.META_WEBHOOK_VERIFY_TOKEN,process.env.THREADS_WEBHOOK_VERIFY_TOKEN, secret('meta-webhook').verifyToken, ...channels.map(c => secret(c.id).verifyToken)].filter(Boolean);
   if (req.method === 'GET') { if (verifyTokens.includes(url.searchParams.get('hub.verify_token'))) { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end(url.searchParams.get('hub.challenge') || ''); return; } domain.fail('Verify token không hợp lệ.', 403); }
-  const { raw, value } = await body(req); const signature = req.headers['x-hub-signature-256'] || ''; const appSecrets = [...new Set([process.env.META_APP_SECRET, ...channels.map(c => secret(c.id).appSecret)].filter(Boolean))]; if (!appSecrets.length) domain.fail('Chưa có META_APP_SECRET.', 403); const validSignature = appSecrets.some(appSecret => { const expected = 'sha256=' + createHmac('sha256', appSecret).update(raw).digest('hex'); return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected)); }); if (!validSignature) domain.fail('Chữ ký không hợp lệ.', 403);
+  const { raw, value } = await body(req); const signature = req.headers['x-hub-signature-256'] || '';
+  if(value.topic){
+   const targets=channels.filter(c=>c.provider==='threads');
+   if(!validThreadsSignature(raw,signature,[process.env.THREADS_APP_SECRET,...targets.map(c=>secret(c.id).appSecret)]))domain.fail('Chữ ký Threads không hợp lệ.',403);
+   for(const c of targets)ingestThreadsNotification(c,value);
+   return json(res,{ok:true});
+  }
+  const metaChannels=channels.filter(c=>c.provider!=='threads');
+  const appSecrets = [...new Set([process.env.META_APP_SECRET, ...metaChannels.map(c => secret(c.id).appSecret)].filter(Boolean))]; if (!appSecrets.length) domain.fail('Chưa có META_APP_SECRET.', 403); const validSignature = appSecrets.some(appSecret => { const expected = 'sha256=' + createHmac('sha256', appSecret).update(raw).digest('hex'); return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected)); }); if (!validSignature) domain.fail('Chữ ký không hợp lệ.', 403);
   const description=describeMetaWebhook(value),receivedAt=now();
   put('meta_webhook_receipts',{receivedAt,...description});
   for(const old of all('meta_webhook_receipts').sort((a,b)=>b.receivedAt.localeCompare(a.receivedAt)).slice(30))remove('meta_webhook_receipts',old.id);
-  for(const c of channels){const summary=channelWebhookSummary(c,description);if(summary)put('facebook_webhook_status',{...get('facebook_webhook_status',c.id),id:c.id,lastReceivedAt:receivedAt,...summary,...(summary.messageEvents?{lastMessageEventAt:receivedAt}:{}),...(summary.standbyMessages?{lastStandbyEventAt:receivedAt}:{})});}
+  for(const c of metaChannels){const summary=channelWebhookSummary(c,description);if(summary)put('facebook_webhook_status',{...get('facebook_webhook_status',c.id),id:c.id,lastReceivedAt:receivedAt,...summary,...(summary.messageEvents?{lastMessageEventAt:receivedAt}:{}),...(summary.standbyMessages?{lastStandbyEventAt:receivedAt}:{})});}
   transaction(() => {
-    for (const c of channels) {
+    for (const c of metaChannels) {
       if(['facebook','instagram'].includes(c.provider))ingestFacebookEvents(c, value.entry,value.object);care.ingestComments(c, value.entry);
     }
   }); for (const c of channels.filter(c=>c.provider==='facebook')) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
@@ -265,7 +275,7 @@ const server = http.createServer(async (req, res) => {
   try {
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com https://www.youtube-nocookie.com https://www.facebook.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);
-    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
+    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
     const publicMedia = publicMediaFile(path); if (publicMedia) return serveFile(req, res, publicMedia, false);
     if (path.match(/^\/api\/oauth\/[^/]+\/callback$/)) return await finishOAuth(req, res, url);
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }

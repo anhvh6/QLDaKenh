@@ -5,6 +5,7 @@ import {tiktokPublishBlock,tiktokProviderMessage} from './tiktok-publish-policy.
 import {extraProviders,isExtra,extraProfile,publishExtra} from './social-extra.mjs';
 import {sendCommentPrivateReply} from './comment-private.mjs';
 import {facebookMessageMedia} from './facebook-media.mjs';
+import {sendThreadsReply} from './threads-replies.mjs';
 import { createReadStream, statSync, openAsBlob } from 'node:fs';
 import { basename, join } from 'node:path';
 import { secret, get, saveSecret, dataDir } from './store.mjs';
@@ -244,15 +245,7 @@ export async function sendMessage(c, conv, text, options = {}) {
     const result=await remote(`https://graph.facebook.com/${graphVersion(c)}/${encodeURIComponent(conv.externalCommentId)}/comments`, json(body, token));if(!result.id)throw Object.assign(Error('Facebook chưa xác nhận trả lời bình luận.'),{unknown:true});return result;
   }
   if(c.provider==='threads'&&conv.kind==='comment'){
-    if(!conv.externalCommentId)throw Error('Thiếu ID bình luận gốc.');
-    if(options.assetRefs?.length)throw Error('Trả lời bình luận Threads hiện dùng văn bản.');
-    if(Array.from(text).length>500)throw Error('Threads giới hạn 500 ký tự.');
-    const root='https://graph.threads.net/v1.0/'+encodeURIComponent(c.accountId);
-    const container=await remote(root+'/threads',json({media_type:'TEXT',text,reply_to_id:conv.externalCommentId},token));
-    if(!container.id)throw Error('Threads chưa xác nhận tạo nội dung trả lời.');
-    const result=await remote(root+'/threads_publish',json({creation_id:container.id},token));
-    if(!result.id)throw Object.assign(Error('Threads chưa xác nhận đăng trả lời. Kiểm tra trên nền tảng trước khi thử lại.'),{unknown:true});
-    return result;
+    return sendThreadsReply(c,conv,text,options.assetRefs||[],token,remote,publicMediaUrl);
   }
   if(c.provider==='instagram'&&conv.kind==='comment'){
     if(!conv.externalCommentId)throw Error('Thiếu ID bình luận Instagram.');

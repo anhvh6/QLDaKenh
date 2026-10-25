@@ -4905,6 +4905,15 @@ details .field {
     color: #75837a
 }
 
+#comment-reply-preview {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-top: 8px;
+}
+#comment-reply-preview:empty { display: none; }
+#comment-reply-preview .comment-media-preview { flex: 0 0 130px; }
 .comment-media-preview {
     position: relative;
     width: 132px;
