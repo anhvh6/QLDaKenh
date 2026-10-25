@@ -12,3 +12,18 @@ https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api?entit
 These changes cannot grant Meta permissions or change external conversation routing. Live receipt still depends on the app's Instagram messaging permissions, webhook subscriptions and access to the linked account. No real customer messages are sent by the QA suite. Production UI inspection is unavailable because the browser approval gate reported exhausted workspace credits. A live incoming/outgoing customer exchange is not claimed as verified.
 
 Release requires VPS backend update; `/api/health` exposes `instagramChatRecovery: true`. The channel status wording uses the web origin shared by Android TWA and requires Vercel asset deployment. No native APK update is needed.
+# Follow-up: incomplete conversation responses and mobile focus
+
+Conversation responses without `participants` are no longer discarded: sender
+and recipient fields in individual messages determine identity. ID-only message
+rows are hydrated via their message-ID endpoint, with up to three concurrent
+reads and an eight-second timeout per read. Missing sender/content is reported
+as an error rather than importing a fabricated message or reporting success.
+Instagram always checks the latest message page even when the conversation's
+`updated_time` is unchanged. Empty results show an attention state and successful
+reads display their message count. This does not prove live customer delivery.
+
+On touch layouts, focus in the composer and keyboard viewport resizing scroll
+the active chat/comment feed to its end. Ordinary viewport scroll and typing do
+not repeatedly force scrolling; existing mobile send-focus retention is kept.
+Validated with long local conversations at 390/840/1100 touch and desktop mouse.

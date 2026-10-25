@@ -1,5 +1,5 @@
 {
-  "version": "a8aee86da720",
+  "version": "c1b1347e07ce",
   "compiler": "0.25.12",
   "files": {
     "public/background-refresh.js": "3b2a295286d54ce19c3579056fae474f74f562c559673b7ca3d68ebf4b54fb78",
@@ -10,7 +10,7 @@
     "public/reup-text.js": "dde19976981e27d1194c9b791222fa92c7baf4353fd9fb58deb2ea0a5c6bae40",
     "public/publish-content-review.js": "378b8f9abf41f74ea5578dd7515cad13d0f273251090bf3a86493df7d25bf4fa",
     "public/content-presentation.js": "d663fa6daa71f6abfcd911a120fa0d03a8ea55bb7cf9cb43f6853c7389a86111",
-    "public/thread-layout.js": "cf2e22078c2b511190c5df712a5c936972f44d242ee44e2b44428c161f3aab66",
+    "public/thread-layout.js": "acb88be0f60919f10c2df45817d1c74fb78a89797eefc818d8149f82c9acec06",
     "public/notification-feed.js": "5a85de8485b2fed5178bb5a83071c455c21e73c675a107a9d442721c0753c10b",
     "public/media-cover.js": "97974b49c092193ac0c48e996a81c0a270f52776dd1dddabef8a148f456a376a",
     "public/calendar-model.js": "023809eb67e01a29bb3b9d067d50b7b2011c3da8d1584a30199199553cdfb6f5",
@@ -118,10 +118,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "371a90d5cedbb791a9c0a862af02b950d2aa94f7b201c286d5adec21c287122c",
+    "public/inbox.js": "02d69b9f6ae0222fab79d18198768e41fc1469c28996307df5bd4300650fb225",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "4cf2b0b7f42a2bef797f142f7ee2451fa72549b20eb54d9214c4064348cfdfa3",
     "public/app.js": "4207e43f8831d3f0c26701dabd5632df5a611cf4b60548e9aff965ef271b4025",
-    "public/app.bundle.js": "a8aee86da72019c477ea5df7bb58da87bb3a7b87dd57af24815700b8af797f64"
+    "public/app.bundle.js": "c1b1347e07ced96281b14fadc386fc0a18e00b66ce3f50d363696e7361061528"
   }
 }

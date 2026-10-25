@@ -13,6 +13,28 @@ async function metaConversations(channel,base,query,request,headers){
  const primary=metaConversationAccount(channel),read=account=>request(`${base}/${encodeURIComponent(account)}/conversations?${query}`,{headers,signal:AbortSignal.timeout(8000)});
  try{const result=await read(primary);if(result.data?.length||channel.provider!=='instagram'||primary===String(channel.accountId))return result;return await read(channel.accountId);}catch(error){if(channel.provider!=='instagram'||primary===String(channel.accountId)||![100,2500].includes(Number(error.providerCode??error.code)))throw error;return read(channel.accountId);}
 }
+// Some Graph conversation responses contain message IDs without sender/content.
+// Resolve those IDs before ingestion; never invent an inbound peer or message text.
+async function metaMessagePage(channel,base,url,request,headers){
+ const options=()=>({headers,signal:AbortSignal.timeout(8000)});
+ const page=await request(url,options());
+ if(!Array.isArray(page.data))throw new Error('Meta không trả danh sách tin nhắn hợp lệ.');
+ if(channel.provider!=='instagram')return page;
+ const rows=[...page.data],own=metaChatIdentities(channel);let next=0;
+ await Promise.all(Array.from({length:Math.min(3,rows.length)},async()=>{while(next<rows.length){const i=next++,item=rows[i];
+  if(!item?.id)throw new Error('Meta trả tin nhắn không có ID.');
+  const hasContent=Object.hasOwn(item,'message')||item.attachments||item.sticker||item.sticker_id;
+  if(channel.provider==='instagram'&&(!item.from?.id||!hasContent||own.has(String(item.from.id))&&!item.to?.data?.length)){
+   const detail=await request(base+'/'+encodeURIComponent(item.id)+'?fields=id,created_time,from,to,message,attachments',options());
+   if(String(detail.id)!==String(item.id))throw new Error('Meta không trả chi tiết đúng ID tin nhắn.');
+   rows[i]={...item,...detail};
+  }
+  if(!rows[i].from?.id)throw new Error('Meta trả tin nhắn thiếu người gửi; chưa thể xác định hội thoại.');
+  if(!Number.isFinite(Date.parse(rows[i].created_time)))throw new Error('Meta trả tin nhắn thiếu thời gian gửi; chưa thể xác định hạn phản hồi.');
+  if(channel.provider==='instagram'&&!Object.hasOwn(rows[i],'message')&&!rows[i].attachments&&!rows[i].sticker&&!rows[i].sticker_id)throw new Error('Meta chưa trả nội dung chi tiết của tin nhắn Instagram.');
+ }}));
+ return {...page,data:rows};
+}
 export function facebookAttachments(items = []) {
  const expanded=items.flatMap(a=>a.payload?.template_type==='generic'?(a.payload.elements||[]).filter(e=>e.image_url).map(e=>({type:'image',url:e.image_url})):a.generic_template?.elements?a.generic_template.elements.filter(e=>e.image_url).map(e=>({type:'image',url:e.image_url})):a);
  return expanded.map(a => {
@@ -83,12 +105,12 @@ export async function syncFacebookConversation(channel,conversation,request=remo
  const key=channel.id+':'+conversation.id,prior=liveJobs.get(key);
  if(prior&&(prior.running||Date.now()-prior.at<3000))return;
  liveJobs.set(key,{running:true,at:Date.now()});
- const base=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`,headers={Authorization:'Bearer '+secret(channel.id).token},readOptions={headers,signal:AbortSignal.timeout(8000)};
+ const base=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`,headers={Authorization:'Bearer '+secret(channel.id).token};
  try{
   let threadId=conversation.facebookThreadId;
   if(!threadId){const threads=await metaConversations(channel,base,`platform=${channel.provider==='instagram'?'instagram':'messenger'}&user_id=${encodeURIComponent(conversation.externalUserId)}&fields=id&limit=1`,request,headers);threadId=threads.data?.[0]?.id;if(threadId){const current=get('conversations',conversation.id);if(!current?.deletedAt)put('conversations',{...current,facebookThreadId:threadId});}}
   if(!threadId)return;
-  const page=await request(`${base}/${encodeURIComponent(threadId)}/messages?limit=${channel.provider==='instagram'?20:25}&fields=id,created_time,message,from,to,attachments,sticker`,{...readOptions,signal:AbortSignal.timeout(8000)});
+  const page=await metaMessagePage(channel,base,`${base}/${encodeURIComponent(threadId)}/messages?limit=${channel.provider==='instagram'?20:25}&fields=id,created_time,message,from,to,attachments,sticker`,request,headers);
   for(const item of [...(page.data||[])].reverse())ingestFacebookMessage(channel,item,{history:Date.parse(item.created_time)<Date.now()-120000,participant:{id:conversation.externalUserId}});
  }finally{liveJobs.set(key,{running:false,at:Date.now()});if(liveJobs.size>300)for(const [id,job] of liveJobs)if(!job.running&&Date.now()-job.at>60000)liveJobs.delete(id);}
 }
@@ -107,13 +129,13 @@ export async function syncFacebookChat(channel, request = remote) {
   const threads = [...new Map([...(latest.data || []), ...(conversations.data || [])].map(t => [t.id,t])).values()];
   let nextThread=0;const syncThread=async thread=>{
    const participant = thread.participants?.data?.find(p => !metaChatIdentities(channel).has(String(p.id)));
-   if (!participant?.id) return;
+   // Message sender/recipient fields can identify the peer even without participants.
    const checkpointId = channel.id + ':' + thread.id, checkpoint = get('facebook_chat_cursors', checkpointId) || {};
-   if(compatible&&checkpoint.complete&&thread.updated_time&&checkpoint.remoteUpdatedAt===thread.updated_time)return;
+   if(channel.provider!=='instagram'&&compatible&&checkpoint.complete&&thread.updated_time&&checkpoint.remoteUpdatedAt===thread.updated_time)return;
    // Always read the newest page; then advance an older-history cursor on later cycles.
    const readPage = async after => {
-    const messages = await request(`${base}/${encodeURIComponent(thread.id)}/messages?limit=${channel.provider==='instagram'?20:100}&fields=id,created_time,message,from,to,attachments,sticker&${after ? 'after=' + encodeURIComponent(after) : ''}`, {...readOptions,signal:AbortSignal.timeout(8000)});
-    for (const item of [...(messages.data || [])].reverse()){const msg=ingestFacebookMessage(channel,item,{history:Date.parse(item.created_time)<Date.parse(startedAt),participant});if(msg){imported++;const conv=get('conversations',msg.conversationId);if(conv.facebookThreadId!==thread.id)put('conversations',{...conv,facebookThreadId:thread.id});}}
+    const messages = await metaMessagePage(channel,base,`${base}/${encodeURIComponent(thread.id)}/messages?limit=${channel.provider==='instagram'?20:100}&fields=id,created_time,message,from,to,attachments,sticker&${after ? 'after=' + encodeURIComponent(after) : ''}`,request,headers);
+    for (const item of [...(messages.data || [])].reverse()){const msg=ingestFacebookMessage(channel,item,{history:Date.parse(item.created_time)<Date.parse(startedAt),participant:participant||{}});if(msg){imported++;const conv=get('conversations',msg.conversationId);if(conv.facebookThreadId!==thread.id)put('conversations',{...conv,facebookThreadId:thread.id});}}
     return messages.paging?.next ? messages.paging?.cursors?.after || '' : '';
    };
    const newestNext = await readPage('');
@@ -121,7 +143,7 @@ export async function syncFacebookChat(channel, request = remote) {
    put('facebook_chat_cursors', { id: checkpointId, after: olderNext, complete: !olderNext, remoteUpdatedAt:thread.updated_time||'', syncedAt: now() });
   }
   const errors=[];await Promise.all(Array.from({length:Math.min(3,threads.length)},async()=>{while(nextThread<threads.length){try{await syncThread(threads[nextThread++]);}catch(error){errors.push(error);}}}));if(errors.length)throw errors[0];
-  put('facebook_chat_sync', { id: channel.id,syncProtocolVersion:2,chatAccountId:metaConversationAccount(channel), startedAt, after: conversations.paging?.next ? conversations.paging?.cursors?.after || '' : '', status: 'ready', syncedAt: now(), imported, error: '' });
+  put('facebook_chat_sync', { id: channel.id,syncProtocolVersion:2,chatAccountId:metaConversationAccount(channel), startedAt, after: conversations.paging?.next ? conversations.paging?.cursors?.after || '' : '', status: channel.provider==='instagram'&&(!threads.length||!imported)?'attention':'ready', warning:channel.provider==='instagram'&&(!threads.length||!imported)?'Meta chưa trả nội dung tin nhắn. Hãy kiểm tra quyền nhắn tin và quyền truy cập tin nhắn của ứng dụng trên Instagram.':'', threadCount:threads.length, syncedAt: now(), imported, error: '' });
   return { imported, more: !!conversations.paging?.next };
  } catch (error) {
   put('facebook_chat_sync', { ...state, startedAt, id: channel.id, status: 'error', syncedAt: now(), error: error.message });

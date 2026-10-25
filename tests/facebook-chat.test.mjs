@@ -159,3 +159,31 @@ test('Instagram is advertised as a supported chat sync channel and received caro
  const rows=await chatRoute('/api/chat/channel-status','GET',{}, {id:'qa-owner',role:'owner'});assert.equal(rows.find(r=>r.id==='ig-linked').messaging,true);
  const channel=get('connections','ig-alias'),msg=ingestFacebookMessage(channel,{id:'template-received',created_time:new Date().toISOString(),from:{id:'alias-peer'},to:{data:[{id:channel.accountId}]},attachments:[{type:'template',payload:{template_type:'generic',elements:[{title:'1',image_url:'https://example.test/1.jpg'},{title:'2',image_url:'https://example.test/2.jpg'}]}}]});assert.equal(msg.attachments.length,2);assert.equal(all('messages').filter(m=>m.externalId==='template-received').length,1);
 });
+
+test('Instagram hydrates ID-only messages and imports a thread without participants',async()=>{
+ const channel=put('connections',{id:'ig-id-only',provider:'instagram',accountId:'id-only-own',mode:'api',status:'connected'});saveSecret(channel.id,{pageId:'id-only-page'});
+ let detailReads=0;
+ await syncFacebookChat(channel,async url=>{
+  if(url.includes('/conversations?'))return {data:[{id:'id-only-thread',updated_time:'2026-10-25T00:00:00Z'}]};
+  if(url.includes('/id-only-thread/messages?'))return {data:[{id:'id-only-message',created_time:'2026-10-25T10:00:00Z'}]};
+  assert.match(url,/\/id-only-message\?fields=/);detailReads++;
+  return {id:'id-only-message',created_time:'2026-10-25T10:00:00Z',from:{id:'id-only-customer'},to:{data:[{id:channel.accountId}]},message:'Customer reply'};
+ });
+ assert.equal(detailReads,1);const message=all('messages').find(m=>m.externalId==='id-only-message');assert.equal(message.text,'Customer reply');assert.equal(message.direction,'incoming');assert.ok(get('conversations',message.conversationId).lastInboundAt);
+});
+
+test('unchanged Instagram thread timestamps do not suppress new customer messages',async()=>{
+ const channel=put('connections',{id:'ig-stale-time',provider:'instagram',accountId:'stale-own',mode:'api',status:'connected'});saveSecret(channel.id,{pageId:'stale-page'});let cycle=1;
+ const request=async url=>url.includes('/conversations?')?{data:[{id:'stale-thread',updated_time:'2026-10-25T00:00:00Z'}]}:{data:[{id:'stale-message-'+cycle,created_time:new Date().toISOString(),from:{id:'stale-peer'},message:'Reply '+cycle}]};
+ await syncFacebookChat(channel,request);cycle=2;await syncFacebookChat(channel,request);
+ assert.ok(all('messages').find(m=>m.externalId==='stale-message-2'));
+});
+
+test('empty or incomplete Instagram responses cannot report a successful content sync',async()=>{
+ const channel=put('connections',{id:'ig-empty-proof',provider:'instagram',accountId:'empty-proof',mode:'api',status:'connected'});
+ await syncFacebookChat(channel,async()=>({data:[]}));assert.equal(get('facebook_chat_sync',channel.id).status,'attention');
+ await assert.rejects(syncFacebookChat(channel,async url=>url.includes('/conversations?')?{data:[{id:'broken-thread'}]}:url.includes('/messages?')?{data:[{id:'broken-message'}]}:{id:'broken-message'}),/thiếu người gửi/);
+ assert.equal(get('facebook_chat_sync',channel.id).status,'error');assert.equal(all('messages').some(m=>m.externalId==='broken-message'),false);
+ await assert.rejects(syncFacebookChat(channel,async url=>url.includes('/conversations?')?{data:[{id:'bad-time-thread'}]}:{data:[{id:'bad-time-message',from:{id:'bad-time-peer'},message:'Missing date'}]}),/thiếu thời gian gửi/);
+ assert.equal(all('messages').some(m=>m.externalId==='bad-time-message'),false);
+});
