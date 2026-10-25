@@ -25,3 +25,12 @@ test('content snapshot preserves publishing fields and scopes private channels',
 test('thumbnail endpoint checks channel permission before touching the file',async()=>{
  await assert.rejects(()=>mediaThumbnail({id:'editor',role:'editor'},'private-video'),error=>error.status===403);
 });
+
+test('copied draft exposes owned cached source preview without changing editable text',()=>{
+ put('copy_posts',{id:'source-own',userId:'owner',title:'.',caption:'Full source caption',media:[{type:'video'}]});
+ put('copy_videos',{id:'video-own',userId:'owner',postId:'source-own',provider:'facebook',externalId:'123',thumbnail:'https://example.test/cover.jpg'});
+ put('contents',{id:'draft-source',sourceCopyId:'source-own',channels:[],title:'.',caption:'Edited caption',copyReady:false});
+ const s=contentSnapshot({id:'owner',role:'owner'}),draft=s.contents.find(c=>c.id==='draft-source');
+ assert.equal(draft.sourcePreview.thumbnail,'https://example.test/cover.jpg');assert.equal(draft.caption,'Edited caption');assert.deepEqual(draft.sourceMediaTypes,['video']);
+ assert.equal(contentSnapshot({id:'other',role:'owner'}).contents.find(c=>c.id===draft.id).sourcePreview,undefined);
+});

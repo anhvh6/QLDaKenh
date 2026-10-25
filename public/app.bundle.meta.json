@@ -1,7 +1,8 @@
 {
-  "version": "ffebe342f0f7",
+  "version": "f5d3f9c9c886",
   "compiler": "0.25.12",
   "files": {
+    "public/content-presentation.js": "6e0d82d241d34c17ab9caebc4acf1621395eb83acc500095ac6712ac4cb16f59",
     "public/thread-layout.js": "6dc1585a13dea2ea197ca464500e12276edc2c7c18cbb12315c7b1d18049f2d4",
     "public/notification-feed.js": "5a85de8485b2fed5178bb5a83071c455c21e73c675a107a9d442721c0753c10b",
     "public/media-cover.js": "97974b49c092193ac0c48e996a81c0a270f52776dd1dddabef8a148f456a376a",
@@ -37,7 +38,7 @@
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/new-composer-model.js": "42c789aa93d5fa28689eec4f6d93af908f113326c5df38f7ed8f7bdd5ae03a38",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
-    "public/content-library-model.js": "a10f684182cf89d9cb4a6c70b2cd842eeabcfbaff0b67eac866d1e647093c053",
+    "public/content-library-model.js": "267a30aa807133c2644b5e6dbe4df8ec4a2da5c947588361acfd42ddf95f684d",
     "public/library-date-picker.js": "b39948c67feeff974b8a1ec38abf2377756ffaa3aba623d6802a123f4f6390ce",
     "public/published-content-targets.js": "f7f39391a1cb18255fc4db913ca4339e7996c137eee08cdf085a827ed35006f6",
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
@@ -113,7 +114,7 @@
     "public/inbox.js": "25960c1cce98a211ff9ae0a7541965fc6f9c1f9f2b8d37fdd456360088670378",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "ad4dec09d64d31ca1db616b685e0d58b3a12f1ae13ca54618fda5c4eee6599b8",
-    "public/app.bundle.js": "ffebe342f0f7c07d65dfa6d37c34d6c1107fdbd7f7ab63f957fdf8bc5aa8278c"
+    "public/app.js": "8b937449c610aada995326c3b743ad9e59e249a5abb03627a86561a93035678e",
+    "public/app.bundle.js": "f5d3f9c9c8861e67c93cffe06595d9930da8998c02000a41e5c51db7fb025ebc"
   }
 }
