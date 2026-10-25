@@ -1,7 +1,9 @@
 {
-  "version": "9f65aef786e5",
+  "version": "c0facfef713f",
   "compiler": "0.25.12",
   "files": {
+    "public/content-index.js": "360d8ff10a74a7360709127168e305199289ca21b642b30433ee1c2bf3bd5c65",
+    "public/page-snapshot-cache.js": "edf28aa472bec98b6646fc5ca80ddcdf3ad50cc2a776dd994d8368f99a074320",
     "public/content-presentation.js": "6e0d82d241d34c17ab9caebc4acf1621395eb83acc500095ac6712ac4cb16f59",
     "public/composer-keyboard.js": "de5733f430ba5fd6d30fb59648bfab838435a350db17310df7f7fde4af978695",
     "public/thread-layout.js": "60f91b3540e8a96090d849a1feba38556cde352aa8d7fedc428e79b6e22b3f21",
@@ -113,10 +115,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "f2aeac8d9f3a63b90a01fdff0c5ec9f56b48300ed55b2b3901eabe8c19314dbc",
+    "public/inbox.js": "a8e92282fe11d4326580b593c52fdb76bd706081f370ed4b77747f37d8802fe9",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "8b937449c610aada995326c3b743ad9e59e249a5abb03627a86561a93035678e",
-    "public/app.bundle.js": "9f65aef786e5d0ff59ffbafc6b58d77d1c9a9092f8cef4a97a3f3f3a894a1e40"
+    "public/app.js": "6ae625ee05c40055eb4f9adc150e27a40498e4ea436b5d5b6a403a687cef5e01",
+    "public/app.bundle.js": "c0facfef713f4cd073d45a0d008b1c5adcb67c044b76a9a45a78c991b4afd7c5"
   }
 }
