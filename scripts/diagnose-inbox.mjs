@@ -14,6 +14,6 @@ const conversations=read('conversations');
 for(const [index,c] of read('connections').filter(c=>['instagram','facebook'].includes(c.provider)&&!c.deletedAt).entries()){
  const state=sync.get(c.id)||{},hook=hooks.get(c.id)||{},chats=conversations.filter(v=>v.connectionId===c.id&&!v.deletedAt);
  const error=String(state.error||'').replace(/(?:https?:\/\/\S+|Bearer\s+\S+|access_token[=:]\s*\S+)/gi,'[redacted]');
- console.log(JSON.stringify({channel:index+1,provider:c.provider,status:c.status,mode:c.mode,sync:{status:state.status,at:state.syncedAt,error,protocol:state.syncProtocolVersion,imported:state.imported,threads:state.threadCount,warning:state.warning},webhook:{receivedAt:hook.lastReceivedAt,messageAt:hook.lastMessageEventAt,standbyAt:hook.lastStandbyEventAt},conversations:chats.length,withInbound:chats.filter(v=>v.lastInboundAt).length,privateRepliesWaiting:chats.filter(v=>v.privateReplySentAt&&!v.lastInboundAt).length},null,2));
+ console.log(JSON.stringify({channel:index+1,provider:c.provider,status:c.status,mode:c.mode,sync:{status:state.status,at:state.syncedAt,error,protocol:state.syncProtocolVersion,imported:state.imported,threads:state.threadCount,warning:state.warning,failure:state.failure},webhook:{receivedAt:hook.lastReceivedAt,messageAt:hook.lastMessageEventAt,standbyAt:hook.lastStandbyEventAt},conversations:chats.length,withInbound:chats.filter(v=>v.lastInboundAt).length,privateRepliesWaiting:chats.filter(v=>v.privateReplySentAt&&!v.lastInboundAt).length},null,2));
 }
 db.close();

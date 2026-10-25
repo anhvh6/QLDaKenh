@@ -1,5 +1,5 @@
 {
-  "version": "c1b1347e07ce",
+  "version": "6a72183b1d09",
   "compiler": "0.25.12",
   "files": {
     "public/background-refresh.js": "3b2a295286d54ce19c3579056fae474f74f562c559673b7ca3d68ebf4b54fb78",
@@ -118,10 +118,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "02d69b9f6ae0222fab79d18198768e41fc1469c28996307df5bd4300650fb225",
+    "public/inbox.js": "18d403afae59c018bd5060c14e2c23a53cc9796e33aa7993464fd30a59be0662",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "4cf2b0b7f42a2bef797f142f7ee2451fa72549b20eb54d9214c4064348cfdfa3",
     "public/app.js": "4207e43f8831d3f0c26701dabd5632df5a611cf4b60548e9aff965ef271b4025",
-    "public/app.bundle.js": "c1b1347e07ced96281b14fadc386fc0a18e00b66ce3f50d363696e7361061528"
+    "public/app.bundle.js": "6a72183b1d09a6b7d89f34d2c8dbc7460a6f2aa09daec2fbc6e7d45be5ed2601"
   }
 }

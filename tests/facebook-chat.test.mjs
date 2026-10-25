@@ -187,3 +187,9 @@ test('empty or incomplete Instagram responses cannot report a successful content
  await assert.rejects(syncFacebookChat(channel,async url=>url.includes('/conversations?')?{data:[{id:'bad-time-thread'}]}:{data:[{id:'bad-time-message',from:{id:'bad-time-peer'},message:'Missing date'}]}),/thiếu thời gian gửi/);
  assert.equal(all('messages').some(m=>m.externalId==='bad-time-message'),false);
 });
+
+test('sync records the actual failing network stage and retries reads without reporting ready',async()=>{
+ const channel=put('connections',{id:'ig-network-proof',provider:'instagram',accountId:'network-own',mode:'api',status:'connected'});let calls=0;
+ await assert.rejects(syncFacebookChat(channel,async()=>{calls++;assert.equal(get('facebook_chat_sync',channel.id).status,'syncing');throw Object.assign(new Error('opaque network failure'),{networkCode:'UND_ERR_CONNECT_TIMEOUT'});}),/UND_ERR_CONNECT_TIMEOUT/);
+ const state=get('facebook_chat_sync',channel.id);assert.equal(calls,2);assert.equal(state.status,'error');assert.equal(state.failure.stage,'conversations');assert.equal(state.failure.networkCode,'UND_ERR_CONNECT_TIMEOUT');assert.equal(state.failure.attempts,2);
+});

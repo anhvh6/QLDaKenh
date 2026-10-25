@@ -1,5 +1,6 @@
 import { all, get, put, db, now, transaction } from './store.mjs';
 import { remote } from './connectors.mjs';
+import {metaChatRead} from './meta-chat-read.mjs';
 import { secret } from './store.mjs';
 import { runWorkflows } from './domain.mjs';
 import { observeCareMessage } from './taophacdo.mjs';
@@ -10,14 +11,13 @@ const liveJobs=new Map();
 const stamp = value => Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : now();
 const safeURL = value => { try { const u = new URL(value); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; } };
 async function metaConversations(channel,base,query,request,headers){
- const primary=metaConversationAccount(channel),read=account=>request(`${base}/${encodeURIComponent(account)}/conversations?${query}`,{headers,signal:AbortSignal.timeout(8000)});
+ const primary=metaConversationAccount(channel),read=account=>metaChatRead(`${base}/${encodeURIComponent(account)}/conversations?${query}`,{headers,stage:'conversations',request});
  try{const result=await read(primary);if(result.data?.length||channel.provider!=='instagram'||primary===String(channel.accountId))return result;return await read(channel.accountId);}catch(error){if(channel.provider!=='instagram'||primary===String(channel.accountId)||![100,2500].includes(Number(error.providerCode??error.code)))throw error;return read(channel.accountId);}
 }
 // Some Graph conversation responses contain message IDs without sender/content.
 // Resolve those IDs before ingestion; never invent an inbound peer or message text.
 async function metaMessagePage(channel,base,url,request,headers){
- const options=()=>({headers,signal:AbortSignal.timeout(8000)});
- const page=await request(url,options());
+ const page=await metaChatRead(url,{headers,stage:'messages',request});
  if(!Array.isArray(page.data))throw new Error('Meta không trả danh sách tin nhắn hợp lệ.');
  if(channel.provider!=='instagram')return page;
  const rows=[...page.data],own=metaChatIdentities(channel);let next=0;
@@ -25,7 +25,7 @@ async function metaMessagePage(channel,base,url,request,headers){
   if(!item?.id)throw new Error('Meta trả tin nhắn không có ID.');
   const hasContent=Object.hasOwn(item,'message')||item.attachments||item.sticker||item.sticker_id;
   if(channel.provider==='instagram'&&(!item.from?.id||!hasContent||own.has(String(item.from.id))&&!item.to?.data?.length)){
-   const detail=await request(base+'/'+encodeURIComponent(item.id)+'?fields=id,created_time,from,to,message,attachments',options());
+   const detail=await metaChatRead(base+'/'+encodeURIComponent(item.id)+'?fields=id,created_time,from,to,message,attachments',{headers,stage:'detail',request});
    if(String(detail.id)!==String(item.id))throw new Error('Meta không trả chi tiết đúng ID tin nhắn.');
    rows[i]={...item,...detail};
   }
@@ -121,12 +121,14 @@ export async function syncFacebookChat(channel, request = remote) {
  if (!['facebook','instagram'].includes(channel.provider) || channel.deletedAt || channel.status !== 'connected' || channel.mode !== 'api') return { supported: false };
  running.add(channel.id);
  const previous=get('facebook_chat_sync',channel.id)||{},compatible=previous.syncProtocolVersion===2&&previous.chatAccountId===metaConversationAccount(channel),state=compatible?previous:{...previous,after:''},base = `https://graph.facebook.com/${channel.apiVersion || process.env.META_GRAPH_VERSION || 'v25.0'}`;
- const headers = { Authorization: 'Bearer ' + secret(channel.id).token },readOptions={headers,signal:AbortSignal.timeout(8000)};
- let imported = 0; const startedAt = state.startedAt || now();
+ const headers = { Authorization: 'Bearer ' + secret(channel.id).token };
+ let imported = 0,threadCount=0; const startedAt = state.startedAt || now();
+ put('facebook_chat_sync',{...state,id:channel.id,status:'syncing',checkingAt:now(),error:'',failure:null});
  try {
   const conversations = await metaConversations(channel,base,`platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants&${state.after ? 'after=' + encodeURIComponent(state.after) : ''}`,request,headers);
   const latest = state.after ? await metaConversations(channel,base,`platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants`,request,headers) : conversations;
   const threads = [...new Map([...(latest.data || []), ...(conversations.data || [])].map(t => [t.id,t])).values()];
+  threadCount=threads.length;
   let nextThread=0;const syncThread=async thread=>{
    const participant = thread.participants?.data?.find(p => !metaChatIdentities(channel).has(String(p.id)));
    // Message sender/recipient fields can identify the peer even without participants.
@@ -146,7 +148,7 @@ export async function syncFacebookChat(channel, request = remote) {
   put('facebook_chat_sync', { id: channel.id,syncProtocolVersion:2,chatAccountId:metaConversationAccount(channel), startedAt, after: conversations.paging?.next ? conversations.paging?.cursors?.after || '' : '', status: channel.provider==='instagram'&&(!threads.length||!imported)?'attention':'ready', warning:channel.provider==='instagram'&&(!threads.length||!imported)?'Meta chưa trả nội dung tin nhắn. Hãy kiểm tra quyền nhắn tin và quyền truy cập tin nhắn của ứng dụng trên Instagram.':'', threadCount:threads.length, syncedAt: now(), imported, error: '' });
   return { imported, more: !!conversations.paging?.next };
  } catch (error) {
-  put('facebook_chat_sync', { ...state, startedAt, id: channel.id, status: 'error', syncedAt: now(), error: error.message });
+  put('facebook_chat_sync', { ...state, startedAt, id: channel.id, status: 'error', syncedAt: now(), imported,threadCount,error: error.message, failure:{stage:error.metaReadStage||'',networkCode:error.networkCode||'',providerCode:error.providerCode??null,providerStatus:error.providerStatus??null,attempts:error.metaReadAttempts||1,elapsedMs:error.metaReadDurationMs||0} });
   throw error;
  } finally { running.delete(channel.id); }
 }
