@@ -107,3 +107,15 @@ test('care snapshots cannot reuse a revision observed inside a rolled-back trans
  db.exec('BEGIN');put('customers',{id:'rolled-back-cache',name:'Temporary'});studentCareState();db.exec('ROLLBACK');put('customers',{id:'replacement-cache',name:'Saved'});
  const current=studentCareState();assert.equal(current.customers.some(c=>c.id==='rolled-back-cache'),false);assert.equal(current.customers.find(c=>c.id==='replacement-cache').name,'Saved');
 });
+
+test('cached care policies reuse unchanged sources and invalidate on permission edits',()=>{
+ const snapshot=()=>scopeCareChats({...studentCareState(),messages:[]},owner,{includeExceptions:false});
+ const first=snapshot().conversationCare.find(c=>c.id==='personal');
+ const second=snapshot().conversationCare.find(c=>c.id==='personal');
+ assert.equal(first.staffPermissions,second.staffPermissions);
+ const c=get('conversations','personal');
+ put('conversations',{...c,carePermissions:{...c.carePermissions,owner:{receive:false,mute:true}}});
+ const after=snapshot().conversationCare.find(c=>c.id==='personal');
+ assert.notEqual(after.staffPermissions,second.staffPermissions);
+ assert.equal(after.staffPermissions.owner.receive,false);
+});

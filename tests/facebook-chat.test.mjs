@@ -36,9 +36,17 @@ test('webhooks import attachments-only and Page echoes; replays remain idempoten
  const entries=[{messaging:[{sender:{id:'person'},recipient:{id:'page-id'},timestamp:Date.parse('2026-10-14T08:00:00Z'),message:{mid:'photo',attachments:[{type:'image',payload:{url:'https://example.com/p.jpg'}}]}},{sender:{id:'page-id'},recipient:{id:'person'},timestamp:Date.parse('2026-10-14T08:01:00Z'),message:{mid:'echo',is_echo:true,text:'Gửi từ Page'}}]}];
  ingestFacebookEvents(ch,entries);const before=all('messages').length;ingestFacebookEvents(ch,entries);assert.equal(all('messages').length,before);assert.equal(all('messages').find(m=>m.externalId==='echo').direction,'outgoing');
 });
+
+test('replaying an active webhook does not change conversation revision or invalidate Inbox',()=>{
+ const entries=[{messaging:[{sender:{id:'replay-peer'},recipient:{id:'page-id'},timestamp:Date.parse('2026-10-25T08:00:00Z'),message:{mid:'replay-proof',text:'Hello'}}]}];
+ ingestFacebookEvents(ch,entries);
+ const c=all('conversations').find(c=>c.externalUserId==='replay-peer');
+ ingestFacebookEvents(ch,entries);
+ assert.equal(get('conversations',c.id).version,c.version);
+});
 test('purged history is not resurrected; sent album receipts deduplicate each external ID',()=>{
  put('chat_purge_tombstones',{id:'page:0:purged',cutoff:'2026-10-14T00:00:00.000Z'});assert.equal(ingestFacebookMessage(ch,{...item('deleted','2026-10-13T00:00:00Z'),from:{id:'purged'}},{history:true}),null);
- const c=all('conversations')[0];const receipt=put('messages',{conversationId:c.id,direction:'outgoing',externalId:'first-id',externalMessages:[{id:'first-id'},{id:'second-id'}]});
+ const c=all('conversations').find(c=>c.externalUserId==='person');const receipt=put('messages',{conversationId:c.id,direction:'outgoing',externalId:'first-id',externalMessages:[{id:'first-id'},{id:'second-id'}]});
  assert.equal(ingestFacebookMessage(ch,{...item('second-id','2026-10-14T10:00:00Z'),from:{id:'page-id'},to:{data:[{id:'person'}]}},{history:true}).id,receipt.id);
 });
 test('sync paginates history, records diagnostics, and does not repeat complete old pages',async()=>{

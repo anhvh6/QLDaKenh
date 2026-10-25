@@ -11,7 +11,8 @@ import {defaultNameSettings} from '../public/chat-names.js';
 import {orderWorkspaceState} from './order-workspace.mjs';
 import {orderRoutingState} from './order-routing.mjs';
 import {chatWindow} from './chat-window.mjs';
-export const inboxKinds=['connections','conversations','customers','assets','products','orders','templates','quick_reply_topics','notifications','tasks','payments','returns','shipments','journeys','courses','enrollments','journey_events','identities','tags','teams','team_members','channel_teams','payment_orders','template_runs','plan_handoffs','chat_reminders','consultation_reviews','staff_handoffs','settings','learner_source_facts','study_plans','chatbot_jobs','chatbot_runs','chatbots','chatbot_routes','ai_connections','media_categories'];
+import {inboxKinds} from './inbox-kinds.mjs';
+export {inboxKinds} from './inbox-kinds.mjs';
 export const inboxRevision=()=>kindsRevision(inboxKinds);
 // Avoid hydrating publishing history, shipping/POS integrations and every message
 // just to paint a conversation list. Existing permission/care scoping is retained.

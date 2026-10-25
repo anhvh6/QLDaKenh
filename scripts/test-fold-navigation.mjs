@@ -32,6 +32,12 @@ try{
    await page.waitForFunction(()=>document.querySelector('#page')?.innerText.trim()||document.querySelector('#page iframe'));assert.ok((await page.locator('#page').innerText()).trim()||await page.locator('#page iframe').count(),'empty '+route+' '+name);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false,'body overflow '+route+' '+name);
    if(route==='inbox'){
+    await page.locator('.chat-toolbar summary').click();
+    await page.locator('[data-chat="channel-status"]').click();
+    await page.waitForSelector('#chat-channel-status');
+    await page.waitForFunction(()=>document.querySelector('#chat-channel-status')?.textContent.includes('Chưa có kênh'));
+    await page.screenshot({path:'test-results/fold-navigation/'+name+'-channel-status.png'});
+    await page.keyboard.press('Escape');
     await page.locator('.conversation-item').first().click();await page.locator('#reply-form').waitFor();
     const list=await page.locator('.conversation-list').boundingBox(),chat=await page.locator('.chat').boundingBox(),compose=await page.locator('.chat-compose').boundingBox(),bottom=await page.locator('.mobile-bottom').boundingBox();
     assert.equal(await page.locator('.conversation-list').isVisible(),false,'selected list hidden '+name);

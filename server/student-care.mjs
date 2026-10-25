@@ -8,6 +8,15 @@ import {studyPlanStatus} from './plan-access.mjs';
 import {reminderRecipients} from '../public/reminder-model.js';
 
 let careSnapshot=null;
+// Reuse pure permission calculations only while the complete source snapshot is unchanged.
+// Task deadlines are still evaluated on every request by careTaskAccess.
+const policySnapshots=new WeakMap();
+function carePolicies(source){
+ const cached=policySnapshots.get(source.conversations);
+ if(cached&&Date.now()-cached.at<30000)return cached.policies;
+ const policies=new Map(source.conversations.map(c=>[c.id,carePolicy(source,c)]));
+ policySnapshots.set(source.conversations,{at:Date.now(),policies});return policies;
+}
 export function studentCareState(){
  const users=db.prepare('SELECT id,name,role,active FROM users').all(),revision=kindsRevision(['staff_handoffs','chat_reminders','customers','learner_source_facts','conversations','connections','orders','journeys','plan_handoffs','settings','study_plans'])+':'+JSON.stringify(users);
  if(db.isTransaction)careSnapshot=null;
@@ -66,7 +75,7 @@ function exceptionPreview(stages,previous,includeAll=false,source=studentCareSta
 }
 export function scopeCareChats(state,user,{includeExceptions=true}={}){
  const source=studentCareState();
- const policies=new Map(source.conversations.map(c=>[c.id,carePolicy(source,c)]));
+ const policies=carePolicies(source);
  if(includeExceptions&&user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true,source,policies).rows;
  if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source,policies);
  state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user,policies.get(c.id))).map(c=>c.id);

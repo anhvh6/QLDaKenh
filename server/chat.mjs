@@ -47,7 +47,7 @@ export function patchChat(user,id,input){
 export async function chatRoute(path,method,input,user,url){
  const phoneChat=await zaloPhoneChatRoute(path,method,input,user);if(phoneChat!==undefined)return phoneChat;
  if(path==='/api/chat/channel-status'&&method==='GET'){
-  permission(user,'read');return all('connections').filter(c=>{try{assertChannel(user,c.id);return c.status==='connected';}catch{return false;}}).map(c=>({id:c.id,provider:c.provider,name:c.name,messaging:!!['facebook','instagram','zalo','zalo_personal'].includes(c.provider),sync:get('facebook_chat_sync',c.id)||null}));
+  permission(user,'read');return all('connections').filter(c=>{try{assertChannel(user,c.id);return c.status==='connected';}catch{return false;}}).map(c=>({id:c.id,provider:c.provider,name:c.name,messaging:!!['facebook','instagram','zalo','zalo_personal'].includes(c.provider),webhook:get('facebook_webhook_status',c.id)||null,sync:get('facebook_chat_sync',c.id)||null}));
  }
  const syncChannel=path.match(/^\/api\/chat\/channels\/([^/]+)\/sync$/);
  if(syncChannel&&method==='POST'){permission(user,'inbox');assertChannel(user,syncChannel[1]);const ch=get('connections',syncChannel[1]);if(!['facebook','instagram'].includes(ch?.provider))fail('Kênh này chưa hỗ trợ đồng bộ tin nhắn Meta.');void syncFacebookChat(ch).catch(()=>{});return {started:true};}
