@@ -15,6 +15,14 @@ function fixture(sourceURL='https://www.tiktok.com/@faceyoga.megaphuong',extra={
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 const deps={scan:async s=>({complete:true,videos:[1,2].map(n=>({externalId:String(7000000000000000000n+BigInt(serial*10+n)),url:s.provider==='facebook'?'https://www.facebook.com/reel/'+(7000000000000000000n+BigInt(serial*10+n)):s.url+'/video/'+(7000000000000000000n+BigInt(serial*10+n)),caption:'QA '+n,publishedAt:'2026-01-0'+n+'T00:00:00Z'}))}),extract:async()=>({title:'QA',caption:'QA',engine:'video',media:[{type:'video'}]}),startCopy:(u,postId,target,extra)=>put('copy_jobs',{userId:u.id,postId,target,status:'queued',...extra})};
+test('new-video monitoring skips incompatible candidates before draft/download and fills the slot with the next video',async()=>{
+ const clock=Date.now;Date.now=()=>time;try{const {p}=fixture(),local={...deps,scan:async s=>{const rows=await deps.scan(s);rows.videos[0].caption='x'.repeat(501);return rows;}};
+ await automationTick(time,local);await flush();await automationTick(time,local);
+ const sourceVideos=all('copy_videos').filter(v=>v.sourceIds.includes(p.sourceId)),bad=sourceVideos.find(v=>v.caption.length===501),good=sourceVideos.find(v=>v.caption.length!==501),items=all('copy_plan_items').filter(i=>i.planId===p.id);
+ assert.ok(bad&&good);assert.equal(items.some(i=>i.videoId===bad.id),false);assert.equal(items.length,1);assert.equal(items[0].videoId,good.id);assert.equal(items[0].scheduleAt,'2026-10-15T08:40:00.000Z');
+ assert.equal(all('contents').some(c=>c.sourceVideoKey===bad.provider+':'+bad.externalId),false);
+ }finally{Date.now=clock;}
+});
 test('save creates a source and schedule atomically without a manual scan or selected video IDs',()=>{
  const {p,input}=fixture();assert.equal(p.mode,'new');assert.equal(get('copy_sources',p.sourceId).automaticOnly,true);assert.equal(all('copy_plan_items').filter(i=>i.planId===p.id).length,0);
  const before=[all('copy_sources').length,all('copy_plans').length];assert.throws(()=>saveMonitorPlan(user,{...input,source:{url:'https://www.tiktok.com/@faceyoga.megaphuong',from:'2026-01-01'},channels:[]},time));

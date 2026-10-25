@@ -6,6 +6,10 @@ Automatic copy plans stop on both validation errors and review warnings before m
 
 No additional database table is needed: draft warnings are read-only derivations of current text and channels; existing plan items, events and publication records store fallback and dispatch outcomes.
 
+Candidate admission now also runs before queue creation and slot reservation for both bulk and new-video plans. Known text-limit, policy-review, media-type and destination validation issues exclude a candidate before a draft/download exists. Bulk selection can fill excluded choices with eligible videos from the same configured source and date range, preserving source priority and duplicate/reservation guards. Preview shows excluded candidates without a slot and includes eligible replacements. New-video monitoring reevaluates excluded source videos on later scans, so corrected metadata can become eligible. Untouched scheduled reservations are released if newly known metadata fails validation; the next eligible pending video receives that slot. Edited linked drafts use their edited text rather than stale source text when retrying. Prepared packages and attempted writes retain the existing safety/reconciliation flow.
+
+Admission only evaluates metadata currently available. Full media extraction and final dispatch checks remain necessary; this is not a guarantee that a platform will accept a post. Backend health exposes `copyCandidateAdmission: true` after rollout.
+
 Validation: 95 targeted unit/integration tests; composer/card/filter UI at 390, 840, 1100 and 1440 pixels; fold-navigation regression at phone, unfolded touch, landscape touch and desktop mouse. Browser tests use isolated QA data and do not publish externally. These checks do not constitute physical Samsung Fold 7 testing.
 
 Deployment requires both Vercel static assets and the VPS backend. `/api/health` exposes `draftWarningReview: true` after the backend update. The Android TWA consumes the same frontend origin; no native APK change is required.
