@@ -1,10 +1,13 @@
 {
-  "version": "c0facfef713f",
+  "version": "2d635c1f8bb6",
   "compiler": "0.25.12",
   "files": {
     "public/content-index.js": "360d8ff10a74a7360709127168e305199289ca21b642b30433ee1c2bf3bd5c65",
     "public/page-snapshot-cache.js": "edf28aa472bec98b6646fc5ca80ddcdf3ad50cc2a776dd994d8368f99a074320",
-    "public/content-presentation.js": "6e0d82d241d34c17ab9caebc4acf1621395eb83acc500095ac6712ac4cb16f59",
+    "public/platform-text-rules.js": "4b16f5740c18ef46d2553b25192d70352a8d2bd1c1e9d109e963934e67eb7b25",
+    "public/reup-text.js": "dde19976981e27d1194c9b791222fa92c7baf4353fd9fb58deb2ea0a5c6bae40",
+    "public/publish-content-review.js": "378b8f9abf41f74ea5578dd7515cad13d0f273251090bf3a86493df7d25bf4fa",
+    "public/content-presentation.js": "eca8aea2124a77ed974f812f830c9e908bd64d11247688b6ca125f9668fdae51",
     "public/composer-keyboard.js": "de5733f430ba5fd6d30fb59648bfab838435a350db17310df7f7fde4af978695",
     "public/thread-layout.js": "60f91b3540e8a96090d849a1feba38556cde352aa8d7fedc428e79b6e22b3f21",
     "public/notification-feed.js": "5a85de8485b2fed5178bb5a83071c455c21e73c675a107a9d442721c0753c10b",
@@ -12,7 +15,6 @@
     "public/calendar-model.js": "023809eb67e01a29bb3b9d067d50b7b2011c3da8d1584a30199199553cdfb6f5",
     "public/report-model.js": "60b35c41f78ce401f959b480708f88928cb9916f98e78dfa12900a3403342c1e",
     "public/state-request.js": "55c8226be6858e61cb329ef4cdb59d1edce7cf72fb38a0cce894c75ddcede02a",
-    "public/platform-text-rules.js": "4b16f5740c18ef46d2553b25192d70352a8d2bd1c1e9d109e963934e67eb7b25",
     "public/social-capabilities.js": "2cdf79070a8224c9fae746328b935ca2c3b8cbe23cbd0a34d175e686df19bc2a",
     "public/social-health.js": "eefba93f9c95a5f6538ac64cebc06bb586b00abe4e3fde4f187b4cb81327bbaf",
     "public/connection-groups.js": "39ba85d29bc94212fdd225b0f36c73b1db6678fe010401be8174ccc87d85166a",
@@ -118,7 +120,7 @@
     "public/inbox.js": "a8e92282fe11d4326580b593c52fdb76bd706081f370ed4b77747f37d8802fe9",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "6ae625ee05c40055eb4f9adc150e27a40498e4ea436b5d5b6a403a687cef5e01",
-    "public/app.bundle.js": "c0facfef713f4cd073d45a0d008b1c5adcb67c044b76a9a45a78c991b4afd7c5"
+    "public/app.js": "4b95c05b5d124ff032e12bfd979fe94c113a7758e9972a8d2ca59174ae7b6b63",
+    "public/app.bundle.js": "2d635c1f8bb62be38ece76fa5736d755dd2cc0367aeb7c88a83bf0e1f8f58356"
   }
 }

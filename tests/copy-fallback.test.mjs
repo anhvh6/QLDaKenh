@@ -5,6 +5,7 @@ const {replacePreparedSlot}=await import('../server/copy-fallback.mjs');
 const {orderedCopyVideos,remainingChannels,automationTick}=await import('../server/copy-automation.mjs');
 const {copySourceBlock}=await import('../server/copy-history.mjs');
 const {copyStorageScope}=await import('../server/copy-cache.mjs');
+const {tick}=await import('../server/domain.mjs');
 const user={id:'fallback-owner',role:'owner'};db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run(user.id,'fallback@example.test','QA','owner','test');saveSecret('drive-'+user.id,{refreshToken:'QA'});
 let serial=0;function fixture(order='oldest'){
  for(const p of all('copy_plans'))put('copy_plans',{...p,status:'paused'});const n=++serial,time=Date.now(),slot=new Date(time+20*60000).toISOString();
@@ -46,3 +47,28 @@ test('final validation respects the edited per-destination queued caption instea
 });
 
 test('slow preparation can use a cached alternate five minutes before slot without cancelling the download',async()=>{const f=fixture(),slot=new Date(f.time+4*60000).toISOString(),job=put('copy_jobs',{userId:user.id,status:'uploading',folderId:'in-progress'});put('copy_plan_items',{...f.failed,state:'preparing',copyJobId:job.id,scheduleAt:slot});await automationTick(f.time);const saved=get('copy_plan_items',f.failed.id);assert.ok(saved.fallbackToItemId);assert.equal(get('copy_jobs',job.id).status,'uploading');assert.equal(get('copy_plan_items',saved.fallbackToItemId).scheduleAt,slot);});
+
+test('automatic review skips policy warnings in cached replacements, keeps the rejected draft and exact slot',async()=>{
+ const f=fixture(),asset=f.candidates[0].asset,caption='Cam kết giảm vĩnh viễn',content=put('contents',{title:'QA',caption,type:'video',channels:f.plan.channels,assets:[asset.id],copyReady:true,copyPlanId:f.plan.id,copyPlanItemId:f.failed.id});
+ put('copy_plan_items',{...f.failed,state:'ready',contentId:content.id});
+ put('copy_videos',{...f.candidates[0].video,overrideCaption:caption});
+ const scheduled=[],deps={schedule:(u,id,input)=>{scheduled.push(id);return put('publications',{contentId:id,connectionId:f.plan.channels[0],scheduleAt:input.scheduleAt,status:'scheduled'});}};
+ await automationTick(f.time,deps);assert.equal(scheduled.length,0);assert.match(get('copy_plan_items',f.failed.id).error,/cam kết/i);
+ await automationTick(f.time+5000,deps);const replacement=get('copy_plan_items',get('copy_plan_items',f.failed.id).fallbackToItemId);
+ assert.equal(replacement.videoId,f.candidates[1].video.id);assert.equal(replacement.scheduleAt,f.failed.scheduleAt);assert.deepEqual(scheduled,[replacement.contentId]);assert.equal(get('contents',content.id).caption,caption);
+});
+test('all warned alternatives leave the original slot unresolved instead of sending unsafe content',()=>{
+ const f=fixture();for(const c of f.candidates)put('copy_videos',{...c.video,overrideCaption:'Cam kết giảm vĩnh viễn'});
+ assert.equal(replace(f),null);assert.equal(get('copy_plan_items',f.failed.id).fallbackToItemId,undefined);assert.equal(get('copy_plan_items',f.failed.id).error,f.failed.error);
+});
+test('queued policy warning is blocked before dispatch and replaced on the next poll',async()=>{
+ const f=fixture(),slot=new Date(f.time+4*60000).toISOString(),asset=f.candidates[0].asset,content=put('contents',{title:'QA',caption:'Short',type:'video',channels:f.plan.channels,assets:[asset.id],copyReady:true,copyPlanId:f.plan.id,copyPlanItemId:f.failed.id});
+ put('copy_plan_items',{...f.failed,state:'ready',contentId:content.id,scheduleAt:slot});const pub=put('publications',{contentId:content.id,connectionId:f.plan.channels[0],copyPlanItemId:f.failed.id,status:'scheduled',attempts:0,scheduleAt:slot,caption:'Cam kết giảm vĩnh viễn'});
+ await automationTick(f.time);assert.equal(get('publications',pub.id).status,'blocked');await automationTick(f.time+5000);assert.ok(get('copy_plan_items',f.failed.id).fallbackToItemId);assert.equal(get('publications',pub.id).status,'cancelled');
+});
+test('dispatch rechecks automatic warnings even when the last automation poll was missed',async()=>{
+ const f=fixture(),content=put('contents',{copyPlanId:f.plan.id,copyPlanItemId:f.failed.id,channels:f.plan.channels}),pub=put('publications',{contentId:content.id,copyPlanId:f.plan.id,copyPlanItemId:f.failed.id,connectionId:f.plan.channels[0],type:'video',mode:'api',copyTextMapped:true,status:'scheduled',attempts:0,scheduleAt:new Date(Date.now()-100).toISOString(),caption:'Cam kết giảm vĩnh viễn'});
+ await tick();const saved=get('publications',pub.id);assert.equal(saved.status,'blocked');assert.equal(saved.attempts,0);assert.equal(saved.dispatchedAt,undefined);assert.equal(saved.contentReview.warnings[0].code,'absolute_claim');
+ // A separate manual acknowledgement remains an explicit user decision.
+ put('publications',{...saved,status:'scheduled',mode:'demo',contentReview:{...saved.contentReview,acknowledgedBy:user.id}});await tick();assert.equal(get('publications',pub.id).status,'demo_published');
+});

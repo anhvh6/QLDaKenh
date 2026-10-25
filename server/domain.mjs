@@ -1,4 +1,5 @@
 import {platformTextIssues} from '../public/platform-text-rules.js';
+import {reviewPublishText,reviewRulesVersion} from './publish-content-review.mjs';
 import {tiktokPublishBlock} from './tiktok-publish-policy.mjs';
 import {facebookVideoReceipt} from './facebook-publish-reconcile.mjs';
 import {withPlatformSend,recordStaffSend,finishCommunicationSend,communicationLock,communicationAutomatic} from './communication-send-guard.mjs';
@@ -266,6 +267,7 @@ export async function tick() {
       const copyBlock=copySourceBlock(get('contents',p.contentId)||{sourceVideoKey:p.sourceVideoKey},p.connectionId,{publicationId:p.id,dispatch:true})||copyPlanBlock(p);if(copyBlock){if(copyBlock.startsWith('Bài nguồn')||copyBlock.startsWith('Đã lỡ')||copyBlock.startsWith('Đã đăng')||copyBlock.startsWith('Kênh đã'))put('publications',{...p,status:'blocked',error:copyBlock});continue;}
       const ch = get('connections', p.connectionId); if (!ch || ch.status === 'disconnected') { put('publications', { ...p, status: 'blocked', error: 'Kênh đã ngắt kết nối.' }); continue; }
       if(!p.copyTextMapped){const source=get('contents',p.contentId);if(p.sourceVideoKey||source?.sourceCopyId||source?.copyPlanId)p=put('publications',{...p,copySourceCaption:p.caption,...reupText({...p,sourceCopyId:source?.sourceCopyId,sourceVideoKey:p.sourceVideoKey||source?.sourceVideoKey},ch.provider),copyTextMapped:true});}
+      if((p.copyPlanId||get('contents',p.contentId)?.copyPlanId)&&!p.contentReview?.acknowledgedBy){const warnings=[...platformTextIssues(ch.provider,p),...reviewPublishText({provider:ch.provider,title:p.title,caption:p.caption})];if(warnings.length){put('publications',{...p,status:'blocked',preflightBlocked:true,textRuleBlocked:true,contentReview:{rulesVersion:reviewRulesVersion,warnings},error:warnings.map(w=>w.message).join(' ')});continue;}}
       if (p.mode === 'assisted') { put('publications', { ...p, status: 'awaiting_manual' }); notification('Đến giờ đăng: ' + p.title, `Mở gói đăng cho ${ch.name}.`, 'calendar'); continue; }
       if (p.mode === 'demo') { put('publications', { ...p, status: 'demo_published', publishedAt: now(), attempts: p.attempts + 1 }); continue; }
       if (ch.status !== 'connected') { put('publications', { ...p, status: 'blocked', error: 'Kênh chưa được kiểm tra kết nối.' }); continue; }
