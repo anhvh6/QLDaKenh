@@ -255,7 +255,7 @@ async function webhook(req, res, url) {
   for(const c of channels){const summary=channelWebhookSummary(c,description);if(summary)put('facebook_webhook_status',{...get('facebook_webhook_status',c.id),id:c.id,lastReceivedAt:receivedAt,...summary,...(summary.messageEvents?{lastMessageEventAt:receivedAt}:{}),...(summary.standbyMessages?{lastStandbyEventAt:receivedAt}:{})});}
   transaction(() => {
     for (const c of channels) {
-      if(['facebook','instagram'].includes(c.provider))ingestFacebookEvents(c, value.entry);care.ingestComments(c, value.entry);
+      if(['facebook','instagram'].includes(c.provider))ingestFacebookEvents(c, value.entry,value.object);care.ingestComments(c, value.entry);
     }
   }); for (const c of channels.filter(c=>c.provider==='facebook')) void care.hydrateCommentAuthors(c, 10).catch(() => { }); json(res, { ok: true });
 }
@@ -265,7 +265,7 @@ const server = http.createServer(async (req, res) => {
   try {
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com https://www.youtube-nocookie.com https://www.facebook.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);
-    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
+    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
     const publicMedia = publicMediaFile(path); if (publicMedia) return serveFile(req, res, publicMedia, false);
     if (path.match(/^\/api\/oauth\/[^/]+\/callback$/)) return await finishOAuth(req, res, url);
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }
@@ -328,7 +328,7 @@ setInterval(() => pushTick().catch(error => console.error('Push tick:', error.me
 setInterval(() => resumePurges().catch(e => console.error('Customer purge:', e.message)), 30000).unref();
 recoverCopyJobs(); setInterval(copyTick, 2000).unref();
 
-void facebookChatTick(); setInterval(() => void facebookChatTick(), 10000).unref();
+void facebookChatTick(); setInterval(() => void facebookChatTick(), 5000).unref();
 void socialChatTick(); setInterval(() => void socialChatTick(), 10000).unref();
 
 recoverCustomerReminders();setInterval(() => void customerReminderTick().catch(e=>console.error('Customer reminders:',e.message)), 5000).unref();

@@ -7,6 +7,7 @@ import {blueskyInteraction} from './social-replies.mjs';
 import {permission,fail} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
 import {publicationMetrics,threadsRepost} from './social-metrics.mjs';
+import {metaConversationAccount} from './meta-chat-identity.mjs';
 const locks=new Map();
 export async function checkSocialHealth(c,request=remote){
  if(locks.has(c.id))return locks.get(c.id);
@@ -48,7 +49,7 @@ export async function checkSocialHealth(c,request=remote){
    const root=`https://graph.facebook.com/${c.apiVersion||'v25.0'}/${encodeURIComponent(c.accountId)}`;
    await probe('webhook',async()=>{const r=await request(root+'/subscribed_apps?fields=subscribed_fields',{headers});const fields=new Set((r.data||[]).flatMap(x=>x.subscribed_fields||[])),required=c.provider==='facebook'?['feed','messages']:['comments','messages'];if(!required.every(f=>fields.has(f)))throw new Error('Webhook chưa đăng ký đủ trường: '+required.filter(f=>!fields.has(f)).join(', '));});
    await probe('comments',()=>request(root+(c.provider==='facebook'?'/feed?fields=id&limit=1':'/media?fields=id&limit=1'),{headers}));
-   const chat=await probe('chat',()=>request(root+'/conversations?fields=id&limit=1'+(c.provider==='instagram'?'&platform=instagram':''),{headers}));
+   const chat=await probe('chat',()=>request(`https://graph.facebook.com/${c.apiVersion||'v25.0'}/${encodeURIComponent(metaConversationAccount(c))}/conversations?fields=id&limit=1`+(c.provider==='instagram'?'&platform=instagram':''),{headers,signal:AbortSignal.timeout(8000)}));
    if(c.provider==='instagram'&&Array.isArray(chat?.data)&&!chat.data.length)Object.assign(checks.at(-1),{status:'waiting',message:'Meta trả danh sách hội thoại trống. Chưa xác minh chiều nhận chat; kiểm tra quyền truy cập tin nhắn của công cụ kết nối và tin nhắn đang chờ trên Instagram.'});
   }else if(c.provider==='x')await probe('comments',()=>request(`https://api.x.com/2/users/${encodeURIComponent(c.accountId)}/tweets?max_results=5`,{headers}));
   else if(c.provider==='youtube')await probe('comments',()=>request(`https://www.googleapis.com/youtube/v3/commentThreads?part=id&allThreadsRelatedToChannelId=${encodeURIComponent(c.accountId)}&maxResults=1`,{headers}));

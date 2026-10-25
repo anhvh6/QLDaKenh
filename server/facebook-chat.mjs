@@ -3,13 +3,19 @@ import { remote } from './connectors.mjs';
 import { secret } from './store.mjs';
 import { runWorkflows } from './domain.mjs';
 import { observeCareMessage } from './taophacdo.mjs';
+import {metaChatIdentities,metaConversationAccount} from './meta-chat-identity.mjs';
 
 const running = new Set();
 const liveJobs=new Map();
 const stamp = value => Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : now();
 const safeURL = value => { try { const u = new URL(value); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; } };
+async function metaConversations(channel,base,query,request,headers){
+ const primary=metaConversationAccount(channel),read=account=>request(`${base}/${encodeURIComponent(account)}/conversations?${query}`,{headers,signal:AbortSignal.timeout(8000)});
+ try{const result=await read(primary);if(result.data?.length||channel.provider!=='instagram'||primary===String(channel.accountId))return result;return await read(channel.accountId);}catch(error){if(channel.provider!=='instagram'||primary===String(channel.accountId)||![100,2500].includes(Number(error.providerCode??error.code)))throw error;return read(channel.accountId);}
+}
 export function facebookAttachments(items = []) {
- return items.map(a => {
+ const expanded=items.flatMap(a=>a.payload?.template_type==='generic'?(a.payload.elements||[]).filter(e=>e.image_url).map(e=>({type:'image',url:e.image_url})):a.generic_template?.elements?a.generic_template.elements.filter(e=>e.image_url).map(e=>({type:'image',url:e.image_url})):a);
+ return expanded.map(a => {
   const type = a.type === 'sticker' ? 'image' : a.type || (a.mime_type?.startsWith('image/') || a.image_data ? 'image' : a.mime_type?.startsWith('video/') || a.video_data ? 'video' : a.mime_type?.startsWith('audio/') ? 'audio' : 'file');
   const url = safeURL(a.payload?.url || a.image_data?.url || a.video_data?.url || a.file_url || a.url);
   return { type, url, name: a.name || ({ image: 'Ảnh', video: 'Video', audio: 'Âm thanh' }[type] || 'Tệp') };
@@ -17,8 +23,8 @@ export function facebookAttachments(items = []) {
 }
 
 export function ingestFacebookMessage(channel, item, { history = false, participant = {}, unread = false, routingState } = {}) {
- const outgoing = String(item.from?.id) === String(channel.accountId);
- const peer = outgoing ? item.to?.data?.find(p => String(p.id) !== String(channel.accountId)) : item.from;
+ const own=metaChatIdentities(channel),outgoing = item.is_echo===true||own.has(String(item.from?.id));
+ const peer = outgoing ? item.to?.data?.find(p => !own.has(String(p.id))) : item.from;
  const peerId = String(peer?.id || participant.id || '');
  if (!peerId || !item.id) return null;
  const createdAt = stamp(item.created_time), tombstone = get('chat_purge_tombstones', channel.id + ':0:' + peerId);
@@ -36,6 +42,8 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  const text = item.message || (item.sticker_id === 369239263222822 ? '👍' : attachments.length || sticker ? '' : '[Tin nhắn Facebook]');
  if (duplicate) {
   const existing=get('messages',duplicate.id);
+  // A history replay must repair the reply window even if the message was stored earlier.
+  if(!outgoing&&!existing.deletedAt&&(!conv.lastInboundAt||createdAt>conv.lastInboundAt))conv=put('conversations',{...get('conversations',conv.id),lastInboundAt:createdAt});
   // The webhook can arrive before the richer history response. Enrich media without losing staff attribution or local deletion.
   if (!existing.deletedAt && (sticker && !existing.sticker || attachments.length && !existing.attachments?.length)) return put('messages',{...existing,attachments:attachments.length?attachments:existing.attachments,sticker:sticker||existing.sticker,text:/^\[(?:image|video|audio|file|sticker|Tin nhắn Facebook)/i.test(existing.text||'')?text:existing.text});
   return existing;
@@ -56,28 +64,30 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  });
 }
 
-export function ingestFacebookEvents(channel, entries = []) {
+export function ingestFacebookEvents(channel, entries = [],object='') {
+ if(object==='instagram'&&channel.provider!=='instagram'||object==='page'&&channel.provider==='instagram')return;
+ const own=metaChatIdentities(channel);
  for (const entry of entries) for (const {event,routingState} of [...(entry.messaging||[]).map(event=>({event,routingState:'active'})),...(entry.standby||[]).map(event=>({event,routingState:'standby'}))]) {
   if(event.reaction?.mid){const conv=all('conversations').find(c=>c.connectionId===channel.id&&[String(event.sender?.id),String(event.recipient?.id)].includes(String(c.externalUserId)));const row=conv&&db.prepare("SELECT id FROM records WHERE kind='messages' AND json_extract(data,'$.conversationId')=? AND (json_extract(data,'$.externalId')=? OR EXISTS(SELECT 1 FROM json_each(json_extract(records.data,'$.externalMessages')) e WHERE json_extract(e.value,'$.id')=?))").get(conv.id,event.reaction.mid,event.reaction.mid);if(row){const m=get('messages',row.id),senderId=String(event.sender?.id),reactions=(m.reactions||[]).filter(r=>r.senderId!==senderId);if(event.reaction.action!=='unreact')reactions.push({senderId,emoji:event.reaction.emoji||({love:'❤️',like:'👍',haha:'😆',wow:'😮',sad:'😢',angry:'😡'}[event.reaction.reaction]||'❤️')});put('messages',{...m,reactions});}continue;}
   if (!event.message?.mid) continue;
-  const echo = event.message.is_echo || String(event.sender?.id) === String(channel.accountId);
-  if (String((echo ? event.sender : event.recipient)?.id) !== String(channel.accountId)) continue;
-  ingestFacebookMessage(channel, { id: event.message.mid, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [],sticker_id:event.message.sticker_id,reply_to:event.message.reply_to },{routingState});
+  const echo = event.message.is_echo || own.has(String(event.sender?.id));
+  if (!own.has(String((echo ? event.sender : event.recipient)?.id))) continue;
+  ingestFacebookMessage(channel, { id: event.message.mid,is_echo:!!echo, created_time: new Date(event.timestamp || Date.now()).toISOString(), message: event.message.text || '', from: event.sender, to: { data: [event.recipient] }, attachments: event.message.attachments || [],sticker_id:event.message.sticker_id,reply_to:event.message.reply_to },{routingState});
  }
 }
 
 // Active chats refresh independently of the slower historical import queue.
 export async function syncFacebookConversation(channel,conversation,request=remote){
- if(!['facebook','instagram'].includes(channel?.provider)||channel.status!=='connected'||channel.mode!=='api'||!conversation.externalUserId)return;
+ if(!['facebook','instagram'].includes(channel?.provider)||channel.deletedAt||channel.status!=='connected'||channel.mode!=='api'||!conversation.externalUserId)return;
  const key=channel.id+':'+conversation.id,prior=liveJobs.get(key);
  if(prior&&(prior.running||Date.now()-prior.at<3000))return;
  liveJobs.set(key,{running:true,at:Date.now()});
- const base=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`,headers={Authorization:'Bearer '+secret(channel.id).token};
+ const base=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`,headers={Authorization:'Bearer '+secret(channel.id).token},readOptions={headers,signal:AbortSignal.timeout(8000)};
  try{
   let threadId=conversation.facebookThreadId;
-  if(!threadId){const threads=await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=${channel.provider==='instagram'?'instagram':'messenger'}&user_id=${encodeURIComponent(conversation.externalUserId)}&fields=id&limit=1`,{headers});threadId=threads.data?.[0]?.id;if(threadId){const current=get('conversations',conversation.id);if(!current?.deletedAt)put('conversations',{...current,facebookThreadId:threadId});}}
+  if(!threadId){const threads=await metaConversations(channel,base,`platform=${channel.provider==='instagram'?'instagram':'messenger'}&user_id=${encodeURIComponent(conversation.externalUserId)}&fields=id&limit=1`,request,headers);threadId=threads.data?.[0]?.id;if(threadId){const current=get('conversations',conversation.id);if(!current?.deletedAt)put('conversations',{...current,facebookThreadId:threadId});}}
   if(!threadId)return;
-  const page=await request(`${base}/${encodeURIComponent(threadId)}/messages?limit=25&fields=id,created_time,message,from,to,attachments,sticker`,{headers});
+  const page=await request(`${base}/${encodeURIComponent(threadId)}/messages?limit=${channel.provider==='instagram'?20:25}&fields=id,created_time,message,from,to,attachments,sticker`,{...readOptions,signal:AbortSignal.timeout(8000)});
   for(const item of [...(page.data||[])].reverse())ingestFacebookMessage(channel,item,{history:Date.parse(item.created_time)<Date.now()-120000,participant:{id:conversation.externalUserId}});
  }finally{liveJobs.set(key,{running:false,at:Date.now()});if(liveJobs.size>300)for(const [id,job] of liveJobs)if(!job.running&&Date.now()-job.at>60000)liveJobs.delete(id);}
 }
@@ -85,31 +95,32 @@ export async function syncFacebookConversation(channel,conversation,request=remo
 // Bounded pages and cursors keep initial imports out of the UI request path.
 export async function syncFacebookChat(channel, request = remote) {
  if (running.has(channel.id)) return { running: true };
- if (!['facebook','instagram'].includes(channel.provider) || channel.status !== 'connected' || channel.mode !== 'api') return { supported: false };
+ if (!['facebook','instagram'].includes(channel.provider) || channel.deletedAt || channel.status !== 'connected' || channel.mode !== 'api') return { supported: false };
  running.add(channel.id);
- const state = get('facebook_chat_sync', channel.id) || {}, base = `https://graph.facebook.com/${channel.apiVersion || process.env.META_GRAPH_VERSION || 'v25.0'}`;
- const headers = { Authorization: 'Bearer ' + secret(channel.id).token };
+ const previous=get('facebook_chat_sync',channel.id)||{},compatible=previous.syncProtocolVersion===2&&previous.chatAccountId===metaConversationAccount(channel),state=compatible?previous:{...previous,after:''},base = `https://graph.facebook.com/${channel.apiVersion || process.env.META_GRAPH_VERSION || 'v25.0'}`;
+ const headers = { Authorization: 'Bearer ' + secret(channel.id).token },readOptions={headers,signal:AbortSignal.timeout(8000)};
  let imported = 0; const startedAt = state.startedAt || now();
  try {
-  const conversations = await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants&${state.after ? 'after=' + encodeURIComponent(state.after) : ''}`, { headers });
-  const latest = state.after ? await request(`${base}/${encodeURIComponent(channel.accountId)}/conversations?platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants`, { headers }) : conversations;
+  const conversations = await metaConversations(channel,base,`platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants&${state.after ? 'after=' + encodeURIComponent(state.after) : ''}`,request,headers);
+  const latest = state.after ? await metaConversations(channel,base,`platform=${channel.provider==='instagram'?'instagram':'messenger'}&limit=10&fields=id,updated_time,participants`,request,headers) : conversations;
   const threads = [...new Map([...(latest.data || []), ...(conversations.data || [])].map(t => [t.id,t])).values()];
-  for (const thread of threads) {
-   const participant = thread.participants?.data?.find(p => String(p.id) !== String(channel.accountId));
-   if (!participant?.id) continue;
+  let nextThread=0;const syncThread=async thread=>{
+   const participant = thread.participants?.data?.find(p => !metaChatIdentities(channel).has(String(p.id)));
+   if (!participant?.id) return;
    const checkpointId = channel.id + ':' + thread.id, checkpoint = get('facebook_chat_cursors', checkpointId) || {};
-   if(checkpoint.complete&&thread.updated_time&&checkpoint.remoteUpdatedAt===thread.updated_time)continue;
+   if(compatible&&checkpoint.complete&&thread.updated_time&&checkpoint.remoteUpdatedAt===thread.updated_time)return;
    // Always read the newest page; then advance an older-history cursor on later cycles.
    const readPage = async after => {
-    const messages = await request(`${base}/${encodeURIComponent(thread.id)}/messages?limit=100&fields=id,created_time,message,from,to,attachments,sticker&${after ? 'after=' + encodeURIComponent(after) : ''}`, { headers });
-    for (const item of [...(messages.data || [])].reverse()) if (ingestFacebookMessage(channel, item, { history: Date.parse(item.created_time) < Date.parse(startedAt), participant })) imported++;
+    const messages = await request(`${base}/${encodeURIComponent(thread.id)}/messages?limit=${channel.provider==='instagram'?20:100}&fields=id,created_time,message,from,to,attachments,sticker&${after ? 'after=' + encodeURIComponent(after) : ''}`, {...readOptions,signal:AbortSignal.timeout(8000)});
+    for (const item of [...(messages.data || [])].reverse()){const msg=ingestFacebookMessage(channel,item,{history:Date.parse(item.created_time)<Date.parse(startedAt),participant});if(msg){imported++;const conv=get('conversations',msg.conversationId);if(conv.facebookThreadId!==thread.id)put('conversations',{...conv,facebookThreadId:thread.id});}}
     return messages.paging?.next ? messages.paging?.cursors?.after || '' : '';
    };
    const newestNext = await readPage('');
    const olderNext = checkpoint.after ? await readPage(checkpoint.after) : checkpoint.complete ? '' : newestNext;
    put('facebook_chat_cursors', { id: checkpointId, after: olderNext, complete: !olderNext, remoteUpdatedAt:thread.updated_time||'', syncedAt: now() });
   }
-  put('facebook_chat_sync', { id: channel.id, startedAt, after: conversations.paging?.next ? conversations.paging?.cursors?.after || '' : '', status: 'ready', syncedAt: now(), imported, error: '' });
+  const errors=[];await Promise.all(Array.from({length:Math.min(3,threads.length)},async()=>{while(nextThread<threads.length){try{await syncThread(threads[nextThread++]);}catch(error){errors.push(error);}}}));if(errors.length)throw errors[0];
+  put('facebook_chat_sync', { id: channel.id,syncProtocolVersion:2,chatAccountId:metaConversationAccount(channel), startedAt, after: conversations.paging?.next ? conversations.paging?.cursors?.after || '' : '', status: 'ready', syncedAt: now(), imported, error: '' });
   return { imported, more: !!conversations.paging?.next };
  } catch (error) {
   put('facebook_chat_sync', { ...state, startedAt, id: channel.id, status: 'error', syncedAt: now(), error: error.message });
@@ -118,9 +129,9 @@ export async function syncFacebookChat(channel, request = remote) {
 }
 
 export async function facebookChatTick(request = remote) {
- await Promise.allSettled(all('connections').filter(c => ['facebook','instagram'].includes(c.provider) && c.status === 'connected' && c.mode === 'api').map(async channel=>{
+ await Promise.allSettled(all('connections').filter(c => ['facebook','instagram'].includes(c.provider) && !c.deletedAt && c.status === 'connected' && c.mode === 'api').map(async channel=>{
   const state = get('facebook_chat_sync', channel.id);
-  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.after && state.status !== 'error' ? 5000 : state.status==='error'?60000:10000)) return;
+  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.status==='error'?30000:channel.provider==='instagram'||state.after?5000:10000)) return;
   try { await syncFacebookChat(channel, request); } catch { /* Error is stored for the channel's diagnostic UI. */ }
  }));
 }

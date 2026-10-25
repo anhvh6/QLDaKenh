@@ -1,16 +1,17 @@
-import {statSync,readFileSync} from 'node:fs';
+import {statSync,openSync,readSync,closeSync} from 'node:fs';
 import {join,basename} from 'node:path';
 import {dataDir,secret} from './store.mjs';
 import {publicMediaUrl} from './public-media.mjs';
 
 export function validateInstagramImages(assets){
+ if(assets.length>10)throw Error('Một nhóm ảnh Instagram tối đa 10 ảnh.');
  for(const asset of assets){
   if(asset.type!=='image'||asset.mime&&!['image/jpeg','image/png'].includes(asset.mime))throw Error('Ảnh chat Instagram cần định dạng JPG hoặc PNG.');
   if(!/^\/uploads\/asset_[a-zA-Z0-9-]+\.[a-z0-9]+$/.test(asset.url||''))throw Error('Ảnh Instagram không hợp lệ.');
   const file=join(dataDir,'uploads',basename(asset.url)),size=statSync(file).size;
   if(!size||size>8*1024*1024)throw Error('Ảnh chat Instagram phải nhỏ hơn hoặc bằng 8 MB.');
   // Older quick-reply downloads have no MIME metadata. Check the actual file bytes.
-  const head=readFileSync(file).subarray(0,8);
+  const fd=openSync(file,'r'),head=Buffer.alloc(8);try{readSync(fd,head,0,8,0);}finally{closeSync(fd);}
   if(!(head[0]===255&&head[1]===216&&head[2]===255)&&!head.equals(Buffer.from([137,80,78,71,13,10,26,10])))throw Error('Ảnh chat Instagram cần là tệp JPG hoặc PNG hợp lệ.');
  }
 }
@@ -23,7 +24,8 @@ export async function sendInstagramMessage(channel,conversation,text,assets,toke
  validateInstagramImages(assets);
  // Validate every attachment before sending the first part, so invalid media cannot send only the text.
  const media=assets.map(asset=>({attachment:{type:'image',payload:{url:publicMediaUrl(asset)}}}));
- const messages=[...(text?[{text}]:[]),...media],externalMessages=[];
+ const album=assets.length>1?{attachment:{type:'template',payload:{template_type:'generic',elements:media.map((item,index)=>({title:`Ảnh ${index+1}/${assets.length}`,image_url:item.attachment.payload.url}))}}}:null;
+ const messages=[...(text?[{text}]:[]),...(album?[album]:media)],externalMessages=[];
  if(!messages.length)throw Error('Nhập nội dung hoặc chọn ảnh.');
  try{
   for(const message of messages){

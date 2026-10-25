@@ -114,3 +114,11 @@ test('missing linked Page never falls back to Instagram business ID',async()=>{
   assert.equal(requests,0);
  }finally{global.fetch=before;}
 });
+test('one send with several images creates a single carousel, not independent image messages',async()=>{
+ const before=global.fetch,bodies=[];try{global.fetch=async(url,options)=>{const body=JSON.parse(options.body);bodies.push(body);assert.match(url,/linked-facebook-page\/messages$/);return new Response(JSON.stringify({message_id:'group-'+bodies.length}));};
+ const result=await sendMessage(channel,conv,'',{assetRefs:[photo,photo,photo]});assert.equal(bodies.length,1);assert.equal(result.externalMessages.length,1);
+ const attachment=bodies[0].message.attachment;assert.equal(attachment.type,'template');assert.equal(attachment.payload.template_type,'generic');assert.equal(attachment.payload.elements.length,3);for(const e of attachment.payload.elements){assert.ok(e.title);const url=new URL(e.image_url);assert.equal(publicMediaFile(url.pathname),join(dataDir,'uploads','asset_photo.png'));}
+ bodies.length=0;await sendMessage(channel,conv,'Nội dung nguyên vẹn',{assetRefs:[photo,photo]});assert.equal(bodies.length,2);assert.equal(bodies[0].message.text,'Nội dung nguyên vẹn');assert.equal(bodies[1].message.attachment.payload.elements.length,2);
+ bodies.length=0;await assert.rejects(sendMessage(channel,conv,'Do not send',{assetRefs:Array(11).fill(photo)}),/10 ảnh/);assert.equal(bodies.length,0);
+ }finally{global.fetch=before;}
+});
