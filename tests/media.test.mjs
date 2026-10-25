@@ -6,7 +6,7 @@ test('usage excludes previews, drafts, failures and demo; channels remain protec
 test('usage metadata counts read receipts once, refreshes after writes and respects channel scope',async()=>{
  const id='asset_usage';put('messages',{id:'read-usage',direction:'outgoing',status:'read',text:'PRIVATE-BODY-MUST-NOT-BE-PARSED',attachments:[{assetId:id},{assetId:id}],createdAt:'2099-01-01T00:00:00Z'});
  const original=JSON.parse;let parsed=0;JSON.parse=(s,...args)=>{if(String(s).includes('PRIVATE-BODY-MUST-NOT-BE-PARSED'))parsed++;return original(s,...args);};
- try{const data=await mediaRoute('/api/media/usage','GET',{},owner);assert.equal(data.usage.find(a=>a.id===id).count,4);assert.equal(data.usage.find(a=>a.id===id).lastAt,'2099-01-01T00:00:00Z');assert.equal(parsed,0);}finally{JSON.parse=original;}
+ try{const data=await mediaRoute('/api/media/usage','GET',{},owner);assert.equal(data.usage.find(a=>a.id===id).count,4);assert.equal(data.usage.find(a=>a.id===id).chatCount,2);assert.equal(data.usage.find(a=>a.id===id).lastAt,'2099-01-01T00:00:00Z');assert.equal(parsed,0);}finally{JSON.parse=original;}
  assert.equal((await mediaRoute('/api/media/usage','GET',{},staff)).usage.some(a=>a.id===id),false);
  put('messages',{id:'read-second',direction:'outgoing',status:'sent',attachments:[{assetId:id}]});assert.equal((await mediaRoute('/api/media/usage','GET',{},owner)).usage.find(a=>a.id===id).count,5);
 });

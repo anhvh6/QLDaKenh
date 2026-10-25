@@ -2517,3 +2517,6 @@ body.thread-typing .main{padding-bottom:0!important}
 body.thread-selected .topbar .inbox-topbar-tools{display:none!important}
 body.thread-compact #reply-form{padding:6px 10px;min-height:0}
 body.thread-compact #reply-form .chat-compose-row{margin-top:4px}
+.drive-library-grid .drive-file{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:130px;width:100%;color:var(--primary);text-decoration:none;white-space:normal;text-align:center}
+.media-pagination{gap:8px;justify-content:flex-end;margin:8px 0;flex-wrap:wrap}
+.media-pagination button:disabled{opacity:.35;cursor:default}

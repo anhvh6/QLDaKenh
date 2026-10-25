@@ -1,4 +1,5 @@
 import {copyGoogleFetch} from './copy-google-http.mjs';
+import {listDriveFiles} from './drive-files.mjs';
 import {originalReupCaption} from '../public/reup-text.js';
 import {sourceVideoKey} from './copy-source-key.mjs';
 import {copyStorageScope,reusableCopies} from './copy-cache.mjs';
@@ -85,6 +86,7 @@ export async function copyPreviewMedia(user,id,index,poster,range){const p=owned
 export function publishMedia(asset,scheduleAt){let s=secret('copy-signing');if(!s.key){s={key:randomBytes(32).toString('hex')};saveSecret('copy-signing',s);}const expires=Math.max(Date.now(),Date.parse(scheduleAt)||0)+7*86400000;const token=createHmac('sha256',s.key).update(asset.id+':'+expires).digest('hex');const base=secret('drive-oauth').publicOrigin||process.env.PUBLIC_ORIGIN;if(!base)fail('Cấu hình địa chỉ ứng dụng công khai trong Google Drive.');return base+'/api/copy/public-media/'+asset.id+'?expires='+expires+'&token='+token;}
 export function publicCopyMedia(id,expires,token){const asset=get('assets',id),key=secret('copy-signing').key;if(!asset?.copyJobId||!key||!/^\d+$/.test(expires||'')||Number(expires)<Date.now()||!/^[a-f0-9]{64}$/.test(token||''))fail('Link media hết hạn.',403);const expected=createHmac('sha256',key).update(id+':'+expires).digest('hex');if(!timingSafeEqual(Buffer.from(token),Buffer.from(expected)))fail('Link media không hợp lệ.',403);return join(dataDir,'uploads',asset.url.split('/').pop());}
 export async function copyRoute(path,method,input,user,url,deps={}){if(!path.startsWith('/api/copy/')&&!path.startsWith('/api/drive/'))return;permission(user,'content');
+ if(path==='/api/drive/files'&&method==='GET')return listDriveFiles(user,url,{access,google});
  if(path==='/api/drive/config'&&method==='GET')return driveState(user);
  if(path==='/api/drive/config'&&method==='POST'){if(user.role!=='owner')fail('Chỉ chủ hệ thống cấu hình ứng dụng Google.',403);const old=secret('drive-oauth');const origin=new URL(input.publicOrigin);if(origin.protocol!=='https:'||origin.pathname!=='/'||origin.search||origin.hash)fail('Địa chỉ ứng dụng cần là HTTPS, không có đường dẫn.');saveSecret('drive-oauth',{clientId:String(input.clientId||old.clientId||'').trim(),clientSecret:input.clientSecret||old.clientSecret,pickerKey:String(input.pickerKey||old.pickerKey||'').trim(),publicOrigin:origin.origin,redirectUri:origin.origin+'/api/drive/callback'});return driveState(user);}
  if(path==='/api/drive/picker'&&method==='POST'){const app=secret('drive-oauth');const appId=app.clientId?.match(/^([0-9]+)-/)?.[1];if(!appId)fail('Google OAuth Client ID không hợp lệ để mở bộ chọn thư mục.');return {appId,developerKey:app.pickerKey||'',accessToken:await access(user.id)};}
