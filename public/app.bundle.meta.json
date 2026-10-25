@@ -1,5 +1,5 @@
 {
-  "version": "55fb3a69ab7b",
+  "version": "24a8514d0bfc",
   "compiler": "0.25.12",
   "files": {
     "public/composer-keyboard.js": "e0530d70334aa7d22715befd924a058ee889ff7b77c2c0bd08e29d0091bc390a",
@@ -8,7 +8,7 @@
     "public/platform-text-rules.js": "4b16f5740c18ef46d2553b25192d70352a8d2bd1c1e9d109e963934e67eb7b25",
     "public/reup-text.js": "dde19976981e27d1194c9b791222fa92c7baf4353fd9fb58deb2ea0a5c6bae40",
     "public/publish-content-review.js": "378b8f9abf41f74ea5578dd7515cad13d0f273251090bf3a86493df7d25bf4fa",
-    "public/content-presentation.js": "eca8aea2124a77ed974f812f830c9e908bd64d11247688b6ca125f9668fdae51",
+    "public/content-presentation.js": "d663fa6daa71f6abfcd911a120fa0d03a8ea55bb7cf9cb43f6853c7389a86111",
     "public/thread-layout.js": "cf2e22078c2b511190c5df712a5c936972f44d242ee44e2b44428c161f3aab66",
     "public/notification-feed.js": "5a85de8485b2fed5178bb5a83071c455c21e73c675a107a9d442721c0753c10b",
     "public/media-cover.js": "97974b49c092193ac0c48e996a81c0a270f52776dd1dddabef8a148f456a376a",
@@ -43,7 +43,7 @@
     "public/composer-format.js": "d98a92f97ca18c3f0a6ff149a64b64b4e7f8744e1a9105c481b86fe808902b8d",
     "public/new-composer-model.js": "42c789aa93d5fa28689eec4f6d93af908f113326c5df38f7ed8f7bdd5ae03a38",
     "public/content-groups.js": "d001bd30829e842a47d4f4176df557698392ac738398cf416cc5b4935be99091",
-    "public/content-library-model.js": "267a30aa807133c2644b5e6dbe4df8ec4a2da5c947588361acfd42ddf95f684d",
+    "public/content-library-model.js": "01ddc2acb3dc05f87885407acbf240fc907a68f972dcbf742f3082741a6697d5",
     "public/library-date-picker.js": "b39948c67feeff974b8a1ec38abf2377756ffaa3aba623d6802a123f4f6390ce",
     "public/published-content-targets.js": "f7f39391a1cb18255fc4db913ca4339e7996c137eee08cdf085a827ed35006f6",
     "public/reminder-model.js": "16a47f581f4e495d9d2811f998cf4df16d1ec34da7c38eeb777088359d58d46a",
@@ -120,7 +120,7 @@
     "public/inbox.js": "76f0a6865acf88e2e66f9bd63bc7f6750282f114eea69e6a050f9adbae5cf848",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "50f91fa9bb35a419b1186b2143afad8d27f0923b6d402dee4696def3145eaec0",
-    "public/app.bundle.js": "55fb3a69ab7be6ba60dd84b38b605a3b08d9aa5698066d77853c860d9da2b8e7"
+    "public/app.js": "be1b735c47924a67e4b178ab26b163df8d174743b2354102fd4ffa62bcd32096",
+    "public/app.bundle.js": "24a8514d0bfc0919b9c791fd39424a6a6e9e2907a37e5915c5e899fccb495d82"
   }
 }

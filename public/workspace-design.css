@@ -963,6 +963,7 @@ table .btn {
   margin-bottom: 6px;
 }
 .content-card-time { text-align: right; font-size: 11px; color: var(--muted); }
+.content-card-warning { margin: 4px 0 0; color: #92400e; font-size: 11px; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .library-page-head { flex-wrap: nowrap; justify-content: flex-start; gap: 16px; }
 .library-header-actions { display: flex; align-items: center; gap: 8px; }
 .library-header-actions button,.library-pagination button {
@@ -1057,6 +1058,7 @@ table .btn {
   .library-swipe-row .content-card:hover { transform: none; }
   .library-swipe-row .card-info { padding: 4px; }
   .library-swipe-row .card-info h3 { font-size: 10px; line-height: 12px; height: 24px; margin: 0; }
+  .library-swipe-row .content-card-warning { font-size: 9px; line-height: 11px; -webkit-line-clamp: 2; }
   .library-swipe-row .content-cover-toolbar { padding: 3px; gap: 2px; flex-wrap: wrap; }
   .library-swipe-row .content-cover-toolbar .badge { font-size: 7px; padding: 2px; }
   .library-swipe-row .social-stack { gap: 1px; }
