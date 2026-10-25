@@ -1,15 +1,15 @@
 {
-  "version": "2d635c1f8bb6",
+  "version": "55fb3a69ab7b",
   "compiler": "0.25.12",
   "files": {
+    "public/composer-keyboard.js": "e0530d70334aa7d22715befd924a058ee889ff7b77c2c0bd08e29d0091bc390a",
     "public/content-index.js": "360d8ff10a74a7360709127168e305199289ca21b642b30433ee1c2bf3bd5c65",
     "public/page-snapshot-cache.js": "edf28aa472bec98b6646fc5ca80ddcdf3ad50cc2a776dd994d8368f99a074320",
     "public/platform-text-rules.js": "4b16f5740c18ef46d2553b25192d70352a8d2bd1c1e9d109e963934e67eb7b25",
     "public/reup-text.js": "dde19976981e27d1194c9b791222fa92c7baf4353fd9fb58deb2ea0a5c6bae40",
     "public/publish-content-review.js": "378b8f9abf41f74ea5578dd7515cad13d0f273251090bf3a86493df7d25bf4fa",
     "public/content-presentation.js": "eca8aea2124a77ed974f812f830c9e908bd64d11247688b6ca125f9668fdae51",
-    "public/composer-keyboard.js": "de5733f430ba5fd6d30fb59648bfab838435a350db17310df7f7fde4af978695",
-    "public/thread-layout.js": "60f91b3540e8a96090d849a1feba38556cde352aa8d7fedc428e79b6e22b3f21",
+    "public/thread-layout.js": "cf2e22078c2b511190c5df712a5c936972f44d242ee44e2b44428c161f3aab66",
     "public/notification-feed.js": "5a85de8485b2fed5178bb5a83071c455c21e73c675a107a9d442721c0753c10b",
     "public/media-cover.js": "97974b49c092193ac0c48e996a81c0a270f52776dd1dddabef8a148f456a376a",
     "public/calendar-model.js": "023809eb67e01a29bb3b9d067d50b7b2011c3da8d1584a30199199553cdfb6f5",
@@ -117,10 +117,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "a8e92282fe11d4326580b593c52fdb76bd706081f370ed4b77747f37d8802fe9",
+    "public/inbox.js": "76f0a6865acf88e2e66f9bd63bc7f6750282f114eea69e6a050f9adbae5cf848",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
-    "public/app.js": "4b95c05b5d124ff032e12bfd979fe94c113a7758e9972a8d2ca59174ae7b6b63",
-    "public/app.bundle.js": "2d635c1f8bb62be38ece76fa5736d755dd2cc0367aeb7c88a83bf0e1f8f58356"
+    "public/app.js": "50f91fa9bb35a419b1186b2143afad8d27f0923b6d402dee4696def3145eaec0",
+    "public/app.bundle.js": "55fb3a69ab7be6ba60dd84b38b605a3b08d9aa5698066d77853c860d9da2b8e7"
   }
 }

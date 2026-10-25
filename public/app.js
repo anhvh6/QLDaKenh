@@ -1,3 +1,4 @@
+import {mobileComposerFocused} from './composer-keyboard.js';
 import {contentPublications} from './content-index.js';
 import {pageSnapshotCache} from './page-snapshot-cache.js';
 const navigationSnapshots=pageSnapshotCache();
@@ -910,15 +911,23 @@ function useCommentTemplate(key){const split=key.lastIndexOf(':'),t=find('templa
 document.addEventListener('input',event=>{if(event.target.id==='comment-template-search'){const q=event.target.value.toLocaleLowerCase('vi');document.querySelectorAll('[data-comment-template-row]').forEach(row=>row.hidden=!row.dataset.search.includes(q));}});
 document.addEventListener('toggle',event=>{if(event.target.matches?.('.comment-tag-filter'))commentTagsOpen=event.target.open;},true);
 document.addEventListener('click',event=>{const d=$('.comment-tag-filter[open]');if(d&&!d.contains(event.target)){d.open=false;commentTagsOpen=false;}});
+function paintCommentSend(){
+ if(!mobileComposerFocused()){render();return;}
+ const form=$('#reply-form');commentDrafts.set(form.dataset.id,form.elements.text.value);
+ const template=document.createElement('template');template.innerHTML=commentsPage();
+ const feed=$('.comment-feed-scroll'),next=template.content.querySelector('.comment-feed-scroll');
+ if(feed&&next){const bottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<60;paintCommentApp(feed,next.innerHTML,true);if(bottom)feed.scrollTop=feed.scrollHeight;}
+ const button=form.querySelector('[type=submit]'),sending=commentSending.has(form.dataset.id);button.disabled=sending;button.innerHTML=(sending?'Đang gửi…':'Gửi')+' '+icon('send',15);enhanceThreadLayout();
+}
 async function sendCommentDraft(form,data){
  const c=find('conversations',form.dataset.id);if(!c||commentSending.has(c.id))return;
  const asset=commentDraftAsset,text=String(data.text||'');if(!text.trim()&&!asset)throw Error('Nhập nội dung hoặc chọn ảnh/video.');
  const id='comment-pending-'+crypto.randomUUID(),assets=asset?[asset]:[];
  commentSending.add(c.id);commentDrafts.delete(c.id);commentDraftAsset=null;form.elements.text.value='';const preview=$('#comment-reply-preview');if(preview)preview.innerHTML='';
- const pending={id,conversationId:c.id,direction:'outgoing',text,attachments:assets.map(id=>find('assets',id)).filter(Boolean),status:'sending',createdAt:new Date().toISOString()};commentPendingMessages.set(id,pending);S.messages.push(pending);render();
+ const pending={id,conversationId:c.id,direction:'outgoing',text,attachments:assets.map(id=>find('assets',id)).filter(Boolean),status:'sending',createdAt:new Date().toISOString()};commentPendingMessages.set(id,pending);S.messages.push(pending);paintCommentSend();
  try{const send=()=>api(`/conversations/${c.id}/messages`,{method:'POST',body:{text,note:false,version:c.version,assetIds:assets,replyTarget:data.replyTarget||'current'}});let sent;try{sent=await send();}catch(error){if(error.status!==409||!/Hội thoại vừa thay đổi/.test(error.message))throw error;const latest=await api('/chat/conversations/'+c.id+'/live?limit=1');Object.assign(c,latest.conversation);sent=await send();}if(sent.conversationVersion)c.version=sent.conversationVersion;commentPendingMessages.delete(id);S.messages=S.messages.filter(m=>m.id!==id);mergeChatWindow(c.id,{messages:[sent]});}
  catch(err){const pending=S.messages.find(m=>m.id===id);if(pending)Object.assign(pending,{status:'failed',error:err.message});const current=$('#reply-form');if(current?.dataset.id===c.id&&!current.elements.text.value.trim()&&!commentDraftAsset){current.elements.text.value=text;commentDrafts.set(c.id,text);commentDraftAsset=asset;}toast(err.message,true);}
- finally{commentSending.delete(c.id);render();void refreshLiveInbox();}
+ finally{commentSending.delete(c.id);paintCommentSend();void refreshLiveInbox();}
 }
 const commentLikePending=new Set();let commentReactionSuppress=0,commentReactionHold=null;
 async function toggleCommentLike(id){const m=S.messages.find(m=>m.id===id);if(!m||commentLikePending.has(id))return;const before={...m};commentLikePending.add(id);Object.assign(m,commentLikeState(m,!m.liked));render();try{const updated=await api(`/messages/${id}/react`,{method:'POST',body:{like:m.liked}});const current=S.messages.find(x=>x.id===id);if(current)Object.assign(current,updated);}catch(err){const current=S.messages.find(x=>x.id===id);if(current)Object.assign(current,before);toast(err.message,true);}finally{commentLikePending.delete(id);render();}}

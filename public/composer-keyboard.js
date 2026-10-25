@@ -1,4 +1,5 @@
 export function isMobileComposer(){return matchMedia('(hover: none) and (pointer: coarse)').matches||navigator.userAgentData?.mobile===true||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);}
+export function mobileComposerFocused(){return isMobileComposer()&&document.activeElement?.matches('#reply-form textarea');}
 export function composerEnterAction(event,mobile){
  if(event.key!=='Enter'||event.isComposing||event.keyCode===229||event.defaultPrevented)return 'ignore';
  if(mobile)return 'native';

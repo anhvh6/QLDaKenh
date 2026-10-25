@@ -13,6 +13,9 @@ export function enhanceThreadLayout(){
 }
 const schedule=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(enhanceThreadLayout);};
 export function initThreadLayout(options){
+ // Keep the keyboard session alive in the original trusted tap, before submit awaits.
+ for(const type of ['pointerdown','mousedown'])document.addEventListener(type,event=>{const button=event.target.closest?.('#reply-form [type=submit]');if(isMobileComposer()&&button&&!button.disabled&&event.button===0){event.preventDefault();button.form?.querySelector('textarea')?.focus({preventScroll:true});}},true);
+ document.addEventListener('click',event=>{const button=event.target.closest?.('#reply-form [type=submit]');if(isMobileComposer()&&button&&!button.disabled)button.form?.querySelector('textarea')?.focus({preventScroll:true});},true);
  document.addEventListener('keydown',event=>{if(host?.route()==='comments'&&event.target.matches('#reply-form textarea')&&!document.querySelector('.modal-backdrop'))handleComposerEnter(event);});
  host=options;document.addEventListener('input',event=>{if(event.target.matches('#reply-form textarea')){sizeComposer(event.target);schedule();}});
  document.addEventListener('focusin',schedule);document.addEventListener('focusout',()=>setTimeout(schedule,0));window.addEventListener('resize',schedule);window.visualViewport?.addEventListener('resize',schedule);window.visualViewport?.addEventListener('scroll',schedule);

@@ -1,3 +1,4 @@
+import {mobileComposerFocused} from './composer-keyboard.js';
 import {handleComposerEnter,isMobileComposer} from './composer-keyboard.js';
 import {beginChatDraftSend} from './chat-send-draft.js';
 import {privateChatWaitMessage} from './private-chat-state.js';
@@ -78,7 +79,7 @@ const sel=(label,name,items,value)=>`<label>${label}<select name="${name}" class
 const active=()=>H.state.conversations.find(c=>c.id===$('#reply-form')?.dataset.id);
 const date=v=>v?new Date(v).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):'—';
 const storageKey=()=>`chat-drafts:${H?.state.user.id}`;
-const freshDraft=()=>({text:'',note:false,quoteId:'',assetIds:[],assignedStaffId:'',mentionName:''});
+const freshDraft=()=>({text:'',note:false,quoteId:'',assetIds:[],assignedStaffId:'',mentionName:'',groupMentions:[],groupText:''});
 function draft(id){if(!drafts.has(id))drafts.set(id,freshDraft());return drafts.get(id);}
 function saveDrafts(){try{sessionStorage.setItem(storageKey(),JSON.stringify([...drafts]));}catch{}}
 export function rememberInboxDraft(){const form=$('#reply-form');if(skipCapture||!H||H.route()!=='inbox'||!form)return;openMenus=[...document.querySelectorAll('.chat-menu[open]')].map(m=>m.querySelector('summary').getAttribute('aria-label')||m.querySelector('summary').textContent);const d=draft(form.dataset.id);captureGroupMentions(d,form.elements.text.value);d.text=form.elements.text.value;d.note=form.elements.note.checked;saveDrafts();}
@@ -184,7 +185,7 @@ export function enhanceInbox(){if(!H||H.route()!=='inbox')return;for(const id of
  const side=$('.chat-side');side.insertAdjacentHTML('beforeend',`<div class="side-section"><h4>Ghi chú nội bộ</h4>${S.messages.filter(m=>m.conversationId===c.id&&m.direction==='note').slice(-5).map(m=>`<p class="small">${e(m.text)}<br><span class="muted">${e(date(m.createdAt))}</span></p>`).join('')||'<p class="muted">Chưa có ghi chú</p>'}${b('Viết ghi chú','note')}</div>`);
  enhanceChatNames(H);enhanceTopicMenus(H,c);enhanceRichCards(H);enhanceChatContent(H,c);enhanceMessageInteractions();enhanceConsultationReview();
 }
-function updatePrivateChatComposer(){const form=$('#reply-form'),c=active();if(!form||!c)return;const wait=form.elements.note.checked?'':privateChatWaitMessage(c);let notice=form.querySelector('[data-private-chat-wait]');if(wait&&!notice){notice=document.createElement('p');notice.className='help-text';notice.dataset.privateChatWait='';notice.setAttribute('role','status');form.prepend(notice);}if(wait)notice.textContent=wait;else notice?.remove();form.querySelector('[type=submit]').disabled=sendingConversations.has(c.id)||!!wait;}
+function updatePrivateChatComposer(){const form=$('#reply-form'),c=active();if(!form||!c)return;const wait=form.elements.note.checked?'':privateChatWaitMessage(c);let notice=form.querySelector('[data-private-chat-wait]');if(wait&&!notice){notice=document.createElement('p');notice.className='help-text';notice.dataset.privateChatWait='';notice.setAttribute('role','status');form.prepend(notice);}if(wait)notice.textContent=wait;else notice?.remove();const d=draft(c.id),button=form.querySelector('[type=submit]');button.disabled=sendingConversations.has(c.id)||!!wait;button.innerHTML=(d.note?'Lưu ghi chú':'Gửi')+' '+icon(d.note?'note':'send',18);form.classList.toggle('compose-note',d.note);form.elements.text.placeholder=d.note?'Viết ghi chú nội bộ...':'Trả lời từ '+H.state.user.name;}
 export function enhanceLiveMessages(){const c=active();if(!c)return;updatePrivateChatComposer();enhanceRichCards(H);enhanceChatContent(H,c);enhanceMessageInteractions();}
 async function bulk(patch){const items=[...selected].map(id=>H.state.conversations.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,version:c.version}));await H.api('/chat/bulk',{method:'POST',body:{items,patch}});selected.clear();H.closeModal();await H.refresh();}
 function insertText(text){const c=active(),d=draft(c.id);rememberInboxDraft();d.text+=(d.text?'\n':'')+text;H.closeModal();paint();$('#reply-form textarea').focus();}
@@ -302,7 +303,7 @@ H=host;document.addEventListener('compositionstart',event=>{const f=event.target
      }catch(error){rememberInboxDraft();drafts.set(id,sendingDraft.restore(draft(id)));saveDrafts();const f=$('#reply-form');if(f?.dataset.id===id){f.elements.text.value=draft(id).text;f.elements.note.checked=draft(id).note;const extras=f.querySelector('.chat-draft-context');if(extras)extras.outerHTML=composerExtras(c);}void H.refreshLiveInbox();throw error;
      }finally{for(const row of document.querySelectorAll('[data-message]'))if(row.dataset.message===pending.id)row.remove();}
     }
-    if(JSON.stringify(draft(id))===submittedDraft){drafts.set(id,freshDraft());const currentForm=$('#reply-form');if(currentForm?.dataset.id===id){currentForm.elements.text.value='';currentForm.elements.note.checked=false;}form.elements.text.value='';form.elements.note.checked=false;}saveDrafts();skipCapture=true;try{H.render();}finally{skipCapture=false;}void H.refreshLiveInbox();void H.refresh().catch(()=>{});
+    if(JSON.stringify(draft(id))===submittedDraft){drafts.set(id,freshDraft());const currentForm=$('#reply-form');if(currentForm?.dataset.id===id){currentForm.elements.text.value='';currentForm.elements.note.checked=false;}form.elements.text.value='';form.elements.note.checked=false;}saveDrafts();skipCapture=true;try{if(!mobileComposerFocused())H.render();else document.querySelector('#reply-form textarea')?.dispatchEvent(new Event('input',{bubbles:true}));}finally{skipCapture=false;}void H.refreshLiveInbox();void H.refresh(!mobileComposerFocused()).catch(()=>{});
    }
   }catch(err){H.toast(err.message,true);}finally{if(submit)submit.disabled=false;if(form.id==='reply-form'){delete form.dataset.sending;sendingConversations.delete(form.dataset.id);const current=$('#reply-form');if(current?.dataset.id===form.dataset.id){delete current.dataset.sending;updatePrivateChatComposer();}}}
  },true);
