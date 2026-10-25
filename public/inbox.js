@@ -1,3 +1,4 @@
+import {handleComposerEnter,isMobileComposer} from './composer-keyboard.js';
 import {beginChatDraftSend} from './chat-send-draft.js';
 import {privateChatWaitMessage} from './private-chat-state.js';
 import {chatComposerBusy} from './chat-composer-state.js';
@@ -274,7 +275,7 @@ H=host;document.addEventListener('compositionstart',event=>{const f=event.target
    if(action==='attach-media'){const d=draft(c.id);if(d.assetIds.length>=10)throw Error('Tối đa 10 media.');if(!d.assetIds.includes(id))d.assetIds.push(id);H.closeModal();return paint();}
    if(action==='remove-media'){draft(c.id).assetIds=draft(c.id).assetIds.filter(x=>x!==id);return paint();}
    if(action==='date-preset'){const local=new Date(Date.now()+7*3600000),end=local.toISOString().slice(0,10);local.setUTCDate(local.getUTCDate()-Math.max(0,Number(id)-1));$('#chat-filter-form [name=from]').value=local.toISOString().slice(0,10);$('#chat-filter-form [name=to]').value=end;return;}
-   if(action==='help')return H.modal('Phím tắt & phạm vi chức năng','<p><b>Enter:</b> gửi khi bật tùy chọn. <b>Shift+Enter:</b> xuống dòng. <b>Alt+↑/↓:</b> chuyển hội thoại. <b>Alt+I:</b> hồ sơ/đơn. <b>/:</b> gợi ý mẫu hiện có.</p><p>Ghim, lưu trữ, đánh dấu đọc và nhắc chăm sóc là dữ liệu nội bộ QL đa kênh. Gửi tin/ảnh và trích dẫn Zalo chỉ chạy khi kênh API đã kết nối. Quản trị nhóm Zalo có xác nhận riêng và cần quyền quản lý. Gọi điện, sticker, OCR và thu hồi tin vẫn dùng Zalo gốc.</p>');
+   if(action==='help')return H.modal('Phím tắt & phạm vi chức năng','<p><b>Điện thoại/Fold:</b> Enter xuống dòng, bấm Gửi để gửi. <b>Máy tính:</b> Enter gửi, Alt+Enter xuống dòng. <b>Alt+↑/↓:</b> chuyển hội thoại. <b>Alt+I:</b> hồ sơ/đơn. <b>/:</b> gợi ý mẫu hiện có.</p><p>Ghim, lưu trữ, đánh dấu đọc và nhắc chăm sóc là dữ liệu nội bộ QL đa kênh. Gửi tin/ảnh và trích dẫn Zalo chỉ chạy khi kênh API đã kết nối. Quản trị nhóm Zalo có xác nhận riêng và cần quyền quản lý. Gọi điện, sticker, OCR và thu hồi tin vẫn dùng Zalo gốc.</p>');
   }catch(err){H.toast(err.message,true);}finally{el.disabled=false;}
  },true);
  document.addEventListener('submit',async event=>{
@@ -306,12 +307,10 @@ H=host;document.addEventListener('compositionstart',event=>{const f=event.target
   }catch(err){H.toast(err.message,true);}finally{if(submit)submit.disabled=false;if(form.id==='reply-form'){delete form.dataset.sending;sendingConversations.delete(form.dataset.id);const current=$('#reply-form');if(current?.dataset.id===form.dataset.id){delete current.dataset.sending;updatePrivateChatComposer();}}}
  },true);
  document.addEventListener('paste',event=>{if(H.route()!=='inbox'||!event.target.closest('#reply-form'))return;const files=[...(event.clipboardData?.files||[])].filter(f=>f.type.startsWith('image/'));if(files.length){event.preventDefault();uploadMedia(files,active().id);}});
- document.addEventListener('keydown',event=>{if(event.target.matches('#chat-reminder-form [name=reminderMinutes]')&&['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();event.target.value=Math.max(1,Math.min(10080,(Number(event.target.value)||15)+(event.key==='ArrowUp'?15:-15)));return;}if(H.route()!=='inbox'||$('.modal-backdrop')||event.isComposing)return;
+ document.addEventListener('keydown',event=>{if(event.target.matches('#chat-reminder-form [name=reminderMinutes]')&&['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();event.target.value=Math.max(1,Math.min(10080,(Number(event.target.value)||15)+(event.key==='ArrowUp'?15:-15)));return;}if(H.route()!=='inbox'||$('.modal-backdrop')||event.isComposing||event.keyCode===229)return;
+  if(event.target.matches('#reply-form textarea')&&event.key==='Enter'&&(isMobileComposer()||event.altKey)){handleComposerEnter(event);return;}
   if(event.target.matches('#reply-form textarea')&&(groupMentionKeyboard(event)||quickKeyboard(event)))return;
-  if(event.target.matches('#reply-form textarea')&&event.key==='Enter'){
-   if(event.altKey){event.preventDefault();event.target.setRangeText('\n',event.target.selectionStart,event.target.selectionEnd,'end');event.target.dispatchEvent(new Event('input',{bubbles:true}));return;}
-   if(!event.shiftKey){event.preventDefault();if(event.repeat)return;const choice=$('#chat-mention-choices:not([hidden]) [data-chat=mention-staff]');if(choice){choice.click();return;}$('#reply-form').requestSubmit();}
-  }
+  if(event.target.matches('#reply-form textarea')&&event.key==='Enter'){const choice=!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&$('#chat-mention-choices:not([hidden]) [data-chat=mention-staff]');if(choice){event.preventDefault();if(!event.repeat)choice.click();return;}handleComposerEnter(event);}
   if(event.altKey&&['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();const rows=[...document.querySelectorAll('.conversation-item')],index=rows.findIndex(r=>r.dataset.id===active()?.id);const next=rows[index+(event.key==='ArrowUp'?-1:1)];if(next)H.openConversation(next.dataset.id);}
   if(event.altKey&&event.key.toLowerCase()==='i'){event.preventDefault();$('.chat-side')?.classList.toggle('care-side-open');}
  });

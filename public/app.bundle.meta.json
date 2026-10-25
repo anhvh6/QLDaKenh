@@ -1,9 +1,10 @@
 {
-  "version": "8cbaad393d14",
+  "version": "9f65aef786e5",
   "compiler": "0.25.12",
   "files": {
     "public/content-presentation.js": "6e0d82d241d34c17ab9caebc4acf1621395eb83acc500095ac6712ac4cb16f59",
-    "public/thread-layout.js": "6dc1585a13dea2ea197ca464500e12276edc2c7c18cbb12315c7b1d18049f2d4",
+    "public/composer-keyboard.js": "de5733f430ba5fd6d30fb59648bfab838435a350db17310df7f7fde4af978695",
+    "public/thread-layout.js": "60f91b3540e8a96090d849a1feba38556cde352aa8d7fedc428e79b6e22b3f21",
     "public/notification-feed.js": "5a85de8485b2fed5178bb5a83071c455c21e73c675a107a9d442721c0753c10b",
     "public/media-cover.js": "97974b49c092193ac0c48e996a81c0a270f52776dd1dddabef8a148f456a376a",
     "public/calendar-model.js": "023809eb67e01a29bb3b9d067d50b7b2011c3da8d1584a30199199553cdfb6f5",
@@ -112,10 +113,10 @@
     "public/emoji-picker.js": "f2804c4978c06974e07b2a1202f02243b8600e3cc4686d99a2828b78fe1cf813",
     "public/chat-head-state.js": "a1e5296c606a7ad44853b3ec0a61c9efc814e188021da535b3f786289b3d049d",
     "public/chat-name-ui.js": "2b7130e5131013e25a948829796d4a591e440bf9b7a942e289cbe6a4d0d5ab87",
-    "public/inbox.js": "25960c1cce98a211ff9ae0a7541965fc6f9c1f9f2b8d37fdd456360088670378",
+    "public/inbox.js": "f2aeac8d9f3a63b90a01fdff0c5ec9f56b48300ed55b2b3901eabe8c19314dbc",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "31d5280a2dcc787e57d1b586e7d93a85560b0269fe78e8e4520992296500950d",
     "public/app.js": "8b937449c610aada995326c3b743ad9e59e249a5abb03627a86561a93035678e",
-    "public/app.bundle.js": "8cbaad393d14b2bbcbf2c7be0ea5786a5055bbc0793fa8ea7ddda82f649ef082"
+    "public/app.bundle.js": "9f65aef786e5d0ff59ffbafc6b58d77d1c9a9092f8cef4a97a3f3f3a894a1e40"
   }
 }

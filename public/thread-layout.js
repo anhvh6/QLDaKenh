@@ -1,7 +1,8 @@
+import {handleComposerEnter,isMobileComposer} from './composer-keyboard.js';
 const compact=()=>matchMedia('(max-width:760px), (hover:none) and (pointer:coarse) and (max-width:1400px)').matches;
 let host,frame;
 function sizeComposer(box){
- if(!box)return;box.rows=1;const style=getComputedStyle(box),border=parseFloat(style.borderTopWidth)+parseFloat(style.borderBottomWidth),minimum=parseFloat(style.lineHeight)+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+border;
+ if(!box)return;box.rows=1;box.setAttribute('enterkeyhint',isMobileComposer()?'enter':'send');const style=getComputedStyle(box),border=parseFloat(style.borderTopWidth)+parseFloat(style.borderBottomWidth),minimum=parseFloat(style.lineHeight)+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+border;
  const max=Math.max(minimum,Math.min(180,(window.visualViewport?.height||innerHeight)*.32));box.style.height='0px';box.style.maxHeight=max+'px';const height=Math.min(max,Math.max(minimum,box.scrollHeight+border));box.style.height=height+'px';box.style.overflowY=box.scrollHeight+border>height+1?'auto':'hidden';
 }
 export function enhanceThreadLayout(){
@@ -12,6 +13,7 @@ export function enhanceThreadLayout(){
 }
 const schedule=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(enhanceThreadLayout);};
 export function initThreadLayout(options){
+ document.addEventListener('keydown',event=>{if(host?.route()==='comments'&&event.target.matches('#reply-form textarea')&&!document.querySelector('.modal-backdrop'))handleComposerEnter(event);});
  host=options;document.addEventListener('input',event=>{if(event.target.matches('#reply-form textarea')){sizeComposer(event.target);schedule();}});
  document.addEventListener('focusin',schedule);document.addEventListener('focusout',()=>setTimeout(schedule,0));window.addEventListener('resize',schedule);window.visualViewport?.addEventListener('resize',schedule);window.visualViewport?.addEventListener('scroll',schedule);
  window.addEventListener('popstate',event=>{const route=location.hash.slice(1);if(compact()&&['inbox','comments'].includes(route)){host.remember();host.select(event.state?.threadRoute===route?event.state.threadId||null:null);host.render();}});
