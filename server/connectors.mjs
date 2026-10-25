@@ -166,7 +166,7 @@ export async function continuePublish(c, p) {
   if (code !== 'FINISHED') return null;
   const r = await remote(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads_publish' : 'media_publish'}`, json({ creation_id: p.containerId }, token));
   if(!r.id)throw Object.assign(new Error('Nền tảng chưa trả mã bài đăng. Cần đối soát trước khi thử lại.'),{unknown:true});
-  let url = ''; try { const meta = await remote(`${base}/${r.id}?fields=permalink`, { headers: { Authorization: `Bearer ${token}` } }); url = meta.permalink || ''; } catch { }
+  let url = ''; try { const meta = await remote(`${base}/${r.id}?fields=permalink`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) }); url = meta.permalink || ''; } catch { }
   return { externalId: r.id, url };
 }
 export async function deletePublication(c, p) {

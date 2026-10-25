@@ -1,3 +1,4 @@
+import {backgroundRefresh} from './background-refresh.js';
 import {mobileComposerFocused} from './composer-keyboard.js';
 import {contentPublications} from './content-index.js';
 import {pageSnapshotCache} from './page-snapshot-cache.js';
@@ -114,7 +115,7 @@ const requestState=async(params,userId='')=>{const generation=navigationSnapshot
 let stateRequestSequence=0,stateAcceptedSequence=0;
 async function loadState() { const requestSequence=++stateRequestSequence;const previous = S, userId = S?.user?.id; const view=stateView();const params=new URLSearchParams({view});if(previous?.snapshotRevision&&(previous.snapshotView||'full')===view)params.set('since',previous.snapshotRevision);const next=await requestState(params,userId);if(stateView()!==view)return loadState();if(requestSequence<stateAcceptedSequence)return S;stateAcceptedSequence=requestSequence; if (next.unchanged) { if (S?.user?.id !== userId) throw Error('Phiên đăng nhập đã thay đổi.'); return S; } return adoptState(next); }
 async function refresh(renderNow = true) { stateLoads++; try { S = await loadState(); updateChatNotifications(S.notifications || []); $('#care-updates')?.remove(); if (renderNow) render(); stateFailures = 0; stateRetryAfter = 0; } catch (err) { stateFailures++; stateRetryAfter = Date.now() + Math.min(120000, 15000 * 2 ** Math.min(stateFailures, 3)); throw err; } finally { stateLoads--; } }
-async function refreshBackground() { if (stateLoads || Date.now() < stateRetryAfter || document.hidden) return; const previous=S; await refresh(false); if(previous!==S&&pageDataKey(route,previous)!==pageDataKey(route,S))render(); }
+const refreshBackground=backgroundRefresh(async()=>{const previous=S;await refresh(false);if(previous!==S&&pageDataKey(route,previous)!==pageDataKey(route,S))render();},{allowed:()=>!stateLoads&&Date.now()>=stateRetryAfter&&!document.hidden&&!document.querySelector('.modal-backdrop')&&!document.activeElement?.matches('input,textarea,select')});
 let updatingInbox = false, inboxRefreshPending = false, inboxRefreshTimer, inboxPaintDeferred = false;
 const liveInboxLoads=new Set();let liveInboxDeferred = false; const liveInboxRevisions = new Map();
 function removeConversations(ids) {
@@ -592,8 +593,11 @@ document.addEventListener('click', async event => {
   if (action === 'toggle-sidebar') { if(window.matchMedia('(max-width:760px), (hover:none) and (pointer:coarse) and (max-width:1400px)').matches){document.body.classList.remove('menu-open');return;} document.body.classList.toggle('sidebar-collapsed'); localStorage.setItem('hub-sidebar-collapsed', String(document.body.classList.contains('sidebar-collapsed'))); return; }
   try {
     if(action==='open-published-content'){
-      const targets=publishedContentTargets(id,S.publications,S.connections,contentLibraryFilters.providers);
-      if(targets.length===1&&targets[0].url){window.open(targets[0].url,'_blank','noopener,noreferrer');return;}
+      let targets=publishedContentTargets(id,S.publications,S.connections,contentLibraryFilters.providers);
+      const missing=targets.filter(t=>!t.url&&['instagram','threads'].includes(t.channel?.provider)&&t.publication.externalId);
+      if(missing.length){modal('Bài viết đã đăng','<p role="status">Đang lấy liên kết bài đã đăng…</p>');const loadingDialog=document.querySelector('#modal-root .modal');await Promise.allSettled(missing.map(async t=>{const p=await api('/publications/'+encodeURIComponent(t.publication.id)+'/permalink',{method:'POST'});if(p){const index=S.publications.findIndex(x=>x.id===p.id);if(index>=0)S.publications[index]=p;}}));if(document.querySelector('#modal-root .modal')!==loadingDialog)return;targets=publishedContentTargets(id,S.publications,S.connections,contentLibraryFilters.providers);}
+
+      if(!missing.length&&targets.length===1&&targets[0].url){window.open(targets[0].url,'_blank','noopener,noreferrer');return;}
       modal('Bài viết đã đăng',`<div class="published-destinations">${targets.map(({publication:p,channel:ch,url})=>url?`<a href="${e(url)}" target="_blank" rel="noopener noreferrer">${social(ch?.provider)}<span>${e(connectionName(ch))}</span>${icon('arrow',16)}</a>`:`<div>${social(ch?.provider)}<span>${e(connectionName(ch))} · Chưa có liên kết bài đã đăng</span>${publicationIcon('Chi tiết đích đăng','publication','eye','',p.id)}</div>`).join('')||'<p class="help-text">Chưa có liên kết bài đã đăng trên nền tảng. Bạn có thể kiểm tra đích đăng trong lịch sử xuất bản.</p>'}</div>`);return;
     }
     if(action==='composer-schedule'){const form=$('#content-form');form.querySelector('.publish-schedule-panel').classList.remove('hidden');target.type='submit';delete target.dataset.action;form.elements.scheduleAt.required=true;form.elements.scheduleAt.focus();return;}
