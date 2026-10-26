@@ -11,6 +11,14 @@ export default defineConfig({root,base:'/plan-ui/',envDir:false,plugins:[{name:'
  if(!id.replaceAll('\\','/').endsWith('/App.tsx'))return;
  // Catalog fetches run independently of the heavier learner list. Never hydrate stale product caches.
  code=code.replace('setProducts(JSON.parse(cachedProd));','');
+ // Render learners as soon as their query finishes, even if the catalog is slow.
+ code=code.replace('const [cust, prod] = await Promise.all([customerService.getCustomers(), productService.getProducts()]);','const cust = await customerService.getCustomers();');
+ code=code.replace('const validProd = Array.isArray(prod) ? prod : [];','');
+ code=code.replace('setProducts(validProd);','');
+ code=code.replace("localStorage.setItem('mega_products_cache', JSON.stringify(validProd));",'');
+ code=code.replace('if (cachedCust && cachedProd)', 'if (cachedCust)');
+ // The existing super_admin path does not use role mappings.
+ code=code.replace('if (session) {', "if (session && adminRole !== 'super_admin') {");
  const anchor='  const handleUpsertCustomer =';
  if(!code.includes(anchor))throw Error('App catalog integration anchor changed.');
  return code.replace(anchor,`  useEffect(()=>{if(!session)return;let live=true;const load=()=>productService.getProducts().then(rows=>{if(live)setProducts(rows);}).catch(()=>{});load();window.addEventListener('focus',load);const timer=setInterval(load,30000);return()=>{live=false;clearInterval(timer);window.removeEventListener('focus',load);};},[session,currentPage]);\n`+anchor);

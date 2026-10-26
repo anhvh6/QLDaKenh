@@ -1,6 +1,8 @@
 import {realtimeRevision} from './realtime-revision.mjs';
 import {recoverPublicationPermalink,recoverMissingPermalinks} from './publication-permalink.mjs';
 import {pageSnapshot,pageRevision,contentRevision} from './page-snapshots.mjs';
+import {ReadBurstCache} from './read-burst-cache.mjs';
+const planReadCache=new ReadBurstCache();
 import {mediaSnapshot,mediaRevision} from './media-snapshot.mjs';
 import {storedMediaUsage} from './media-usage-store.mjs';
 import {commentsSnapshot,commentsRevision} from './comments-snapshot.mjs';
@@ -142,14 +144,14 @@ async function dispatch(req, res, url, user, input) {
   const genericObject = path.match(/^\/api\/records\/(customers|contents)\/([^/]+)$/); if (genericObject) { const r = get(genericObject[1], genericObject[2]); if (r) { if (genericObject[1] === 'customers') care.assertCustomer(user, r.id); else for (const id of r.channels || []) care.assertChannel(user, id); } }
 
   if (path === '/api/state' && method === 'GET') {
-    const snapshotView=['dashboard','inbox','comments','workspace','content','media','calendar','products','reports'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
+    const snapshotView=['dashboard','inbox','comments','workspace','content','media','calendar','products','reports','phacdo'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'full';
     const users = db.prepare('SELECT id,name,email,role,active FROM users').all();
     const allowedPages=care.permittedChannels(user),scopeRevision=createHash('sha256').update(JSON.stringify([user.id,user.role,allowedPages?[...allowedPages].sort():null,kindsRevision(['settings','team_members','channel_teams'])])).digest('hex');
-    const revision = createHash('sha256').update(scopeRevision+':'+(snapshotView==='media'?mediaRevision():snapshotView==='comments'?commentsRevision():snapshotView==='inbox'?inboxRevision():snapshotView==='content'?contentRevision():['calendar','products','reports'].includes(snapshotView)?pageRevision(snapshotView):stateRevision()) + ':' + (['inbox','comments','media','content','calendar','products','reports'].includes(snapshotView)?0:overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + (snapshotView==='dashboard'?overviewAggregates.read('learners:v1')?.updatedAt||0:0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
+    const revision = createHash('sha256').update(scopeRevision+':'+(snapshotView==='media'?mediaRevision():snapshotView==='comments'?commentsRevision():snapshotView==='inbox'?inboxRevision():snapshotView==='content'?contentRevision():['calendar','products','reports','phacdo'].includes(snapshotView)?pageRevision(snapshotView):stateRevision()) + ':' + (['inbox','comments','media','content','calendar','products','reports','phacdo'].includes(snapshotView)?0:overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + (snapshotView==='dashboard'?overviewAggregates.read('learners:v1')?.updatedAt||0:0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user,scopeRevision };
     const remember=state=>stateCache.set(cacheKey,revision,{...state,scopeRevision});
-    if(['calendar','products','reports'].includes(snapshotView))return remember(pageSnapshot(snapshotView,user,{revision,providers,users}));
+    if(['calendar','products','reports','phacdo'].includes(snapshotView))return remember(pageSnapshot(snapshotView,user,{revision,providers,users}));
     if(snapshotView==='media')return remember(mediaSnapshot(user,{revision,providers,users}));
     if(snapshotView==='comments')return remember(commentsSnapshot(user,{revision,providers,users}));
     if(snapshotView==='inbox')return remember(inboxSnapshot(user,{revision,providers,users}));
@@ -191,10 +193,13 @@ async function dispatch(req, res, url, user, input) {
     const sKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxdG56dnF5bGp3ZXBwa2xibG5pIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDg1MDc0NiwiZXhwIjoyMTA2NDI2NzQ2fQ.ccwHd3CyqQcFii9UKT0iKPGOUcw7AA467B4L2zhvee0';
     const opts = { method: req.method, headers: { 'apikey': sKey, 'Authorization': 'Bearer ' + sKey, 'Content-Type': req.headers['content-type'] || 'application/json', 'Prefer': req.headers['prefer'] || '' } };
     if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) { if (Object.keys(input).length) opts.body = JSON.stringify(input); }
-    const r = await fetch(targetUrl, opts);
-    res.writeHead(r.status, { 'Content-Type': r.headers.get('content-type') || 'application/json' });
-    const ab = await r.arrayBuffer();
-    res.end(Buffer.from(ab));
+    const writing=!['GET','HEAD'].includes(method);
+    if(writing)planReadCache.clear();
+    const load=async()=>{try{const r=await fetch(targetUrl,{...opts,signal:AbortSignal.timeout(30000)});return {status:r.status,contentType:r.headers.get('content-type')||'application/json',body:Buffer.from(await r.arrayBuffer())};}finally{if(writing)planReadCache.clear();}};
+    const cacheable=method==='GET'&&/^\/api\/proxy\/supabase\/rest\/v1\/(customers|customer_devices|role_permissions)(?:\?|$)/.test(req.url);
+    const result=await (cacheable?planReadCache.read(JSON.stringify([user.id,user.role,req.url,req.headers.prefer||'']),load):load());
+    res.writeHead(result.status,{'Content-Type':result.contentType,'Cache-Control':'no-store'});
+    res.end(result.body);
     return;
   }
   if (path === '/api/users' && method === 'POST') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const email = domain.required(input.email, 'Email', 200).toLowerCase(); if (!['manager', 'editor', 'support', 'warehouse', 'viewer'].includes(input.role)) domain.fail('Vai trò không hợp lệ.'); if ((input.password || '').length < 10) domain.fail('Mật khẩu cần ít nhất 10 ký tự.'); try { const id = uid('user'); db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run(id, email, domain.required(input.name, 'Tên', 150), input.role, hashPassword(input.password)); audit(user.id, 'user_created', id); return { id }; } catch (e) { if (e.code?.startsWith('ERR_SQLITE')) domain.fail('Email đã tồn tại.'); throw e; } }
@@ -275,7 +280,7 @@ const server = http.createServer(async (req, res) => {
   try {
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com https://www.youtube-nocookie.com https://www.facebook.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);
-    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
+    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{planLoadingCompact:true,threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
     const publicMedia = publicMediaFile(path); if (publicMedia) return serveFile(req, res, publicMedia, false);
     if (path.match(/^\/api\/oauth\/[^/]+\/callback$/)) return await finishOAuth(req, res, url);
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }
@@ -317,7 +322,8 @@ const server = http.createServer(async (req, res) => {
       let input = {}; if (!['GET', 'HEAD'].includes(req.method)) input = (await body(req)).value;
       let key = null; const supplied = req.headers['idempotency-key']; const mutating = req.method === 'POST' && !['/api/ai/draft', '/api/backup'].includes(path);
       if (mutating && supplied) { key = user.id + ':' + path + ':' + String(supplied).slice(0, 150); const hash = sha(JSON.stringify(input)); const prior = db.prepare('SELECT * FROM idempotency WHERE key=?').get(key); if (prior) { if (prior.hash !== hash) domain.fail('Khóa thao tác đã dùng với dữ liệu khác.', 409); return json(res, JSON.parse(prior.result)); } if (busy.has(key)) domain.fail('Thao tác đang xử lý, vui lòng chờ.', 409); busy.add(key); }
-      try { const result = await dispatch(req, res, url, user, input); if (key) db.prepare('INSERT INTO idempotency VALUES(?,?,?,?)').run(key, sha(JSON.stringify(input)), JSON.stringify(result), now()); return json(res, result); } finally { if (key) busy.delete(key); }
+      const planMutation=!['GET','HEAD'].includes(req.method)&&path.startsWith('/api/plans/');if(planMutation)planReadCache.clear();
+      try { const result = await dispatch(req, res, url, user, input); if (key) db.prepare('INSERT INTO idempotency VALUES(?,?,?,?)').run(key, sha(JSON.stringify(input)), JSON.stringify(result), now()); return json(res, result); } finally { if(planMutation)planReadCache.clear();if (key) busy.delete(key); }
     }
     if (!['GET', 'HEAD'].includes(req.method)) domain.fail('Không hỗ trợ.', 405);
     const file = path === '/' ? join(publicDir, 'index.html') : resolve(publicDir, '.' + decodeURIComponent(path)); if (!file.startsWith(publicDir + sep)) domain.fail('Không được phép.', 403);

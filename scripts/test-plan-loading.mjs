@@ -1,0 +1,22 @@
+import {createRequire} from 'node:module';import {spawn,execFileSync} from 'node:child_process';import {mkdirSync,mkdtempSync,writeFileSync} from 'node:fs';import {resolve,join} from 'node:path';import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url),{chromium}=require('C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+mkdirSync('test-data',{recursive:true});mkdirSync('test-results/plan-loading',{recursive:true});const dir=mkdtempSync(join(resolve('test-data'),'plan-loading-')),base='http://127.0.0.1:4442',env={...process.env,HOST:'127.0.0.1',PORT:'4442',DATA_DIR:dir,PLAN_REMOTE_CATALOG:'0'};
+const server=spawn(process.execPath,['server/index.mjs'],{env,stdio:'pipe',windowsHide:true});let browser,stderr='';server.stderr.on('data',b=>stderr+=b.toString());
+try{
+ for(let i=0;i<200;i++){if(server.exitCode!==null)throw Error(stderr);try{await fetch(base+'/api/health');break;}catch{await new Promise(r=>setTimeout(r,100));}}
+ browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const ctx=await browser.newContext();const setup=await ctx.request.post(base+'/api/setup',{data:{name:'QA Plan',email:'plan-loading@example.test',password:'PlanLoadingQA2026!',demo:false}});assert.equal(setup.status(),200);
+ execFileSync(process.execPath,['--input-type=module','-e',`const {put,db}=await import('./server/store.mjs');db.exec('BEGIN');for(let i=0;i<1000;i++){put('customers',{id:'historical-'+i,name:'Historical '+i,notes:'unused private notes '.repeat(40)});put('contents',{id:'post-'+i,title:'Historical '+i,caption:'unused caption '.repeat(60),channels:[]});}db.exec('COMMIT');`],{env,stdio:'pipe'});
+ const measure=async view=>{const start=performance.now(),r=await ctx.request.get(base+'/api/state?view='+view),body=await r.text();assert.equal(r.status(),200);return {ms:Math.round(performance.now()-start),bytes:Buffer.byteLength(body)};};const report={environment:'Isolated local QA, 1,000 historical customers/posts; artificial 2.5s catalog delay. Not a production network measurement.',workspace:await measure('workspace'),phacdo:await measure('phacdo'),devices:[]};assert.ok(report.phacdo.bytes<report.workspace.bytes/50);
+ const session=await ctx.storageState();await ctx.close();
+ const customers=[{id:'qa-learner',customer_id:'QA-LEARNER',customer_name:'QA FAST LEARNER',status:'ACTIVE',created_at:new Date().toISOString(),gia_tien:500000,san_pham:[],raw_backup:{},is_consultation:false}];
+ for(const [name,width,height,touch] of [['phone',390,844,true],['fold',840,700,true],['landscape',1100,600,true],['desktop',1440,1000,false]]){
+  const c=await browser.newContext({storageState:session,viewport:{width,height},isMobile:touch,hasTouch:touch}),p=await c.newPage(),requests=[],errors=[];let catalogDone=false,catalogCalls=0;
+  p.on('request',r=>requests.push(r.url()));p.on('pageerror',e=>errors.push(e.message));
+  await p.route('**/api/proxy/supabase/**',async route=>{const u=new URL(route.request().url());await route.fulfill({json:u.pathname.endsWith('/customers')?customers:[]});});
+  await p.route('**/api/product-catalog',async route=>{catalogCalls++;await new Promise(r=>setTimeout(r,2500));catalogDone=true;await route.fulfill({json:[{id_sp:'QA',ten_sp:'QA Course',gia_ban:500000,gia_nhap:0,productType:'course',trang_thai:1}]});});
+  const start=performance.now();await p.goto(base+'/#phacdo');const frame=p.frameLocator('.plan-editor-frame');await frame.getByRole('heading',{name:'QA FAST LEARNER',exact:true}).first().waitFor({timeout:15000});const ms=Math.round(performance.now()-start);
+  assert.equal(catalogDone,false,'Learners must render before slow product response');assert.equal(catalogCalls,1,'Concurrent catalog readers must share one request');assert.ok(!requests.some(u=>u.includes('view=workspace')));assert.ok(!requests.some(u=>u.includes('role_permissions')));
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);await p.screenshot({path:'test-results/plan-loading/'+name+'.png'});assert.deepEqual(errors,[]);report.devices.push({name,readyMs:ms,catalogCalls,passed:true});await c.close();
+ }
+ writeFileSync('test-results/plan-loading/report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+}finally{await browser?.close();server.kill();}
