@@ -1,6 +1,7 @@
 import {automationTabs,automationMode,automationPage,initAutomation,enhanceAutomation} from './copy-automation.js';
 import {jobControls,renderJobsTable,jobIconButton,filterCopyJobs,copyPlatforms} from './copy-job-table.js';
 let H,post=null,jobs=[],drive=null,busy=false,sourceInput='' ,copyUser='',previewGeneration=0;
+let driveLoading=null,driveGeneration=0,lastDriveRefresh=0;
 const jobView={search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,platformOpen:false,selecting:false,selected:new Set()};
 let deleteIds=[],copyHold=null,jobsRefreshing=false;
 const renderedJobTables=new WeakMap();
@@ -49,8 +50,9 @@ function updateDriveCards(){
  if(available)available.innerHTML=drive?.connected?'':`<button type="button" class="connection-card row" style="text-align:left;border:1px dashed var(--line);gap:12px" data-copy-action="settings" aria-label="Google Drive"><span class="social large" style="background:#4285f4;color:white" aria-hidden="true">△</span><span><strong>Google Drive</strong><span class="help-text" style="display:block">Nhấn để kết nối kho bài đăng</span></span></button>`;
  const empty=document.querySelector('#channels-empty');if(empty)empty.hidden=!!drive?.connected;
 }
-async function refreshDrive(){drive=await H.api('/drive/config');updateDriveCards();const el=document.querySelector('#drive-state');if(el)el.innerHTML=`<p>${drive.connected?'✓ Đã kết nối Google Drive'+(drive.account?' · '+e(drive.account):''):drive.configured?'Chưa kết nối Drive của bạn':'Chưa cấu hình ứng dụng Google OAuth'}</p>`;const input=document.querySelector('#drive-folder-form [name=folderId]');if(input&&document.activeElement!==input)input.value=drive.folderId;}
-export function enhanceCopy(){enhanceAutomation();if(copyUser!==H?.state?.user?.id){copyUser=H?.state?.user?.id;post=null;jobs=[];sourceInput='';drive=null;Object.assign(jobView,{search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,platformOpen:false,selecting:false,selected:new Set()});}if(document.querySelector('#copy-jobs'))void refreshJobs().catch(()=>{});if(document.querySelector('#drive-state,#drive-connected-slot')){updateDriveCards();void refreshDrive().catch(e=>H.toast(e.message,true));}}
+function refreshDrive(force=false){if(driveLoading&&!force)return driveLoading;const userId=H?.state?.user?.id,generation=++driveGeneration;const job=(async()=>{const result=await H.api('/drive/config');if(userId!==H?.state?.user?.id||generation!==driveGeneration)return;drive=result;lastDriveRefresh=Date.now();updateDriveCards();const el=document.querySelector('#drive-state');if(el)el.innerHTML=`<p>${drive.connected?'✓ Đã kết nối Google Drive'+(drive.account?' · '+e(drive.account):''):drive.configured?'Chưa kết nối Drive của bạn':'Chưa cấu hình ứng dụng Google OAuth'}</p>`;const input=document.querySelector('#drive-folder-form [name=folderId]');if(input&&document.activeElement!==input)input.value=drive.folderId;})().finally(()=>{if(driveLoading===job)driveLoading=null;});driveLoading=job;return job;}
+
+export function enhanceCopy(){enhanceAutomation();if(copyUser!==H?.state?.user?.id){copyUser=H?.state?.user?.id;post=null;jobs=[];sourceInput='';drive=null;driveLoading=null;driveGeneration++;lastDriveRefresh=0;Object.assign(jobView,{search:'',filter:'all',sort:'newest',sortKey:'createdAt',platforms:null,platformOpen:false,selecting:false,selected:new Set()});}if(document.querySelector('#copy-jobs'))void refreshJobs().catch(()=>{});if(document.querySelector('#drive-state,#drive-connected-slot')){updateDriveCards();void refreshDrive().catch(e=>H.toast(e.message,true));}}
 export function initCopy(host){H=host;initAutomation(host);initCopySelection();document.addEventListener('toggle',event=>{if(event.target.isConnected&&event.target.matches?.('.copy-platform-filter'))jobView.platformOpen=event.target.open;},true);document.addEventListener('input',event=>{if(event.target.matches('#copy-preview-form [name=url]'))sourceInput=event.target.value;if(event.target.id==='copy-job-search'){jobView.search=event.target.value;document.querySelector('#copy-jobs').innerHTML=jobRows();}});document.addEventListener('change',event=>{
  const el=event.target;
  if(el.id==='copy-job-filter')jobView.filter=el.value;
@@ -61,7 +63,7 @@ export function initCopy(host){H=host;initAutomation(host);initCopySelection();d
  else return;
  const count=document.querySelector('#copy-platform-count');if(count)count.textContent=jobView.platforms===null?'(Chưa lọc)':`(${jobView.platforms.length})`;
  document.querySelector('#copy-jobs').innerHTML=jobRows();
- });document.addEventListener('submit',async event=>{const form=event.target;if(!['copy-preview-form','drive-config-form','drive-folder-form'].includes(form.id))return;event.preventDefault();event.stopImmediatePropagation();const input=Object.fromEntries(new FormData(form));const submit=form.querySelector('button'),submitText=submit.textContent;submit.disabled=true;if(form.id==='copy-preview-form')submit.textContent='Đang xem trước…';try{if(form.id==='copy-preview-form'){busy=true;const generation=++previewGeneration;const result=await H.api('/copy/preview',{method:'POST',body:input});if(generation===previewGeneration){post=result;const el=document.querySelector('#copy-preview');if(el)el.innerHTML=preview();}}else{await H.api(form.id==='drive-config-form'?'/drive/config':'/drive/folder',{method:'POST',body:input});if(form.id==='drive-config-form')form.elements.clientSecret.value='';await refreshDrive();H.toast('Đã lưu cấu hình Google Drive.');}}catch(error){H.toast(error.message,true);}finally{busy=false;submit.disabled=false;submit.textContent=submitText;const current=document.querySelector('#copy-preview-form button');if(current){current.disabled=false;current.textContent='Xem trước';}}},true);
+ });document.addEventListener('submit',async event=>{const form=event.target;if(!['copy-preview-form','drive-config-form','drive-folder-form'].includes(form.id))return;event.preventDefault();event.stopImmediatePropagation();const input=Object.fromEntries(new FormData(form));const submit=form.querySelector('button'),submitText=submit.textContent;submit.disabled=true;if(form.id==='copy-preview-form')submit.textContent='Đang xem trước…';try{if(form.id==='copy-preview-form'){busy=true;const generation=++previewGeneration;const result=await H.api('/copy/preview',{method:'POST',body:input});if(generation===previewGeneration){post=result;const el=document.querySelector('#copy-preview');if(el)el.innerHTML=preview();}}else{await H.api(form.id==='drive-config-form'?'/drive/config':'/drive/folder',{method:'POST',body:input});if(form.id==='drive-config-form')form.elements.clientSecret.value='';await refreshDrive(true);H.toast('Đã lưu cấu hình Google Drive.');}}catch(error){H.toast(error.message,true);}finally{busy=false;submit.disabled=false;submit.textContent=submitText;const current=document.querySelector('#copy-preview-form button');if(current){current.disabled=false;current.textContent='Xem trước';}}},true);
  document.addEventListener('click',async event=>{const el=event.target.closest('[data-copy-action]');if(!el)return;event.preventDefault();const action=el.dataset.copyAction;el.disabled=true;try{
   if(action==='clear-platforms'){jobView.platforms=null;document.querySelectorAll('[data-copy-platform],#copy-platform-all').forEach(c=>c.checked=false);document.querySelector('#copy-platform-count').textContent='(Chưa lọc)';document.querySelector('#copy-jobs').innerHTML=jobRows();}
   if(action==='settings')openDriveSettings();
@@ -86,14 +88,14 @@ export function initCopy(host){H=host;initAutomation(host);initCopySelection();d
   if(action==='reup'){const c=await H.api('/copy/reup',{method:'POST',body:{postId:el.dataset.id}});await H.refresh(false);H.closeModal();H.openContent(c.id);}
   if(action==='retry'){await H.api('/copy/retry',{method:'POST',body:{jobId:el.dataset.id}});await refreshJobs();}
   if(action==='connect'){const r=await H.api('/drive/connect',{method:'POST',body:{}});window.open(r.url,'_blank','noopener');}
-  if(action==='disconnect'){await H.api('/drive/disconnect',{method:'POST',body:{}});await refreshDrive();}
+  if(action==='disconnect'){await H.api('/drive/disconnect',{method:'POST',body:{}});await refreshDrive(true);}
   if(action==='pick-folder')await chooseDriveFolder();
   if(action==='folders')await folderPicker();
   if(action==='browse-folder')await folderPicker(el.dataset.id);
   if(action==='folder-next')await folderPicker(el.dataset.parent,el.dataset.pageToken);
   if(action==='import-folder'){H.toast('Đang nạp gói bài từ Google Drive…');const result=await H.api('/drive/import',{method:'POST',body:{folderId:el.dataset.id}});H.modal('Đang nạp bài từ Google Drive','<p>Nội dung và ảnh/video đang được nạp ở nền. Khi hoàn tất, màn hình soạn bài sẽ mở tự động.</p><p id="drive-import-progress" role="status">Đang tải…</p>');await waitImport(result.job.id,result.contentId);}
  }catch(error){H.toast(error.message,true);}finally{el.disabled=false;}});
- setInterval(()=>{if(document.querySelector('#copy-jobs'))void refreshJobs().catch(()=>{});if(document.querySelector('#drive-state,#drive-connected-slot'))void refreshDrive().catch(()=>{});},3000);
+ setInterval(()=>{if(document.querySelector('#copy-jobs'))void refreshJobs().catch(()=>{});if(!document.hidden&&Date.now()-lastDriveRefresh>=30000&&document.querySelector('#drive-state,#drive-connected-slot'))void refreshDrive().catch(()=>{});},3000);
 }
 async function folderPicker(parent='',pageToken=''){
  const r=await H.api('/drive/folders?'+new URLSearchParams({...(parent?{parent}:{}),...(pageToken?{pageToken}:{})}));
@@ -122,7 +124,7 @@ async function chooseDriveFolder(){
    if(data.action===p.Action.CANCEL){picker?.dispose();return resolve();}
    if(data.action!==p.Action.PICKED)return;
    picker?.dispose();
-   try{const folderId=data.docs?.[0]?.id;if(!folderId)throw new Error('Google chưa trả về thư mục đã chọn.');await H.api('/drive/folder',{method:'POST',body:{folderId}});await refreshDrive();H.toast('Đã lưu thư mục kho Google Drive.');resolve();}catch(error){reject(error);}
+   try{const folderId=data.docs?.[0]?.id;if(!folderId)throw new Error('Google chưa trả về thư mục đã chọn.');await H.api('/drive/folder',{method:'POST',body:{folderId}});await refreshDrive(true);H.toast('Đã lưu thư mục kho Google Drive.');resolve();}catch(error){reject(error);}
   });
   if(config.developerKey)builder.setDeveloperKey(config.developerKey);
   picker=builder.build();picker.setVisible(true);

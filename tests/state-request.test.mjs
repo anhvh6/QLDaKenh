@@ -3,3 +3,4 @@ test('plan shell uses a workspace-compatible URL and preserves the revision',asy
  let calls=0;const request=stateRequests(async url=>{calls++;const p=new URL(url,'http://qa').searchParams;assert.equal(p.get('view'),'workspace');assert.equal(p.get('shell'),'phacdo');assert.equal(p.get('since'),'revision');return {snapshotView:'phacdo'};});
  const p=new URLSearchParams({view:'phacdo',since:'revision'});await Promise.all([request(p,'owner'),request(p,'owner')]);assert.equal(calls,1);assert.equal(p.get('view'),'phacdo');
 });
+test('settings use the safe shell alias for rolling backend upgrades',async()=>{const request=stateRequests(async url=>{const p=new URL(url,'http://qa').searchParams;assert.equal(p.get('view'),'workspace');assert.equal(p.get('shell'),'settings');return {};});await request(new URLSearchParams({view:'settings'}));});

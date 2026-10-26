@@ -10,6 +10,9 @@ import {permission,fail,required,reply} from './domain.mjs';
 import {assertChannel,permittedChannels} from './taophacdo.mjs';
 import {learnerStages,progressFor} from '../public/learner-progress.js';
 let snapshot=null;
+// The timer must seek recent live inbound messages instead of parsing all history.
+db.exec(`CREATE INDEX IF NOT EXISTS idx_bot_live_incoming ON records(json_extract(data,'$.createdAt'),id)
+ WHERE kind='messages' AND json_extract(data,'$.direction')='incoming' AND json_extract(data,'$.deletedAt') IS NULL AND coalesce(json_extract(data,'$.history'),0)=0;`);
 const all=k=>{if(!snapshot)return readAll(k);if(!snapshot.rows.has(k))snapshot.rows.set(k,readAll(k));return snapshot.rows.get(k);};
 const index=k=>{if(!snapshot.indexes.has(k))snapshot.indexes.set(k,new Map(all(k).map(r=>[r.id,r])));return snapshot.indexes.get(k);};
 const get=(k,id)=>{if(!snapshot)return readGet(k,id);const key=k+':'+id;if(!snapshot.records.has(key))snapshot.records.set(key,snapshot.rows.has(k)?index(k).get(id)||null:readGet(k,id));return snapshot.records.get(key);};

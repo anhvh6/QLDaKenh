@@ -1,4 +1,4 @@
-import {prepareLearnerLookups} from '../public/learner-lookups.js';
+import {prepareLearnerLookups,cloneLearnerLookups} from '../public/learner-lookups.js';
 import {createHash} from 'node:crypto';
 import {all,get,put,db,audit,recordRevision,kindsRevision} from './store.mjs';
 import {fail,permission} from './domain.mjs';
@@ -20,11 +20,11 @@ function carePolicies(source){
 export function studentCareState(){
  const users=db.prepare('SELECT id,name,role,active FROM users').all(),revision=kindsRevision(['staff_handoffs','chat_reminders','customers','learner_source_facts','conversations','connections','orders','journeys','plan_handoffs','settings','study_plans'])+':'+JSON.stringify(users);
  if(db.isTransaction)careSnapshot=null;
- if(careSnapshot?.revision===revision)return prepareLearnerLookups({...careSnapshot.state});
+ if(careSnapshot?.revision===revision)return cloneLearnerLookups(careSnapshot.state);
  const facts=new Map(all('learner_source_facts').map(f=>[f.id,f]));
  const customers=all('customers').map(c=>{const f=facts.get(c.id);if(!f)return c;const {id,version,createdAt,updatedAt,sourceUpdatedAt,...fields}=f;return {...c,...fields};});
  const state={staff_handoffs:all('staff_handoffs'),chat_reminders:all('chat_reminders'),users,customers,conversations:all('conversations'),connections:all('connections'),orders:all('orders'),journeys:all('journeys'),plan_handoffs:all('plan_handoffs'),chatNameSettings:get('settings','chat-names'),studentCareSettings:get('settings','student-care')||{version:0,stages:{}},chatPlanSummaries:all('study_plans').map(p=>({customerId:p.customerId,startDate:p.customer?.start_date,endDate:p.customer?.end_date,status:studyPlanStatus(p,get('orders',p.lastOrderId))}))};
- if(!db.isTransaction)careSnapshot={revision,state};return prepareLearnerLookups({...state});
+ prepareLearnerLookups(state);if(!db.isTransaction)careSnapshot={revision,state};return cloneLearnerLookups(state);
 }
 export function assertCareConversation(user,c){
  // Reading/replying remains allowed through search; channel scope is checked by callers.

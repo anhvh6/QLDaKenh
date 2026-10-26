@@ -1,5 +1,8 @@
 // Request-scoped indexes: never attach internal Maps to the API response or reuse them after writes.
 const snapshots=new WeakMap();
+// A shallow copy of an unchanged revision can share read-only indexes.
+// Rebuild after writes by preparing the new source snapshot first.
+export function cloneLearnerLookups(source){const copy={...source},lookup=snapshots.get(source);if(lookup)snapshots.set(copy,lookup);else prepareLearnerLookups(copy);return copy;}
 export function prepareLearnerLookups(state){
  const lookup={ids:{},byCustomer:{},contacts:new Map(),rank:new Map()};
  for(const kind of ['customers','connections'])lookup.ids[kind]=new Map((state[kind]||[]).map(r=>[r.id,r]));

@@ -4,7 +4,7 @@ export function stateRequests(api) {
  return (params,userId='')=>{
   const wire=new URLSearchParams(params);
   // Older backends recognize workspace and otherwise fall back to full chat history.
-  if(wire.get('view')==='phacdo'){wire.set('view','workspace');wire.set('shell','phacdo');}
+  if(['phacdo','settings'].includes(wire.get('view'))){wire.set('shell',wire.get('view'));wire.set('view','workspace');}
   const url='/state?'+wire,key=userId+':'+url;
   if(pending.has(key))return pending.get(key);
   const request=Promise.resolve().then(()=>api(url)).finally(()=>{if(pending.get(key)===request)pending.delete(key);});
