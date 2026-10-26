@@ -15,7 +15,7 @@ try{
   await p.route('**/api/proxy/supabase/**',async route=>{const u=new URL(route.request().url());await route.fulfill({json:u.pathname.endsWith('/customers')?customers:[]});});
   await p.route('**/api/product-catalog',async route=>{catalogCalls++;await new Promise(r=>setTimeout(r,2500));catalogDone=true;await route.fulfill({json:[{id_sp:'QA',ten_sp:'QA Course',gia_ban:500000,gia_nhap:0,productType:'course',trang_thai:1}]});});
   const start=performance.now();await p.goto(base+'/#phacdo');const frame=p.frameLocator('.plan-editor-frame');await frame.getByRole('heading',{name:'QA FAST LEARNER',exact:true}).first().waitFor({timeout:15000});const ms=Math.round(performance.now()-start);
-  assert.equal(catalogDone,false,'Learners must render before slow product response');assert.equal(catalogCalls,1,'Concurrent catalog readers must share one request');assert.ok(!requests.some(u=>u.includes('view=workspace')));assert.ok(!requests.some(u=>u.includes('role_permissions')));
+  assert.equal(catalogDone,false,'Learners must render before slow product response');assert.equal(catalogCalls,1,'Concurrent catalog readers must share one request');assert.ok(!requests.some(u=>u.includes('view=workspace')&&!u.includes('shell=phacdo')));assert.ok(!requests.some(u=>u.includes('role_permissions')));
   assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);await p.screenshot({path:'test-results/plan-loading/'+name+'.png'});assert.deepEqual(errors,[]);report.devices.push({name,readyMs:ms,catalogCalls,passed:true});await c.close();
  }
  writeFileSync('test-results/plan-loading/report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

@@ -2,7 +2,10 @@
 export function stateRequests(api) {
  const pending=new Map();
  return (params,userId='')=>{
-  const url='/state?'+params,key=userId+':'+url;
+  const wire=new URLSearchParams(params);
+  // Older backends recognize workspace and otherwise fall back to full chat history.
+  if(wire.get('view')==='phacdo'){wire.set('view','workspace');wire.set('shell','phacdo');}
+  const url='/state?'+wire,key=userId+':'+url;
   if(pending.has(key))return pending.get(key);
   const request=Promise.resolve().then(()=>api(url)).finally(()=>{if(pending.get(key)===request)pending.delete(key);});
   pending.set(key,request);return request;
