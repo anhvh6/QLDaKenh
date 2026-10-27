@@ -954,4 +954,4 @@ document.addEventListener('keydown',event=>{const card=event.target.closest('.ch
 
 initAccessManagement({get state(){return S;},api,refresh,render,modal,closeModal,toast,icon});
 
-window.addEventListener('message',event=>{const frame=document.querySelector('.plan-editor-frame');if(event.origin!==location.origin||event.source!==frame?.contentWindow||event.data?.type!=='workspace:access')return;if(!accessAllowed(S.user,'settings.access')){toast('Bạn không có quyền quản lý tài khoản.',true);return;}navigate('settings');filter='access';render();});
+window.addEventListener('message',event=>{const frame=document.querySelector('.plan-editor-frame');if(event.origin!==location.origin||event.source!==frame?.contentWindow||event.data?.type!=='workspace:access')return;if(!accessAllowed(S.user,'settings.access')){toast('Bạn không có quyền quản lý tài khoản.',true);return;}history.pushState(null,'','#settings');route='settings';filter='access';query='';document.body.classList.remove('menu-open');render();});
