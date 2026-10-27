@@ -1,5 +1,5 @@
 {
-  "version": "ca2c5d5e7d13",
+  "version": "7c1a81da5db5",
   "compiler": "0.25.12",
   "files": {
     "public/icons.js": "a3e997cac0f378a83b6069cddb5bcc38395cbadc33fab32ea0bcedb37f5c40c5",
@@ -55,7 +55,8 @@
     "public/group-mentions.js": "b9b68b98ca9a910f9ff289f0fead38fc65d1673dab6e949873882d7538d7711e",
     "public/chat-media-content.js": "776a23dd075ce74eae6a3e240d11ec8cdd08fb5f55a1784e240520d67bc48c68",
     "public/chat-message-rich.js": "258c3a7729a1910b118737fa7ca5b188a3d23546acc49afe8e1e12909dd9eec0",
-    "public/media-cover.js": "97974b49c092193ac0c48e996a81c0a270f52776dd1dddabef8a148f456a376a",
+    "public/thumbnail-refresh.js": "0864189b09598849bc08797971bf1c1a0cee50c76b130c596300f7c5c379cbe9",
+    "public/media-cover.js": "243f9bdf5fbf2315f04df1c2c5cbd1d4934cfa2201db3ea56b547c487e0404f1",
     "public/media-browser-model.js": "81d675923ec6bb91f55a1b5c4d72f6b06007032c9f8cc50c6a2b312e58cbf88a",
     "public/media-browser-view.js": "dac31a6e80c9e205615533369b634e2c239a49a3a7fae48682428d03b949520b",
     "public/media-lightbox.js": "37883c2716088277a6a8ff3f2b27c13de9a187129f699d75373e066f9c6babb7",
@@ -123,6 +124,6 @@
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "4cf2b0b7f42a2bef797f142f7ee2451fa72549b20eb54d9214c4064348cfdfa3",
     "public/app.js": "9631abdec2c2f9be5090eafb16a6ea75917f1cc7786a2656355a858805e3be0f",
-    "public/app.bundle.js": "ca2c5d5e7d13ee47580f985edca66725115c0334906781142a0b35cbf113e226"
+    "public/app.bundle.js": "7c1a81da5db5d9e144d2f7f1958d42a3dcd6f102391f1ef0c652fac9a3f99e8f"
   }
 }
