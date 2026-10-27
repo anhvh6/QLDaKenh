@@ -1,3 +1,6 @@
+import {readLegacyAccessSource} from './access-source.mjs';
+import {withAccess,assertAccess,assertManageAccess,accessSnapshot,mutateAccess,importLegacyAccess,accessConfig} from './access-control.mjs';
+import {guardAccessRequest,guardPlanCustomerWrite,scopeAccessState} from './access-guard.mjs';
 import {refreshDirectoryLearners} from './learner-directory-source.mjs';
 import {customerDirectory} from './customer-directory.mjs';
 import {realtimeRevision} from './realtime-revision.mjs';
@@ -97,13 +100,23 @@ const stateCache = new StateCache();
 const overviewAggregates = createAggregateStore(db);
 const notificationCache = new StateCache();
 async function body(req, limit = 2e6) { let n = 0; const chunks = []; for await (const b of req) { n += b.length; if (n > limit) domain.fail('Dữ liệu quá lớn.', 413); chunks.push(b); } const raw = Buffer.concat(chunks); try { return { raw, value: raw.length ? JSON.parse(raw) : {} }; } catch { domain.fail('JSON không hợp lệ.'); } }
-function userFor(req) { const token = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('hub_session='))?.slice(12); if (!token) return null; const s = db.prepare('SELECT u.id,u.email,u.name,u.role,s.csrf FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1').get(sha(token), Date.now()); return s || null; }
+function userFor(req) { const token = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('hub_session='))?.slice(12); if (!token) return null; const s = db.prepare('SELECT u.id,u.email,u.name,u.role,s.csrf FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1').get(sha(token), Date.now()); return withAccess(s) || null; }
 function login(res, user) { const token = randomBytes(32).toString('hex'); const csrf = randomBytes(24).toString('hex'); db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(sha(token), user.id, csrf, Date.now() + 7 * 86400000); res.setHeader('Set-Cookie', `hub_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800`); return { ...user, csrf, password: undefined }; }
 const throttles = new Map(); const busy = new Set();
 function checkOrigin(req) { if (req.headers['sec-fetch-site'] === 'cross-site') domain.fail('Yêu cầu khác nguồn bị chặn.', 403); if (req.headers.origin) { const origin = new URL(req.headers.origin); if (origin.host !== req.headers.host && origin.host !== req.headers['x-forwarded-host']) domain.fail('Nguồn yêu cầu không hợp lệ.', 403); } }
 const generic = /^\/api\/records\/([a-z]+)(?:\/([^/]+))?$/;
+function planProxyKey(){
+    const sKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxdG56dnF5bGp3ZXBwa2xibG5pIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDg1MDc0NiwiZXhwIjoyMTA2NDI2NzQ2fQ.ccwHd3CyqQcFii9UKT0iKPGOUcw7AA467B4L2zhvee0';
+return sKey;}
+async function readLegacyAccess(){const key=planProxyKey();return readLegacyAccessSource({apikey:key,Authorization:'Bearer '+key});}
 async function dispatch(req, res, url, user, input) {
-  const path = url.pathname; const method = req.method;
+  const path = url.pathname; const method = req.method; guardAccessRequest(user,path,method,url,input);
+  if(path==='/api/access/me'&&method==='GET')return {user:withAccess(user),catalog:accessConfig().catalog};
+  if(path==='/api/access'&&method==='GET'){assertManageAccess(user);if(!accessConfig().imported){const source=await readLegacyAccess();importLegacyAccess(source);}return accessSnapshot(user);}
+  const accessMutation=path.match(/^\/api\/access\/(roles|users)\/([\w-]+)(?:\/(permissions|lock))?$/);
+  if(path==='/api/access/roles'&&method==='POST')return mutateAccess(user,'roles',null,input);
+  if(path==='/api/access/users'&&method==='POST')return mutateAccess(user,'users',null,input);
+  if(accessMutation&&['PATCH','DELETE'].includes(method))return mutateAccess(user,accessMutation[1]==='roles'?'roles':method==='DELETE'?'delete':accessMutation[3]||'users',accessMutation[2],input);
   if(path.startsWith('/api/order-address/')){domain.permission(user,'orders');if(path==='/api/order-address/catalog'&&method==='POST')return addressCatalog(input);if(path==='/api/order-address/resolve'&&method==='POST')return resolveOrderAddress(input);if(path==='/api/order-address/validate'&&method==='POST')return validateOrderAddress(input);domain.fail('Không tìm thấy danh mục địa chỉ.',404);}
   const communication=await communicationRoute(path,method,input,user);if(communication!==undefined)return communication;
   const editedOrder=orderEditorRoute(path,method,input,user);if(editedOrder!==undefined)return editedOrder;
@@ -153,7 +166,7 @@ async function dispatch(req, res, url, user, input) {
     const revision = createHash('sha256').update(scopeRevision+':'+(snapshotView==='media'?mediaRevision():snapshotView==='comments'?commentsRevision():snapshotView==='inbox'?inboxRevision():snapshotView==='content'?contentRevision():['calendar','products','reports','phacdo','settings'].includes(snapshotView)?pageRevision(snapshotView):stateRevision()) + ':' + (['inbox','comments','media','content','calendar','products','reports','phacdo','settings'].includes(snapshotView)?0:overviewAggregates.read('dashboard-counts:'+user.id+':'+user.role)?.updatedAt||0) + ':' + (snapshotView==='dashboard'?overviewAggregates.read('learners:v1')?.updatedAt||0:0) + ':' + JSON.stringify(users) + ':' + user.id + ':' + user.role + ':' + snapshotView).digest('hex'), cacheKey = user.id + ':' + user.role + ':' + snapshotView;
     if (url.searchParams.get('since') === revision) return { unchanged: true, snapshotRevision: revision };
     const cached = stateCache.get(cacheKey, revision); if (cached) return { ...cached, user,scopeRevision };
-    const remember=state=>stateCache.set(cacheKey,revision,{...state,scopeRevision});
+    const remember=state=>stateCache.set(cacheKey,revision,{...scopeAccessState(state,user),scopeRevision});
     if(['calendar','products','reports','phacdo','settings'].includes(snapshotView))return remember(pageSnapshot(snapshotView,user,{revision,providers,users,...(snapshotView==='settings'?{oauthConfiguration:oauthConfiguration(req)}:{})}));
     if(snapshotView==='media')return remember(mediaSnapshot(user,{revision,providers,users}));
     if(snapshotView==='comments')return remember(commentsSnapshot(user,{revision,providers,users}));
@@ -195,9 +208,10 @@ async function dispatch(req, res, url, user, input) {
   }
   if (path.startsWith('/api/proxy/supabase/')) {
     const targetUrl = 'https://aqtnzvqyljweppklblni.supabase.co' + req.url.substring('/api/proxy/supabase'.length);
-    const sKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxdG56dnF5bGp3ZXBwa2xibG5pIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDg1MDc0NiwiZXhwIjoyMTA2NDI2NzQ2fQ.ccwHd3CyqQcFii9UKT0iKPGOUcw7AA467B4L2zhvee0';
+    const sKey = planProxyKey();
     const opts = { method: req.method, headers: { 'apikey': sKey, 'Authorization': 'Bearer ' + sKey, 'Content-Type': req.headers['content-type'] || 'application/json', 'Prefer': req.headers['prefer'] || '' } };
     if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) { if (Object.keys(input).length) opts.body = JSON.stringify(input); }
+    if(path==='/api/proxy/supabase/rest/v1/customers')await guardPlanCustomerWrite(user,method,new URL(targetUrl),input,async lookup=>{const r=await fetch(lookup,{headers:opts.headers,signal:AbortSignal.timeout(10000)});if(!r.ok)domain.fail('Chưa kiểm tra được phiên bản học viên. Vui lòng thử lại.',503);return r.json();});
     const writing=!['GET','HEAD'].includes(method);
     if(writing)planReadCache.clear();
     const load=async()=>{try{const r=await fetch(targetUrl,{...opts,signal:AbortSignal.timeout(30000)});return {status:r.status,contentType:r.headers.get('content-type')||'application/json',body:Buffer.from(await r.arrayBuffer())};}finally{if(writing)planReadCache.clear();}};
@@ -207,8 +221,8 @@ async function dispatch(req, res, url, user, input) {
     res.end(result.body);
     return;
   }
-  if (path === '/api/users' && method === 'POST') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const email = domain.required(input.email, 'Email', 200).toLowerCase(); if (!['manager', 'editor', 'support', 'warehouse', 'viewer'].includes(input.role)) domain.fail('Vai trò không hợp lệ.'); if ((input.password || '').length < 10) domain.fail('Mật khẩu cần ít nhất 10 ký tự.'); try { const id = uid('user'); db.prepare('INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)').run(id, email, domain.required(input.name, 'Tên', 150), input.role, hashPassword(input.password)); audit(user.id, 'user_created', id); return { id }; } catch (e) { if (e.code?.startsWith('ERR_SQLITE')) domain.fail('Email đã tồn tại.'); throw e; } }
-  if (path.match(/^\/api\/users\/[^/]+$/) && method === 'PATCH') { if (user.role !== 'owner') domain.fail('Cần quyền chủ hệ thống.', 403); const id = path.split('/').pop(); if (id === user.id) domain.fail('Không thể khóa tài khoản đang sử dụng.'); db.prepare('UPDATE users SET active=? WHERE id=? AND role!=?').run(input.active ? 1 : 0, id, 'owner'); db.prepare('DELETE FROM sessions WHERE user_id=?').run(id); return { ok: true }; }
+  if(path==='/api/users'&&method==='POST')return mutateAccess(user,'users',null,{...input,version:input.version??accessConfig().version});
+  if(/^\/api\/users\/[^/]+$/.test(path)&&method==='PATCH')return mutateAccess(user,'lock',path.split('/').pop(),{...input,version:input.version??accessConfig().version});
   if (path === '/api/password' && method === 'POST') { const u = db.prepare('SELECT * FROM users WHERE id=?').get(user.id); if (!verify(input.current || '', u.password)) domain.fail('Mật khẩu hiện tại không đúng.'); if ((input.password || '').length < 10) domain.fail('Mật khẩu mới cần ít nhất 10 ký tự.'); db.prepare('UPDATE users SET password=? WHERE id=?').run(hashPassword(input.password), user.id); db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id); return { ok: true }; }
   const match = path.match(generic); if (match) { const [, kind, id] = match; if (method === 'POST' && !id) return domain.editRecord(user, kind, null, input); if (method === 'PATCH' && id) return domain.editRecord(user, kind, id, input); if (method === 'DELETE' && id) return domain.deleteRecord(user, kind, id, input); }
   if (path.match(/^\/api\/contents\/[^/]+\/preflight$/) && method === 'POST') { domain.permission(user, 'content'); const content = get('contents', path.split('/')[3]); if (!content) domain.fail('Không tìm thấy nội dung.', 404); if (input.version !== content.version) domain.fail('Nội dung đã thay đổi. Mở lại trước khi đăng.', 409); return publicationPreflight(user, content, input); }
@@ -286,7 +300,7 @@ const server = http.createServer(async (req, res) => {
   try {
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com https://www.youtube-nocookie.com https://www.facebook.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);
-    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{thumbnailRefresh:true,completeLearnerDirectory:true,qualifiedCustomerDirectory:true,automationIndexedPublications:true,publishingProcessingDiagnostics:true,commentReadBatch:true,serverTiming:true,serverLoadRecovery:true,planLoadingCompact:true,threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
+    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{thumbnailRefresh:true,completeLearnerDirectory:true,unifiedAccess:true,qualifiedCustomerDirectory:true,automationIndexedPublications:true,publishingProcessingDiagnostics:true,commentReadBatch:true,serverTiming:true,serverLoadRecovery:true,planLoadingCompact:true,threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
     const publicMedia = publicMediaFile(path); if (publicMedia) return serveFile(req, res, publicMedia, false);
     if (path.match(/^\/api\/oauth\/[^/]+\/callback$/)) return await finishOAuth(req, res, url);
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }

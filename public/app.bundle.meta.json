@@ -1,7 +1,9 @@
 {
-  "version": "7c1a81da5db5",
+  "version": "0f22785606f9",
   "compiler": "0.25.12",
   "files": {
+    "public/access-model.js": "ab36273fd9ecf7ad1ef251f98fc4995ed7176c0b349d4a0a4f21df25fc2000df",
+    "public/access-management.js": "7f3600595b1a339697414b37d9f063971f3aa427b16b59363080512d1f8c3d65",
     "public/icons.js": "a3e997cac0f378a83b6069cddb5bcc38395cbadc33fab32ea0bcedb37f5c40c5",
     "public/shipping-address.js": "af082b129ddae8e7e59627d7206e1b13888a878d1f90374e0d781e126f440497",
     "public/learner-orders-ui.js": "708e6952bab5ac1f2d1dd7318b1ba81e3f7507235fe074a4a78c0acf4799f67f",
@@ -123,7 +125,7 @@
     "public/media-library.js": "8bfe42d35612223f82c0d559a84a2dfb00fe8abd015aec52d750ef6a43673575",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "4cf2b0b7f42a2bef797f142f7ee2451fa72549b20eb54d9214c4064348cfdfa3",
-    "public/app.js": "9631abdec2c2f9be5090eafb16a6ea75917f1cc7786a2656355a858805e3be0f",
-    "public/app.bundle.js": "7c1a81da5db5d9e144d2f7f1958d42a3dcd6f102391f1ef0c652fac9a3f99e8f"
+    "public/app.js": "f09a9a6d07dcf43c1d81e32b11dd5d291bc8c9d4beb7c874e415aa094b33c194",
+    "public/app.bundle.js": "0f22785606f963d50bd57c655a3ec6d89c49755df4de413cab73a8cdeff862b6"
   }
 }

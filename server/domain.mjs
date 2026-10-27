@@ -1,3 +1,4 @@
+import {hasAction} from './access-control.mjs';
 import {resetPublicationProcessing,canRecoverMetaProcessing,genericMetaProcessingError,resumeMetaContainer} from './meta-processing.mjs';
 import {platformTextIssues} from '../public/platform-text-rules.js';
 import {reviewPublishText,reviewRulesVersion} from './publish-content-review.mjs';
@@ -30,7 +31,7 @@ export function fail(message, status = 400) { throw Object.assign(new Error(mess
 export function required(v, label, max = 10000) { if (typeof v !== 'string' || !v.trim() || v.length > max) fail(`${label} không hợp lệ.`); return v.trim(); }
 export function number(v, label, min = 0, max = 1e12) { const n = Number(v); if (!Number.isFinite(n) || n < min || n > max || !Number.isInteger(n)) fail(`${label} không hợp lệ.`); return n; }
 export const kinds = ['connections', 'contents', 'publications', 'assets', 'campaigns', 'customers', 'products', 'orders', 'shipments', 'conversations', 'messages', 'templates', 'knowledge', 'workflows', 'notifications', 'tasks', 'payments', 'returns', 'stock', 'settings'];
-export function permission(user, action) { const sets = { owner: ['*'], manager: ['*'], editor: ['read', 'content', 'assets', 'campaigns'], support: ['read', 'assets', 'inbox', 'customers', 'orders', 'tasks'], warehouse: ['read', 'shipping', 'products'], viewer: ['read'] }; if (!(sets[user.role] || []).some(x => x === '*' || x === action)) fail('Bạn không có quyền thực hiện thao tác này.', 403); }
+export function permission(user, action) { if (!hasAction(user,action)) fail('Bạn không có quyền thực hiện thao tác này.', 403); }
 const area = { connections: 'admin', contents: 'content', campaigns: 'campaigns', customers: 'customers', products: 'products', templates: 'inbox', knowledge: 'admin', workflows: 'admin', tasks: 'tasks', notifications: 'read', settings: 'admin' };
 export function editRecord(user, kind, id, input) {
   if (!area[kind]) fail('Dữ liệu này phải cập nhật qua quy trình nghiệp vụ.'); permission(user, area[kind]); if (area[kind] === 'admin' && user.role !== 'owner') fail('Chỉ chủ hệ thống được cấu hình mục này.', 403);
