@@ -1,3 +1,5 @@
+import {allowsNotification} from './notification-access.mjs';
+import {accessFor} from './access-control.mjs';
 import {prepareLearnerLookups,cloneLearnerLookups} from '../public/learner-lookups.js';
 import {createHash} from 'node:crypto';
 import {all,get,put,db,audit,recordRevision,kindsRevision} from './store.mjs';
@@ -55,12 +57,13 @@ export function validateCareStaff(input){
  return {staffPermissions};
 }
 export function filterCareNotifications(rows,user,source=studentCareState(),policies=new Map()){
- const conversations=new Map(source.conversations.map(c=>[c.id,c])),access=new Map();
- return rows.filter(n=>{if(n.recipientId&&n.recipientId!==user.id)return false;if(!n.conversationId)return true;
+ const teams=new Set(all('team_members').filter(m=>m.userId===user.id).map(m=>m.teamId)),channels=new Set(all('channel_teams').filter(t=>teams.has(t.teamId)).map(t=>t.connectionId));
+ const conversations=new Map(source.conversations.map(c=>[c.id,c])),access=new Map(),rights=accessFor(user),reads=new Set(db.prepare("SELECT json_extract(data,'$.notificationId') AS id FROM records WHERE kind='notification_reads' AND json_extract(data,'$.userId')=?").all(user.id).map(r=>r.id));
+ return rows.filter(n=>{if(!allowsNotification(user,'notifications',n,conversations.get(n.conversationId),rights))return false;if(n.connectionId){if(!['owner','manager'].includes(user.role)&&!channels.has(n.connectionId))return false;}if(n.recipientId&&n.recipientId!==user.id)return false;if(!n.conversationId)return true;
   if(n.reminderId){const r=(source.chat_reminders||[]).find(r=>r.id===n.reminderId);const c=conversations.get(n.conversationId);if(c&&!c.deletedAt&&r?.conversationId===c.id&&reminderRecipients(r).includes(user.id))return true;}
   if(!access.has(n.conversationId)){const c=conversations.get(n.conversationId);access.set(n.conversationId,!!c&&!c.deletedAt&&canReadCare(source,c,user)&&receivesCare(source,c,user,policies.get(c.id)||carePolicy(source,c)));}
   return access.get(n.conversationId);
- });
+ }).map(n=>reads.has(n.id)?{...n,read:true}:n);
 }
 function exceptionPreview(stages,previous,includeAll=false,source=studentCareState(),policies=new Map()){
  const rows=[];

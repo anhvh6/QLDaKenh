@@ -4,3 +4,8 @@
 
 .access-table{--access-sticky-width:280px}.access-table thead tr:first-child th:not(.access-identity){text-align:left}.access-group{position:sticky;left:calc(var(--access-sticky-width) + 16px);display:block;width:max-content;max-width:calc(100vw - var(--access-sticky-width) - 40px)}
 @media(max-width:600px){.access-table{--access-sticky-width:178px}}
+
+.access-role-row{display:flex;align-items:center;gap:6px}.access-role-row>.access-name{flex:1;min-width:0}.access-role-row>.access-actions{flex-shrink:0;margin:0;gap:0;flex-wrap:nowrap}.access-role-row .icon-btn{width:28px;height:28px}.access-permission-title{border:0;background:none;padding:4px;color:inherit;font:inherit;font-weight:600;cursor:pointer;text-align:center;min-height:40px;width:100%}.access-permission-title:hover{text-decoration:underline}.access-notification-heading{font-size:20px;margin:28px 0 16px}
+@media(max-width:600px){.access-table .access-identity{width:220px;min-width:220px;max-width:220px}.access-table{--access-sticky-width:220px}.access-role-row .icon-btn{width:26px;height:30px}}
+
+.access-scroll{scroll-padding-inline-start:296px}@media(max-width:600px){.access-scroll{scroll-padding-inline-start:236px}}

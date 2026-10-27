@@ -1,3 +1,4 @@
+import {recordNotification} from '../public/notification-permissions.js';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -93,6 +94,7 @@ export function put(kind, data, expected) {
   delete record.version;
   const newVersion = prev ? prev.version + 1 : 1;
   db.prepare('INSERT INTO records(kind, id, data, version, updated_at) VALUES(?,?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data,version=excluded.version,updated_at=excluded.updated_at').run(kind, id, JSON.stringify(record), newVersion, record.updatedAt);
+  const notice=recordNotification(kind,record,prev);if(notice)put('notifications',notice);
   return get(kind, id);
 }
 

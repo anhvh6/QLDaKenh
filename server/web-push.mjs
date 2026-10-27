@@ -1,3 +1,4 @@
+import {allowsNotification} from './notification-access.mjs';
 import webpush from 'web-push';
 import {createHash,randomUUID} from 'node:crypto';
 import {all,get,put,remove,secret,saveSecret,db,now} from './store.mjs';
@@ -48,7 +49,10 @@ export async function pushRoute(path,method,input,user){
 export async function sendPush(s,payload){const keys=pushKeys();return webpush.sendNotification(s.subscription,JSON.stringify({...payload,silent:!s.preferences.sound}),{vapidDetails:{subject:'https://quanlydakenh.vercel.app',...keys},TTL:3600,timeout:10000});}
 // The user authorized message previews; each device can still hide them on its lock screen.
 export function eventFor(kind,r,user,p){
+ if(!allowsNotification(user,kind,r)||kind==='notifications'&&get('notification_reads',user.id+':'+r.id))return null;
+ if(kind==='notifications'&&r.connectionId){try{assertChannel(user,r.connectionId);}catch{return null;}}
  if(kind==='notifications'){
+  if(['automatic_sent','ai_sent'].includes(r.notificationType)&&!p.messages)return null;
   if(r.id.startsWith('care-message:')||r.id.startsWith('chat-reminder:task:')||r.title==='Quá hạn phản hồi')return null;
   // Customer messages already generate their own detailed push. Keep only the in-app receipt.
   if(r.messageId&&get('messages',r.messageId)?.direction==='incoming'||r.conversationId&&r.route==='comments'&&/^Bình luận mới/.test(r.title||''))return null;
