@@ -21,6 +21,7 @@ test('publication and automatic message events create one notification per event
  let p=put('publications',{id:'post',title:'Test',status:'scheduled'});assert.ok(get('notifications','access-event:publications:post:post_planned'));p=put('publications',{...p,status:'published'});put('publications',{...p,url:'https://example.test/post'});assert.equal(all('notifications').filter(n=>n.publicationId==='post'&&n.notificationType==='post_published').length,1);
  put('messages',{id:'ai',conversationId:'c',direction:'outgoing',botId:'bot',status:'sending'});assert.equal(get('notifications','access-event:messages:ai:ai_sent'),null);put('messages',{...get('messages','ai'),status:'accepted'});assert.ok(get('notifications','access-event:messages:ai:ai_sent'));
  put('messages',{id:'failed-auto',direction:'outgoing',communicationCampaignId:'campaign',status:'failed'});assert.equal(get('notifications','access-event:messages:failed-auto:automatic_sent'),null);
+ put('chat_reminders',{id:'automatic-reminder',customerReminderStatus:'sent',conversationId:'c',customerReminderMessageId:'m'});assert.ok(get('notifications','access-event:chat_reminders:automatic-reminder:automatic_sent'));
  put('publications',{id:'history',status:'published',createdAt:'2020-01-01T00:00:00Z'});assert.equal(get('notifications','access-event:publications:history:post_published'),null);
 });
 test('read receipts are isolated by account and are respected by push delivery',()=>{
