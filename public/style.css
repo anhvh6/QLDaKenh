@@ -5402,3 +5402,5 @@ body.comments-route .comment-tag-filter>summary:hover,body.comments-route .comme
     .mobile-bottom button.active { color:var(--green); }
     .mobile-bottom button.new-button { background:var(--green); color:white; border-radius:12px; width:48px; justify-content:center; margin-top:-15px; }
 }
+
+.customer-directory .table-wrap{max-width:100%;overflow-x:auto}.customer-directory table{min-width:680px}.customer-directory td{max-width:320px;overflow-wrap:anywhere}
