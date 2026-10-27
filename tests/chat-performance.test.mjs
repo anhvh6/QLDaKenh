@@ -13,7 +13,7 @@ test('large JSON uses negotiated gzip and preserves the payload',async()=>{
 });
 test('media usage counts repeated and shared URLs once per event',()=>{
  const assets=[{id:'a',url:'/same'},{id:'b',url:'/same'},{id:'c',url:'/other'}],messages=[{direction:'outgoing',status:'sent',createdAt:'2026-01-01',attachments:[{assetId:'a',url:'/same'},{assetId:'a',url:'/same'}]},{direction:'incoming',status:'received',attachments:[{assetId:'c'}]},{direction:'outgoing',status:'failed',attachments:[{assetId:'c'}]}],publications=[{status:'published',publishedAt:'2026-02-01',assets:['a','a']}];
- assert.deepEqual([...mediaUsage(assets,messages,publications)], [['a',{count:2,lastAt:'2026-02-01'}],['b',{count:1,lastAt:'2026-01-01'}],['c',{count:0,lastAt:null}]]);
+ assert.deepEqual([...mediaUsage(assets,messages,publications)], [['a',{count:2,lastAt:'2026-02-01',chatCount:1,chatLastAt:'2026-01-01'}],['b',{count:1,lastAt:'2026-01-01',chatCount:1,chatLastAt:'2026-01-01'}],['c',{count:0,lastAt:null,chatCount:0,chatLastAt:null}]]);
 });
 test('deleted learners do not show an active-plan nickname label',()=>{
  const S={customers:[{id:'p',learnerDeleted:true}],connections:[],chatPlanSummaries:[{customerId:'p',status:'ACTIVE',startDate:'2026-01-01',endDate:'2099-12-31'}]};

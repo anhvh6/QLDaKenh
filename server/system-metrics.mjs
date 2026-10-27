@@ -1,3 +1,4 @@
+import {createWorkerMetrics} from './worker-metrics.mjs';
 import os from 'node:os';import {statfs} from 'node:fs/promises';import {monitorEventLoopDelay} from 'node:perf_hooks';
 export const metricLimits={cpu:[70,90],memory:[75,90],disk:[80,90],lag:[100,500],latency:[500,1500],errors:[1,5]};
 export const metricLevel=(value,limits)=>value===null||!Number.isFinite(value)?'unknown':value>=limits[1]?'danger':value>=limits[0]?'warning':'healthy';
@@ -6,6 +7,7 @@ export function cpuPercent(before,after){const total=after.total-before.total;re
 export function requestGroup(url){const path=String(url||'').split('?')[0];if(path.startsWith('/api/proxy/supabase/'))return 'Kết nối QL Phác đồ';if(!path.startsWith('/api/'))return 'Tệp giao diện / media';const group=path.split('/')[2];return ({state:'Dữ liệu hệ thống',notifications:'Thông báo',inbox:'Hộp thư',conversations:'Hội thoại',messages:'Tin nhắn',upload:'Tải tệp',login:'Đăng nhập',health:'Kiểm tra máy chủ',copy:'Sao chép',plans:'Phác đồ',orders:'Đơn hàng',shipping:'Vận chuyển',pos:'Pancake POS'})[group]||'API khác';}
 const p95=rows=>rows.length?[...rows].map(r=>r.ms).sort((a,b)=>a-b)[Math.ceil(rows.length*.95)-1]:null;
 export function createSystemMonitor({directory=process.env.DATA_DIR||'data',interval=10000,capacity=360,now=Date.now,monotonic=()=>performance.now(),onSlowSample}={}){
+ const workers=createWorkerMetrics(monotonic);
  const history=[],requests=[],buckets=new Map();let previous=cpuTimes(),disk=null,diskAt=0,busy=false,active=0,lastSlowLog=0;const loop=monitorEventLoopDelay({resolution:20});loop.enable();
  function request(req,res){const path=String(req.url||'').split('?')[0];if(path==='/api/system/metrics'||path==='/api/events')return;active++;const start=monotonic();let done=false;const finish=()=>{if(done)return;done=true;active=Math.max(0,active-1);if(res.getHeader?.('Content-Type')?.toString().includes('text/event-stream'))return;const at=now(),second=Math.floor(at/1000),bucket=buckets.get(second)||{count:0,errors:0};bucket.count++;if(res.statusCode>=500)bucket.errors++;buckets.set(second,bucket);for(const key of buckets.keys())if(key<second-59)buckets.delete(key);requests.push({at,ms:Math.max(0,monotonic()-start),group:requestGroup(req.url),aborted:!res.writableFinished&&res.writableFinished!==undefined});while(requests.length>10000)requests.shift();};res.once('finish',finish);res.once('close',finish);}
  async function sample(){if(busy)return;busy=true;try{const at=now(),next=cpuTimes(),cpu=cpuPercent(previous,next);previous=next;
@@ -16,5 +18,5 @@ export function createSystemMonitor({directory=process.env.DATA_DIR||'data',inte
   if(latency>=metricLimits.latency[0]&&at-lastSlowLog>=60000){lastSlowLog=at;onSlowSample?.({at,latency,count:requests.length,groups:slowGroups});}
  }finally{busy=false;}}
  const timer=setInterval(()=>void sample().catch(()=>{}),interval);timer.unref();void sample().catch(()=>{});
- return {request,snapshot(){const current=history.at(-1)||null;return {current,history,limits:metricLimits,interval,uptime:process.uptime(),windowMinutes:60,sampleCount:history.length};},close(){clearInterval(timer);loop.disable();},sample};
+ return {request,worker:workers.run,snapshot(){const current=history.at(-1)||null;return {current,history,workers:workers.snapshot(),limits:metricLimits,interval,uptime:process.uptime(),windowMinutes:60,sampleCount:history.length};},close(){clearInterval(timer);loop.disable();},sample};
 }

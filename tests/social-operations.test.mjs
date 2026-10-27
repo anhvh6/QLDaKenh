@@ -78,15 +78,15 @@ test('Mastodon public sync never ingests private/direct statuses',async()=>{
  const items=[];await syncSocialComments({provider:'mastodon',accountId:'self'},{startedAt:'2020-01-01'},async url=>url.includes('/context')?{descendants:[{id:'public-reply',visibility:'public',content:'<p>Hello &amp; goodbye</p>',created_at:'2026-10-20',account:{id:'peer'},in_reply_to_id:'post'},{id:'secret',visibility:'direct'}]}:[{id:'post',visibility:'public',content:'Original',created_at:'2026-10-20'}],(c,item)=>items.push(item));assert.equal(items.length,1);assert.equal(items[0].text,'Hello & goodbye');
 });
 test('unknown comment provider fails instead of reporting a successful no-op sync',async()=>{
- await assert.rejects(syncComments({id:'tumblr',provider:'tumblr'},()=>assert.fail()),/Chưa triển khai/);
+ await assert.rejects(syncComments({id:'unsupported',provider:'unsupported'},()=>assert.fail()),/Chưa triển khai/);
 });
 test('Bluesky refuses private publication before any network request',async()=>{
  await assert.rejects(publish(bsky,{type:'text',caption:'Private',visibility:'private'}),/không hỗ trợ bài riêng tư/);
 });
 test('capability report distinguishes implemented features from live delivery proof',async()=>{
- assert.equal(socialCan('bluesky','chat'),false);assert.equal(socialCan('bluesky','reply'),true);assert.equal(socialCan('blogger','reply'),false);
+ assert.equal(socialCan('bluesky','chat'),true);assert.equal(socialCan('bluesky','reply'),true);assert.equal(socialCan('blogger','reply'),false);
  const report=await checkSocialHealth({...bsky,id:'health'},async url=>String(url).includes('createSession')?{did:'did:plc:self',handle:'self.bsky.social',accessJwt:'access',refreshJwt:'refresh'}:String(url).includes('getSession')?{did:'did:plc:self',handle:'self.bsky.social'}:{feed:[]});
- assert.equal(report.operations.publish.verification,'not_tested');assert.equal(report.operations.chat.verification,'unsupported');
+ assert.equal(report.operations.publish.verification,'not_tested');assert.equal(report.operations.chat.verification,'ok');
  assert.ok(!socialHealthHTML({provider:'bluesky',health:{...report,checks:[{key:'comments',status:'error',message:'<script>alert(1)</script>'}]}}).includes('<script>'));
 });
 test('public sendMessage dispatch reaches new X/YouTube reply implementation',async()=>{
@@ -95,7 +95,7 @@ test('public sendMessage dispatch reaches new X/YouTube reply implementation',as
 });
 test('quota-sensitive providers use slower polling and failures back off',()=>{
  assert.equal(commentPollInterval('youtube'),300000);assert.equal(commentPollInterval('x'),300000);assert.equal(commentPollInterval('facebook'),15000);
- assert.equal(commentRetryDelay(new Error('Credits depleted')),6*3600000);assert.equal(commentRetryDelay({message:'Too many requests',providerStatus:429}),15*60000);
+ assert.equal(commentRetryDelay({message:'Connection reset',retryable:true}),30000);assert.equal(commentRetryDelay(new Error('Credits depleted')),6*3600000);assert.equal(commentRetryDelay({message:'Too many requests',providerStatus:429}),15*60000);
 });
 test('read-only health catches valid X identity but exhausted timeline credits',async()=>{
  const c={id:'health-x',provider:'x',accountId:'id',status:'connected',mode:'api'};saveSecret(c.id,{token:'not-exposed'});
@@ -108,7 +108,7 @@ test('share rejects insufficient permissions and never retries an unknown result
  await assert.rejects(socialHealthRoute('/api/messages/'+m.id+'/share','POST',{}, {id:'owner',role:'owner'}),/kiểm tra bài gốc/);
 });
 test('comment channel picker includes newly implemented providers and excludes deleted or read-only publishing gateways',()=>{
- const channels=['mastodon','bluesky','tumblr'].map(provider=>({provider,status:'connected'}));channels.push({provider:'facebook',status:'connected',deletedAt:'2026-10-21'});assert.deepEqual(commentChannels(channels).map(c=>c.provider),['mastodon','bluesky']);
+ const channels=['mastodon','bluesky','tumblr'].map(provider=>({provider,status:'connected'}));channels.push({provider:'facebook',status:'connected',deletedAt:'2026-10-21'});assert.deepEqual(commentChannels(channels).map(c=>c.provider),['mastodon','bluesky','tumblr']);
 });
 test('user-requested diagnostics invalidate cached workspace data immediately',async()=>{
  const c=put('connections',{id:'health-cached',provider:'zalo_personal',mode:'api',status:'connected',listenerState:'listening'}),revision=stateRevision();

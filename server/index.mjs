@@ -277,11 +277,12 @@ async function webhook(req, res, url) {
 }
 const systemMonitor=createSystemMonitor({onSlowSample:sample=>console.warn('[http-performance]',JSON.stringify(sample))});
 const server = http.createServer(async (req, res) => {
+  req.appStartedAt = performance.now();
   systemMonitor.request(req,res);
   try {
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com https://www.youtube-nocookie.com https://www.facebook.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);
-    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{serverLoadRecovery:true,planLoadingCompact:true,threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
+    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{publishingProcessingDiagnostics:true,commentReadBatch:true,serverTiming:true,serverLoadRecovery:true,planLoadingCompact:true,threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
     const publicMedia = publicMediaFile(path); if (publicMedia) return serveFile(req, res, publicMedia, false);
     if (path.match(/^\/api\/oauth\/[^/]+\/callback$/)) return await finishOAuth(req, res, url);
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }
@@ -333,32 +334,32 @@ const server = http.createServer(async (req, res) => {
 });
 function serveFile(req, res, file, privateFile,preview=false) { if (!existsSync(file) || !statSync(file).isFile()) return json(res, { error: 'Không tìm thấy file.' }, 404); const st = statSync(file); const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4' }[extname(file)] || 'application/octet-stream'; res.setHeader('Content-Type', mime); res.setHeader('Cache-Control', privateFile ? 'private, no-store' : 'no-cache'); res.setHeader('Accept-Ranges', 'bytes'); if(preview){const etag='"'+st.size.toString(16)+'-'+Math.trunc(st.mtimeMs).toString(16)+'"';res.setHeader('ETag',etag);res.setHeader('Cache-Control','private, max-age=0, must-revalidate');if(req.headers['if-none-match']===etag){res.writeHead(304);return res.end();}} if(serveFrontendFile(req,res,file,st,privateFile))return; const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/); if (range) { const start = Number(range[1]), end = range[2] ? Math.min(Number(range[2]), st.size - 1) : st.size - 1; if (start > end || start >= st.size) { res.writeHead(416, { 'Content-Range': `bytes */${st.size}` }); return res.end(); } res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 }); return createReadStream(file, { start, end }).pipe(res); } res.setHeader('Content-Length', st.size); if (req.method === 'HEAD') return res.end(); createReadStream(file).pipe(res); }
 domain.recoverJobs(); for (const o of all('orders')) syncPlanHandoff(o); for (const r of all('template_runs').filter(r => ['sending', 'pending'].includes(r.status))) put('template_runs', { ...r, status: r.status === 'sending' ? 'unknown' : 'failed', error: 'Máy chủ đã khởi động lại; kiểm tra trước khi tiếp tục.' });
-setInterval(() => { try { care.serviceTick(); } catch (e) { console.error('Care worker:', e.message); } }, 15000).unref(); setInterval(() => domain.tick().catch(e => console.error('Scheduler:', e.message)), 5000).unref();
+setInterval(() => { try { systemMonitor.worker('care',()=>care.serviceTick()); } catch (e) { console.error('Care worker:', e.message); } }, 15000).unref(); setInterval(() => systemMonitor.worker('publishing',()=>domain.tick()).catch(e => console.error('Scheduler:', e.message)), 5000).unref();
 setInterval(() => db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now()), 3600000).unref();
-recoverBotJobs(); setInterval(() => botTick().catch(e => console.error('Chatbot:', e.message)), 2000).unref();
+recoverBotJobs(); setInterval(() => systemMonitor.worker('botTick',()=>botTick()).catch(e => console.error('Chatbot:', e.message)), 2000).unref();
 server.listen(port, host, () => console.log(`Mộc Hub: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}\nDatabase: ${join(dataDir, 'hub.sqlite')}`));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => { db.close(); process.exit(0); }));
 
-setInterval(() => { try { reminderTick(); consultationTick(); } catch (error) { console.error('Reminder tick:', error.message); } }, 10000).unref();
-setInterval(() => pushTick().catch(error => console.error('Push tick:', error.message)), 5000).unref();
+setInterval(() => { try { systemMonitor.worker('reminders',()=>{reminderTick();consultationTick();}); } catch (error) { console.error('Reminder tick:', error.message); } }, 10000).unref();
+setInterval(() => systemMonitor.worker('pushTick',()=>pushTick()).catch(error => console.error('Push tick:', error.message)), 5000).unref();
 
 setInterval(() => resumePurges().catch(e => console.error('Customer purge:', e.message)), 30000).unref();
-recoverCopyJobs(); setInterval(copyTick, 2000).unref();
+recoverCopyJobs(); setInterval(()=>systemMonitor.worker('copyTick',copyTick), 2000).unref();
 
-void facebookChatTick(); setInterval(() => void facebookChatTick(), 5000).unref();
-void socialChatTick(); setInterval(() => void socialChatTick(), 10000).unref();
+void systemMonitor.worker('facebookChatTick',()=>facebookChatTick()); setInterval(() => void systemMonitor.worker('facebookChatTick',()=>facebookChatTick()), 5000).unref();
+void systemMonitor.worker('socialChatTick',()=>socialChatTick()); setInterval(() => void systemMonitor.worker('socialChatTick',()=>socialChatTick()), 10000).unref();
 
-recoverCustomerReminders();setInterval(() => void customerReminderTick().catch(e=>console.error('Customer reminders:',e.message)), 5000).unref();
+recoverCustomerReminders();setInterval(() => void systemMonitor.worker('customerReminderTick',()=>customerReminderTick()).catch(e=>console.error('Customer reminders:',e.message)), 5000).unref();
 
-void commentsTick().catch(e=>console.error('Comments:',e.message));setInterval(()=>void commentsTick().catch(e=>console.error('Comments:',e.message)),15000).unref();
+void systemMonitor.worker('commentsTick',()=>commentsTick()).catch(e=>console.error('Comments:',e.message));setInterval(()=>void systemMonitor.worker('commentsTick',()=>commentsTick()).catch(e=>console.error('Comments:',e.message)),15000).unref();
 
-recoverAutomation();setInterval(()=>void automationTick().catch(e=>console.error('Copy automation:',e.message)),5000).unref();
+recoverAutomation();setInterval(()=>void systemMonitor.worker('automationTick',()=>automationTick()).catch(e=>console.error('Copy automation:',e.message)),5000).unref();
 
-recoverPosJobs();setInterval(()=>void posTick().catch(e=>console.error('POS worker:',e.message)),1000).unref();
+recoverPosJobs();setInterval(()=>void systemMonitor.worker('posTick',()=>posTick()).catch(e=>console.error('POS worker:',e.message)),1000).unref();
 
-recoverCommunication();setInterval(()=>void communicationTick().catch(e=>console.error('Communication worker:',e.message)),1000).unref();
+recoverCommunication();setInterval(()=>void systemMonitor.worker('communicationTick',()=>communicationTick()).catch(e=>console.error('Communication worker:',e.message)),1000).unref();
 
-recoverTrackingNotifications();setInterval(()=>void trackingNotificationTick().catch(e=>console.error('Tracking notification:',e.message)),2000).unref();
+recoverTrackingNotifications();setInterval(()=>void systemMonitor.worker('trackingNotificationTick',()=>trackingNotificationTick()).catch(e=>console.error('Tracking notification:',e.message)),2000).unref();
 
 let overviewTickRunning=false;
 async function overviewTick(){if(overviewTickRunning)return;overviewTickRunning=true;try{await refreshDashboardCounts(overviewAggregates);}catch(error){console.error('Dashboard counts worker:',error.message);}finally{overviewTickRunning=false;}}

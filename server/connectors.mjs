@@ -1,3 +1,4 @@
+import {checkMetaProcessing} from './meta-processing.mjs';
 import {hashtags,threadsTopic} from '../public/platform-text-rules.js';
 import {replySocial,blueskyInteraction,removeBlueskyLike,mastodonReaction} from './social-replies.mjs';
 import {parseProviderJSON} from './provider-json.mjs';
@@ -159,11 +160,9 @@ export async function continuePublish(c, p) {
     const externalId = String(data.publicaly_available_post_id?.[0] || data.publicly_available_post_id?.[0] || p.containerId); return { externalId, url: '' };
   }
   const token = secret(c.id).token; const threads = c.provider === 'threads'; const base = threads ? 'https://graph.threads.net/v1.0' : `https://graph.facebook.com/${graphVersion(c)}`;
-  if (p.carouselPending) { for (const child of p.childContainerIds || []) { const state = await remote(`${base}/${encodeURIComponent(child)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: 'Bearer ' + token } }); const code = state.status_code || state.status; if (['ERROR', 'EXPIRED'].includes(code)) throw new Error('Media trong carousel bị lỗi: ' + (state.error_message || state.status || code)); if (code !== 'FINISHED') return null; } const container = await createMediaContainer(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads' : 'media'}`, json({ media_type: 'CAROUSEL', children: p.childContainerIds.join(','), ...(threads ? { text: p.caption, ...threadsTopic(p.caption) } : { caption: p.caption }) }, token)); return { containerId: container.id, carouselPending: false, processing: true, container: true }; }
+  if (p.carouselPending) { for (const child of p.childContainerIds || []) { const state = await remote(`${base}/${encodeURIComponent(child)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: 'Bearer ' + token } }); const code = checkMetaProcessing(state, c.provider); if (code !== 'FINISHED') return null; } const container = await createMediaContainer(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads' : 'media'}`, json({ media_type: 'CAROUSEL', children: p.childContainerIds.join(','), ...(threads ? { text: p.caption, ...threadsTopic(p.caption) } : { caption: p.caption }) }, token)); return { containerId: container.id, carouselPending: false, processing: true, container: true }; }
   const state = await remote(`${base}/${encodeURIComponent(p.containerId)}?fields=${threads ? 'status,error_message' : 'status_code,status'}`, { headers: { Authorization: `Bearer ${token}` } });
-  const code = state.status_code || state.status;
-  if (code === 'ERROR' || code === 'EXPIRED') throw new Error('Nền tảng không xử lý được media: ' + (state.error_message || code));
-  if(threads&&code==='PUBLISHED')throw Object.assign(new Error('Threads báo bài đã được xuất bản. Cần đối soát đường dẫn bài; không đăng lại tự động để tránh trùng.'),{unknown:true});
+  const code = checkMetaProcessing(state, c.provider);
   if (code !== 'FINISHED') return null;
   const r = await remote(`${base}/${encodeURIComponent(c.accountId)}/${threads ? 'threads_publish' : 'media_publish'}`, json({ creation_id: p.containerId }, token));
   if(!r.id)throw Object.assign(new Error('Nền tảng chưa trả mã bài đăng. Cần đối soát trước khi thử lại.'),{unknown:true});

@@ -1,3 +1,4 @@
+import {commentReadBatch} from './comment-read-batch.mjs';
 import {syncSocialComments} from './social-comment-sync.mjs';
 import {commentPostMedia} from '../public/comment-post-media.js';
 import {openCommentPrivateChat} from './comment-private.mjs';
@@ -25,7 +26,7 @@ function commentMessage(channelId,externalId){
 
 export const commentProviders=new Set(['facebook','threads','instagram','youtube','blogger','x','devto','mastodon','bluesky','tumblr','reddit']);
 export const commentPollInterval=provider=>({facebook:15000,instagram:30000,threads:60000,youtube:300000,x:300000,mastodon:120000,bluesky:120000,blogger:300000,devto:300000})[provider]||300000;
-export function commentRetryDelay(error){return /quota|credits?|hạn mức|401|permission|quyền|token.*expired/i.test(String(error.message))?6*3600000:error.providerStatus===429?15*60000:5*60000;}
+export function commentRetryDelay(error){return /quota|credits?|hạn mức|401|permission|quyền|token.*expired/i.test(String(error.message))?6*3600000:error.providerStatus===429?15*60000:error.retryable?30000:5*60000;}
 const locks=new Map();
 const base=c=>c.provider==='threads'?'https://graph.threads.net/v1.0':`https://graph.facebook.com/${c.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`;
 const safeUrl=value=>{try{const u=new URL(value);return u.protocol==='https:'?u.href:'';}catch{return '';}};
@@ -106,7 +107,7 @@ const newerThan=(value,state)=>Date.parse(value||0)>=(state.completedAt?Date.now
 async function syncInstagram(channel,state,request){
  const token=secret(channel.id).token,headers=authHeaders(token),root=`https://graph.facebook.com/${channel.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`;
  const media=await request(`${root}/${encodeURIComponent(channel.accountId)}/media?`+new URLSearchParams({fields:'id,caption,timestamp,permalink,media_type,media_url,thumbnail_url,children{media_type,media_url,thumbnail_url}',limit:'25'}),{headers});
- for(const post of media.data||[]){const page=await request(`${root}/${encodeURIComponent(post.id)}/comments?`+new URLSearchParams({fields:'id,text,timestamp,username,from{id,username},like_count,replies{id,text,timestamp,username,from{id,username},like_count}',limit:'100'}),{headers});for(const item of page.data||[]){upsertComment(channel,item,post,newerThan(item.timestamp,state));for(const reply of item.replies?.data||[])upsertComment(channel,{...reply,parent:{id:item.id}},post,newerThan(reply.timestamp,state));}}
+ await commentReadBatch(media.data||[],async post=>{const page=await request(`${root}/${encodeURIComponent(post.id)}/comments?`+new URLSearchParams({fields:'id,text,timestamp,username,from{id,username},like_count,replies{id,text,timestamp,username,from{id,username},like_count}',limit:'100'}),{headers});for(const item of page.data||[]){upsertComment(channel,item,post,newerThan(item.timestamp,state));for(const reply of item.replies?.data||[]){upsertComment(channel,{...reply,parent:{id:item.id}},post,newerThan(reply.timestamp,state));await yieldIO();}await yieldIO();}});
 }
 async function syncYouTube(channel,state,request){
  const token=await refreshedToken(channel),headers=authHeaders(token),api='https://www.googleapis.com/youtube/v3';
@@ -148,6 +149,16 @@ export async function syncComments(channel,request=remote){
  if(!['facebook','threads'].includes(channel.provider)){await syncProviderComments(channel,state,request);state=put('comment_sync',{...state,queue:[],after:'',status:'ready',error:'',syncedAt:now(),completedAt:now(),nextRetryAt:null});return state;}
  const headers={Authorization:'Bearer '+token};const read=async(path,params)=>{const url=base(channel)+'/'+encodeURIComponent(path.split('/')[0])+'/'+path.split('/').slice(1).join('/')+'?'+new URLSearchParams(params);try{return await request(url,{headers});}catch(error){if(!error.retryable&&!error.unknown)throw error;return request(url,{headers});}};
  let queue=state.queue||[],after=state.after||'',processed=0;
+ // Keep current posts live while an older post's comment cursor is being backfilled.
+ if((queue.length||after)&&Date.now()-Date.parse(state.latestCheckedAt||'1970-01-01')>=60000){
+  const latest=await read(channel.accountId+'/'+(channel.provider==='threads'?'threads':'feed'),{fields:channel.provider==='threads'?'id,text,timestamp,permalink':'id,message,created_time,permalink_url',limit:'2'});
+  for(const post of latest.data||[]){
+   const page=await read(post.id+'/'+(channel.provider==='threads'?'replies':'comments'),{fields:channel.provider==='threads'?'id,text,timestamp,username,media_type,media_url,children{id,media_type,media_url},permalink,is_reply_owned_by_me,replied_to,root_post':'id,message,created_time,from{id,name,picture},attachment,parent,user_likes,like_count,permalink_url',limit:'50',...(channel.provider==='facebook'?{filter:'stream',order:'reverse_chronological'}:{})});
+   for(const item of page.data||[]){upsertComment(channel,item,post,newerThan(item.created_time||item.timestamp,state));await yieldIO();}
+  }
+  state={...state,latestCheckedAt:now()};
+ }
+
  if(!queue.length){const page=await read(channel.accountId+'/'+(channel.provider==='threads'?'threads':'feed'),{fields:channel.provider==='threads'?'id,text,timestamp,permalink,media_type,media_url,thumbnail_url,children{id,media_type,media_url}':'id,message,created_time,permalink_url,full_picture,attachments{media,type,url,subattachments}',limit:'20',...(after?{after}:{})});queue=page.data||[];after=page.paging?.next?page.paging?.cursors?.after||'':'';}
  for(const post of queue.slice(0,5)){
   const key=channel.id+':'+post.id,p=get('comment_post_sync',key)||{},cursor=p.after||'';

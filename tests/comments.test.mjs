@@ -4,6 +4,7 @@ mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(re
 const {all,get,put,saveSecret,db}=await import('../server/store.mjs');
 const {upsertComment,ingestCommentEvents,syncComments,commentsStatus}=await import('../server/comments.mjs');
 const c=put('connections',{id:'fb',provider:'facebook',accountId:'page',name:'Page',mode:'api',status:'connected'});saveSecret('fb',{token:'test'});
+
 test('comment lookup isolates channels, reconciles receipt IDs and avoids parsing unrelated chat history',()=>{
  const other=put('connections',{id:'other-page',provider:'facebook',accountId:'other',mode:'api'});
  const a=upsertComment(c,{id:'shared-id',message:'A',from:{id:'a'}}),b=upsertComment(other,{id:'shared-id',message:'B',from:{id:'b'}});
@@ -212,4 +213,12 @@ test('original post media is kept during comment sync and loaded in Facebook and
  assert.equal(out.post.media[0].type,'video');assert.equal(out.mediaVersion,1);
  const ig=put('connections',{id:'media-context-ig',provider:'instagram',name:'IG',status:'connected',mode:'api'});saveSecret(ig.id,{token:'test'});const im=upsertComment(ig,{id:'ig-media-comment',text:'Hi',from:{id:'ig-media-person'}},{id:'ig-media-post'});
  const io=await commentContext(owner,im.conversationId,async()=>({id:'ig-media-post',caption:'IG caption',media_type:'IMAGE',media_url:'https://cdn.test/ig.jpg'}));assert.equal(io.post.text,'IG caption');assert.equal(io.post.media[0].url,'https://cdn.test/ig.jpg');
+});
+
+test('recent comments remain visible while an old post is backfilling',async()=>{
+ const channel=put('connections',{id:'fb-head-priority',provider:'facebook',accountId:'head-page',name:'Page',mode:'api',status:'connected'});saveSecret(channel.id,{token:'test'});
+ put('comment_sync',{id:channel.id,queue:[{id:'old-post'}],after:'older-page',startedAt:'2020-01-01',completedAt:'2020-01-01'});
+ const calls=[];const request=async url=>{const u=new URL(url);calls.push(u);if(u.pathname.endsWith('/feed')){assert.equal(u.searchParams.has('after'),false);return {data:[{id:'recent-post'}]};}if(u.pathname.endsWith('/recent-post/comments'))return {data:[{id:'recent-head-comment',message:'new',from:{id:'recent-author'},created_time:new Date().toISOString()}]};return {data:[],paging:{next:'next',cursors:{after:'old-next'}}};};
+ const state=await syncComments(channel,request);assert.equal(state.queue[0].id,'old-post');assert.equal(get('comment_post_sync',channel.id+':old-post').after,'old-next');assert.ok(all('messages').some(m=>m.externalId==='recent-head-comment'));assert.ok(state.latestCheckedAt);
+ calls.length=0;await syncComments(channel,request);assert.equal(calls.some(u=>u.pathname.endsWith('/feed')),false);
 });
