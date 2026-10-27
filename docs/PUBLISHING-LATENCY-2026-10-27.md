@@ -28,3 +28,13 @@ Recommendations, in order:
 - Do not cache private data publicly or add another cache table until the blocking path is measured. Existing compact snapshots/caches cannot make a blocked Node event loop respond.
 
 Reference: https://vercel.com/docs/routing/rewrites (external reverse proxy); https://vercel.com/docs/limits (external proxy timeout). External proxy timeout alone does not prove either observed media failure was caused by Vercel.
+
+## Follow-up after first backend rollout
+
+The user ran the read-only script: Instagram container ERROR with detail `Media upload has failed with error code 2207082`; its existing public media range URL returned HTTP 502. The Threads container now reports FINISHED; its public media range URL also returned HTTP 502. These failures warrant inspecting the actual media transfer separately from JSON API timing. An invalid signed media URL returns the expected 403 via both Vercel and direct VPS, so the route is not universally unavailable. The 502 source is still under investigation; the enhanced diagnostic compares public range access with local Node and reports a bounded, sanitized proxy error body.
+
+Runtime worker metrics identified automationTick as the dominant synchronous hotspot: 3513–3660 ms per tick, on a five-second schedule. Other measured worker synchronous starts were below 269 ms. Its publicationsFor helper deserialized the complete publication collection once for every failed/unknown plan item. The follow-up adds partial SQLite indexes on publication copy item/content IDs and candidate queries; yields between item/plan work preserve responsiveness. Regression tests verify indexed query plans, unrelated-history avoidance and pause-during-extraction safety.
+
+Generic ERROR/UNKNOWN now gets a delayed status recheck before the one permitted container recreation. Manual retry of an existing generic Meta container failure first resumes its status reads; a late FINISHED result can publish the existing container instead of uploading another copy. No production failed post was retried during the audit.
+
+Follow-up validation: 141 targeted tests pass and npm run check passes. Production effects of the indexed automation change must be measured after the second backend restart; frontend remains unchanged. No physical Android device test was performed.

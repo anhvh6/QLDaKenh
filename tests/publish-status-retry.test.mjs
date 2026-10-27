@@ -38,8 +38,13 @@ test('definitive media error fails while prolonged read failures respect origina
 
 test('generic terminal Meta error recreates only once after a delay; never retries a publish timeout',async()=>{
  const p=fixture(),fetch=global.fetch;
- try{global.fetch=async()=>response({status:'ERROR',error_message:'UNKNOWN'});await tick();let saved=get('publications',p.id);assert.equal(saved.status,'scheduled');assert.equal(saved.mediaRecoveryAttempts,1);assert.equal(saved.containerId,undefined);assert.ok(Date.parse(saved.scheduleAt)>Date.now()+50000);
- put('publications',{...saved,status:'processing',containerId:'replacement',processingStartedAt:new Date().toISOString()});await tick();saved=get('publications',p.id);assert.equal(saved.status,'failed');assert.equal(saved.processingFailure.detail,'UNKNOWN');
+ try{global.fetch=async()=>response({status:'ERROR',error_message:'UNKNOWN'});await tick();let saved=get('publications',p.id);assert.equal(saved.status,'processing');assert.equal(saved.processingErrorChecks,1);assert.equal(saved.containerId,'container');put('publications',{...saved,nextCheckAt:''});await tick();saved=get('publications',p.id);assert.equal(saved.status,'scheduled');assert.equal(saved.mediaRecoveryAttempts,1);assert.equal(saved.containerId,undefined);assert.ok(Date.parse(saved.scheduleAt)>Date.now()+50000);
+ put('publications',{...saved,status:'processing',processingErrorChecks:1,containerId:'replacement',processingStartedAt:new Date().toISOString()});await tick();saved=get('publications',p.id);assert.equal(saved.status,'failed');assert.equal(saved.processingFailure.detail,'UNKNOWN');
+ }finally{global.fetch=fetch;}
+});
+test('late FINISHED resumes the existing failed Threads container without uploading again',async()=>{
+ const p=fixture(),fetch=global.fetch;put('publications',{...p,status:'failed',error:'Nền tảng không xử lý được media: UNKNOWN'});let reads=0,writes=0;
+ try{await publicationAction({id:'owner',role:'owner'},p.id,{action:'retry'});assert.equal(get('publications',p.id).containerId,'container');global.fetch=async(url,options)=>{if(options.method==='POST'){writes++;assert.match(url,/threads_publish$/);assert.equal(JSON.parse(options.body).creation_id,'container');return response({id:'late-ready-post'});}reads++;return response(url.includes('permalink')?{permalink:'https://www.threads.net/@qa/post/one'}:{status:'FINISHED'});};await tick();assert.equal(get('publications',p.id).status,'published');assert.equal(writes,1);assert.ok(reads>=1);
  }finally{global.fetch=fetch;}
 });
 test('creating an unpublished container retries a transient failure but publishing is a separate persisted step',async()=>{

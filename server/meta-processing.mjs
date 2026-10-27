@@ -14,14 +14,21 @@ export function checkMetaProcessing(state, provider) {
 
 export function resetPublicationProcessing(p) {
   const clean = {...p};
-  for (const key of ['containerId', 'container', 'childContainerIds', 'carouselPending', 'socialVerification', 'processingStartedAt', 'nextCheckAt', 'statusReadFailures', 'processingFailure', 'externalId', 'url', 'publishedAt']) delete clean[key];
+  for (const key of ['containerId', 'container', 'childContainerIds', 'carouselPending', 'socialVerification', 'processingStartedAt', 'nextCheckAt', 'statusReadFailures', 'processingErrorChecks', 'processingFailure', 'externalId', 'url', 'publishedAt']) delete clean[key];
   return clean;
 }
 
 // Only a confirmed terminal, generic container error can be recreated once.
 // A lost publish receipt or a specific codec/permission error must never enter this path.
-export function canRecoverMetaProcessing(p, error) {
+export function genericMetaProcessingError(error) {
   const failure=error.processingFailure;
   return error.unknown === false && failure?.status === 'ERROR' &&
-    /^(UNKNOWN|ERROR)$/i.test(failure.detail.trim()) && (p.mediaRecoveryAttempts || 0) < 1;
+    /^(UNKNOWN|ERROR)$/i.test(failure.detail.trim());
+}
+export function canRecoverMetaProcessing(p, error) {
+  return genericMetaProcessingError(error) && (p.mediaRecoveryAttempts || 0) < 1;
+}
+export function resumeMetaContainer(p, channel) {
+  return p.status==='failed' && p.containerId && !p.externalId && ['instagram','threads'].includes(channel?.provider) &&
+    (/^(UNKNOWN|ERROR)$/i.test(p.processingFailure?.detail||'') || /media: (UNKNOWN|ERROR)$/i.test(p.error||''));
 }
