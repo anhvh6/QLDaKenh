@@ -1,3 +1,4 @@
+import {materializeDirectoryLearner} from './learner-directory-source.mjs';
 import {learnerMessageFacts} from './learner-message-facts.mjs';
 import {orderProducts,resolveCatalogProduct} from './product-catalog.mjs';
 import {learnerOrders} from './learner-orders.mjs';
@@ -21,7 +22,7 @@ const addDays=(base,n)=>new Date(Date.parse(date(base)+'T00:00:00Z')+n*86400000)
 const registrationFields=['customer_name','sdt','email','dia_chi','note','start_date','end_date','duration_days','ma_vd','trang_thai','is_consultation','is_deposit','deposit_amount','san_pham','gia_tien','courseBasePrice','checkoutStage','updatedAt'];
 const registrationData=data=>Object.fromEntries(registrationFields.filter(k=>data?.[k]!==undefined).map(k=>[k,data[k]]));
 function safeLink(link){try{const u=new URL(link);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}}
-function access(user,id){permission(user,'customers');assertCustomer(user,id);const c=get('customers',id);if(!c)fail('Không tìm thấy khách hàng.',404);return c;}
+function access(user,id){permission(user,'customers');const c=get('customers',id)||materializeDirectoryLearner(user,id);if(!c)fail('Không tìm thấy khách hàng.',404);assertCustomer(user,c.id);return c;}
 function localPlan(c){return ((c.planCustomerId||c.customer_id)?get('study_plans',c.planCustomerId||c.customer_id):null)||all('study_plans').find(p=>p.customerId===c.id);}
 async function record(c){let local=localPlan(c);if(c.origin==='taophacdo'||local?.publishedAt){const remote=await readLearner(local?.id||c.customer_id);if(!remote){put('learner_source_facts',{...get('learner_source_facts',c.id),id:c.id,status:'DELETED',learnerDeleted:true});return {data:null,remote:false,local:null,deleted:true};}if(local&&local.remoteUpdatedAt!==remote.updated_at)local=put('study_plans',{...local,customer:{...local.customer,...remote},remoteUpdatedAt:remote.updated_at},local.version);return {data:remote,remote:true,local};}return {data:local?.customer||null,local,remote:false};}
 function effectivePlan(r){return !!r.data&&(!r.local?.registrationOnly||hasAssignedPlan(r.data));}

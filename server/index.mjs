@@ -1,3 +1,4 @@
+import {refreshDirectoryLearners} from './learner-directory-source.mjs';
 import {customerDirectory} from './customer-directory.mjs';
 import {realtimeRevision} from './realtime-revision.mjs';
 import {recoverPublicationPermalink,recoverMissingPermalinks} from './publication-permalink.mjs';
@@ -181,6 +182,7 @@ async function dispatch(req, res, url, user, input) {
   }
   if(path==='/api/order-routing'&&method==='POST')return saveOrderRouting(user,input);
   if(path==='/api/overview/learners'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được xem số liệu học viên.',403);const result=overviewAggregates.read('learners:v1');if(!result)domain.fail('Số liệu đang được tổng hợp nền. Vui lòng thử lại sau.',503);return result;}
+  if(path==='/api/customers/directory/sync'&&method==='POST'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được đồng bộ nguồn học viên.',403);const source=await refreshDirectoryLearners({force:true});return {ready:!!source,learnerCount:source?.learnerCount||0};}
   if(path==='/api/customers/directory'&&method==='GET')return customerDirectory(user,url.searchParams);
   if(path==='/api/system/metrics'&&method==='GET'){if(!['owner','manager'].includes(user.role))domain.fail('Chỉ quản trị được xem chỉ số hệ thống.',403);return systemMonitor.snapshot();}
   if (path === '/api/logout' && method === 'POST') { db.prepare('DELETE FROM sessions WHERE user_id=? AND csrf=?').run(user.id, user.csrf); res.setHeader('Set-Cookie', 'hub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'); return { ok: true }; }
@@ -284,7 +286,7 @@ const server = http.createServer(async (req, res) => {
   try {
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://apis.google.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://docs.google.com; frame-src 'self' https://docs.google.com https://accounts.google.com https://www.youtube-nocookie.com https://www.facebook.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname; if (path.startsWith('/plan-ui/') || path.startsWith('/plan-editor/') || path.startsWith('/plan-preview/')) { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"); } const user = userFor(req);
-    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{qualifiedCustomerDirectory:true,automationIndexedPublications:true,publishingProcessingDiagnostics:true,commentReadBatch:true,serverTiming:true,serverLoadRecovery:true,planLoadingCompact:true,threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
+    if (path === '/api/health') return json(res, { ok: true, service: 'Moc Hub', features:{completeLearnerDirectory:true,qualifiedCustomerDirectory:true,automationIndexedPublications:true,publishingProcessingDiagnostics:true,commentReadBatch:true,serverTiming:true,serverLoadRecovery:true,planLoadingCompact:true,threadsInteractions:true,metaChatNetworkDiagnostics:true,instagramMessageDetails:true,inboxChannelDiagnostics:true,instagramChatRecovery:true,publicationPermalinkRecovery:true,copyCandidateAdmission:true,draftWarningReview:true,pageSnapshots:true,chatMediaRecent:true,driveLibraryFiles:true,contentSourcePreviews:true,mediaCompact:true,publishMediaRecovery:true,composerAdvisoryReview:true,inboxCompact:true,chatRevisionCounters:true,commentsCompact:true,commentContextBackground:true,mediaUsageMetadata:true} });
     const publicMedia = publicMediaFile(path); if (publicMedia) return serveFile(req, res, publicMedia, false);
     if (path.match(/^\/api\/oauth\/[^/]+\/callback$/)) return await finishOAuth(req, res, url);
     if (path === '/api/drive/callback' && req.method === 'GET') { await completeDriveOAuth(url); res.writeHead(303, { 'Location': '/?drive=connected#settings', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(); }
@@ -368,6 +370,7 @@ async function overviewTick(){if(overviewTickRunning)return;overviewTickRunning=
 void overviewTick();setInterval(()=>void overviewTick(),10000).unref();
 const learnerOverviewTick=()=>void refreshLearnerOverview(overviewAggregates).catch(error=>console.error('Learner overview worker:',error.message));
 learnerOverviewTick();setInterval(learnerOverviewTick,15000).unref();
+void refreshDirectoryLearners();setInterval(()=>void refreshDirectoryLearners(),60000).unref();
 const learnerStatusTick=()=>void refreshLearnerStatuses().catch(error=>console.error('Learner status worker:',error.message));
 learnerStatusTick();setInterval(learnerStatusTick,30000).unref();
 
