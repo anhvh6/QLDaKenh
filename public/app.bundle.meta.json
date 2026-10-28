@@ -1,10 +1,11 @@
 {
-  "version": "4251e7dfd071",
+  "version": "ad9b40317bd3",
   "compiler": "0.25.12",
   "files": {
+    "public/icons.js": "a3e997cac0f378a83b6069cddb5bcc38395cbadc33fab32ea0bcedb37f5c40c5",
+    "public/auto-comment.js": "4ff4eb36b654c059bf1ab1a3f99e85d0c3c80c6d30fea26308b7d7f1d93d25b8",
     "public/access-model.js": "c5720514d1b5eb543ed8880cbef12de68518dcc267dea6eb3f1372d02d4f96fd",
     "public/access-management.js": "d2af9631c0df43b41f5d68b253da1d79e9771a54cca32839650581fd55f7c462",
-    "public/icons.js": "a3e997cac0f378a83b6069cddb5bcc38395cbadc33fab32ea0bcedb37f5c40c5",
     "public/shipping-address.js": "af082b129ddae8e7e59627d7206e1b13888a878d1f90374e0d781e126f440497",
     "public/learner-orders-ui.js": "708e6952bab5ac1f2d1dd7318b1ba81e3f7507235fe074a4a78c0acf4799f67f",
     "public/learner-lookups.js": "e653af4c4f70e7a61d335c7f191c6758acf599298e85bc7628159c49f4adac61",
@@ -112,7 +113,7 @@
     "public/copy-plan-selection.js": "eedfc31ddb0ea23c5c0de4ac7c77dc44245d46d9518ed61fe3b114da7133c538",
     "public/copy-job-table.js": "f450fc8f8b177329e17443d198961a4d860f079199bfac3ce506bdf653fb2c32",
     "public/copy-plan-model.js": "34d5224b5e056618a891e721bdef4e6bc0eb93f1b94590a2c0e5a300b2db1b25",
-    "public/copy-automation.js": "243bdf267634069aa8aec670638ba8cc7e638af3a4fb3d8d6e11eac279fbbf3e",
+    "public/copy-automation.js": "f1962441f76121f5531d96a669eb14778d4d0824e9116380ed0c93a8f9c827b9",
     "public/social-copy.js": "f9488cd6f077e02dae835ccd09cae07ec824fe536937e66200ff5e0fa3350b77",
     "public/student-care-settings.js": "eb49cec69a149ab2faf4d82cb5d48ca2825bb59ff18d88978ee48ab1b3c1785c",
     "public/products-management.js": "e7d08013cafe81a244bc0acf98a96c0be6d9e2e33c016add0e930136db1572d1",
@@ -125,7 +126,7 @@
     "public/media-library.js": "8bfe42d35612223f82c0d559a84a2dfb00fe8abd015aec52d750ef6a43673575",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "4cf2b0b7f42a2bef797f142f7ee2451fa72549b20eb54d9214c4064348cfdfa3",
-    "public/app.js": "983577156610600e8b8e8b506136ab72124c8a962f30baa021b6edd1d1908e2d",
-    "public/app.bundle.js": "4251e7dfd071be8168d80523622ac99fad8ebfbd5a3703621f74287dd32c1fd5"
+    "public/app.js": "cd9b76f11b8a6a45724bc374650bc4d52edddeae8fc2a22b322a94a1bd04ced4",
+    "public/app.bundle.js": "ad9b40317bd3562538a753e555ca187fb5913f5953196161c33ea453075ec041"
   }
 }

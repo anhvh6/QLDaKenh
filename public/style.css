@@ -5404,3 +5404,7 @@ body.comments-route .comment-tag-filter>summary:hover,body.comments-route .comme
 }
 
 .customer-directory .table-wrap{max-width:100%;overflow-x:auto}.customer-directory table{min-width:680px}.customer-directory td{max-width:320px;overflow-wrap:anywhere}
+
+.auto-comment{margin:16px 0;padding:12px 0;border-top:1px solid var(--border,#e2e8e5)}.auto-comment [data-auto-comment-body]{margin-top:12px}.auto-comment textarea{width:100%;min-height:90px;resize:vertical}.auto-comment [hidden]{display:none!important}
+
+.auto-comment label.btn{display:inline-flex;width:auto;cursor:pointer;margin-top:8px}.auto-comment label.field{display:block;text-align:left}.auto-comment label.field textarea{margin-top:8px}
