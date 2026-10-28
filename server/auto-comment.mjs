@@ -1,8 +1,11 @@
+import {autoCommentCapabilities,autoCommentIssue} from '../public/auto-comment-capabilities.js';
+import {extraToken} from './social-extra.mjs';
+import {uploadSocialMedia} from './social-media-upload.mjs';
+import {blueskyPost} from './social-replies.mjs';
 import {all,get,put,secret,now,db} from './store.mjs';
 import {sendMessage,remote,refreshedToken} from './connectors.mjs';
 import {assertChannel} from './taophacdo.mjs';
 const invalid=message=>Object.assign(Error(message),{status:400});
-const supported=new Set(['facebook','instagram','threads','youtube','x','mastodon']);
 export function validateAutoComment(value,channels=[],user){
  if(!value?.enabled)return {enabled:false,text:'',assetIds:[]};
  if(!Array.isArray(value.assetIds||[]))throw invalid('Danh sách ảnh bình luận không hợp lệ.');
@@ -11,11 +14,20 @@ export function validateAutoComment(value,channels=[],user){
  if(!text&&!assetIds.length)throw invalid('Nhập nội dung hoặc đính kèm ảnh cho tự động comment.');
  if(text.length>10000)throw invalid('Bình luận vượt 10.000 ký tự.');
  for(const id of assetIds){const a=get('assets',id);if(!a||a.active===false||a.type!=='image'||!(a.scopes||['post']).includes('post'))throw invalid('Ảnh bình luận không còn dùng cho đăng bài.');if(user&&a.connectionId)assertChannel(user,a.connectionId);}
- for(const id of channels){const c=get('connections',id);if(!c)throw invalid('Không tìm thấy kênh bình luận.');if(!supported.has(c.provider)||c.mode!=='api')throw invalid(c.name+': chưa hỗ trợ tự động comment.');if(assetIds.length&&!['facebook','threads'].includes(c.provider))throw invalid(c.name+': tự động comment chỉ hỗ trợ văn bản; bỏ ảnh hoặc bỏ kênh này.');const max={threads:500,x:280,mastodon:500,instagram:2200}[c.provider];if(max&&Array.from(text).length>max)throw invalid(c.name+': bình luận vượt '+max+' ký tự.');if(!text&& !['facebook','threads'].includes(c.provider))throw invalid(c.name+': cần nội dung văn bản.');}
+ for(const id of channels){const c=get('connections',id);if(!c)throw invalid('Không tìm thấy kênh bình luận.');const issue=autoCommentIssue(c,{text,assetIds});if(issue)throw invalid(issue);const cap=autoCommentCapabilities[c.provider];if(cap.imageBytes&&assetIds.some(id=>get('assets',id)?.size>cap.imageBytes))throw invalid(c.name+': ảnh bình luận cần không quá 1 MB.');if(!text&&!cap.image)throw invalid(c.name+': cần nội dung văn bản.');}
  return {enabled:true,text,assetIds};
 }
-export async function sendPostComment(c,p,config,{request=remote,send=sendMessage,tokenFor=refreshedToken}={}){
+export async function sendPostComment(c,p,config,{request=remote,send=sendMessage,tokenFor=refreshedToken,socialToken=extraToken,upload=uploadSocialMedia}={}){
  const assets=config.assetIds.map(id=>get('assets',id));
+ if(['bluesky','mastodon'].includes(c.provider)){
+  const token=await socialToken(c,request),headers={Authorization:'Bearer '+token},post=body=>({method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const media=config.assetIds.length?await upload(c,{id:'auto-comment:'+p.id,type:'image',assets:config.assetIds,title:'Ảnh bình luận',caption:config.text},token,request):null;
+  if(c.provider==='bluesky'){const parent=await blueskyPost(String(p.externalId),request),root=parent.record?.reply?.root||{uri:parent.uri,cid:parent.cid};const r=await request('https://bsky.social/xrpc/com.atproto.repo.createRecord',post({repo:c.accountId,collection:'app.bsky.feed.post',record:{$type:'app.bsky.feed.post',text:config.text,createdAt:now(),reply:{root,parent:{uri:parent.uri,cid:parent.cid}},...(media?{embed:media}:{})}}));return {id:r.uri};}
+  const parent=await request('https://mastodon.social/api/v1/statuses/'+encodeURIComponent(p.externalId),{headers});
+  if(!['public','unlisted','private'].includes(parent.visibility))throw invalid('Không xác định được phạm vi hiển thị bài Mastodon gốc.');
+  const options=post({status:config.text,in_reply_to_id:String(p.externalId),visibility:parent.visibility,...(media?{media_ids:media}:{})});options.headers['Idempotency-Key']='auto-comment:'+p.id;return request('https://mastodon.social/api/v1/statuses',options);
+ }
+
  if(c.provider==='instagram'){
   const r=await request('https://graph.facebook.com/'+(c.apiVersion||process.env.META_GRAPH_VERSION||'v25.0')+'/'+encodeURIComponent(p.externalId)+'/comments',{method:'POST',headers:{Authorization:'Bearer '+secret(c.id).token,'Content-Type':'application/json'},body:JSON.stringify({message:config.text})});return r;
  }

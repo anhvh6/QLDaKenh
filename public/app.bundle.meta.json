@@ -1,9 +1,11 @@
 {
-  "version": "ad9b40317bd3",
+  "version": "e6890f03c402",
   "compiler": "0.25.12",
   "files": {
+    "public/auto-comment-capabilities.js": "69c824616c343f0c83d3d05d112cf7486a8636a7fc3082da57c48729b97c2015",
+    "public/template-media-picker.js": "596908dcf9454aecd88468e3d2bf83c80fc0c0f19155a4e41d22d7463f772d73",
     "public/icons.js": "a3e997cac0f378a83b6069cddb5bcc38395cbadc33fab32ea0bcedb37f5c40c5",
-    "public/auto-comment.js": "4ff4eb36b654c059bf1ab1a3f99e85d0c3c80c6d30fea26308b7d7f1d93d25b8",
+    "public/auto-comment.js": "53aa4367193b7b2aae947b273ca46c70c249e2e19e02867d96d111f29a688af3",
     "public/access-model.js": "c5720514d1b5eb543ed8880cbef12de68518dcc267dea6eb3f1372d02d4f96fd",
     "public/access-management.js": "d2af9631c0df43b41f5d68b253da1d79e9771a54cca32839650581fd55f7c462",
     "public/shipping-address.js": "af082b129ddae8e7e59627d7206e1b13888a878d1f90374e0d781e126f440497",
@@ -99,7 +101,6 @@
     "public/dashboard-model.js": "5d866fbb69d197873ede52e15149422f38f8b15faa87c8df65ab6a014e14340e",
     "public/communication-message-ui.js": "5a3bccb8e2ca6253dc5723985b10be200229b598552f5e234aeb7317e670802e",
     "public/communication-model.js": "e6fc2240f14e57a2c8b156729471cddaa2ffe54308a40ee51d90468216f16b64",
-    "public/template-media-picker.js": "35e195616133e75561ecdc858f385ce886a0dad192dea78e8be940a9f7525c35",
     "public/communication-campaigns.js": "82ba3a455d8d61cd07f27e61ebb85800c8dc4ba7e2b5718b2e8f17766e7400cb",
     "public/page-data-key.js": "e740dff6b69372d6a8a3506f8b9cfb053e6073b20ceaebe1726f8740f3186cf4",
     "public/learner-cycle-model.js": "52ee355e5b50dba6864c3c011531cd4c928280e86608ce1ae284cbd13d4c16c7",
@@ -126,7 +127,7 @@
     "public/media-library.js": "8bfe42d35612223f82c0d559a84a2dfb00fe8abd015aec52d750ef6a43673575",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "4cf2b0b7f42a2bef797f142f7ee2451fa72549b20eb54d9214c4064348cfdfa3",
-    "public/app.js": "cd9b76f11b8a6a45724bc374650bc4d52edddeae8fc2a22b322a94a1bd04ced4",
-    "public/app.bundle.js": "ad9b40317bd3562538a753e555ca187fb5913f5953196161c33ea453075ec041"
+    "public/app.js": "2f532ac44e430cb3b06433ed232867ee84de209190fff037aa03e7bd7e56189f",
+    "public/app.bundle.js": "e6890f03c402423a69bceee810b9caa22a537dd99a59447bd2c380233d8008f2"
   }
 }

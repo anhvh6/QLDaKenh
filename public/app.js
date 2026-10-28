@@ -957,4 +957,4 @@ initAccessManagement({get state(){return S;},api,refresh,render,modal,closeModal
 
 window.addEventListener('message',event=>{const frame=document.querySelector('.plan-editor-frame');if(event.origin!==location.origin||event.source!==frame?.contentWindow||event.data?.type!=='workspace:access')return;if(!accessAllowed(S.user,'settings.access')){toast('Bạn không có quyền quản lý tài khoản.',true);return;}history.pushState(null,'','#settings');route='settings';filter='access';query='';document.body.classList.remove('menu-open');render();});
 
-initAutoComment({upload:async file=>{const a=await uploadAsset(file);S.assets.unshift(a);return a;},toast});
+initAutoComment({get state(){return S;},api,modal,toast});
