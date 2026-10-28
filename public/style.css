@@ -5413,3 +5413,5 @@ body.comments-route .comment-tag-filter>summary:hover,body.comments-route .comme
 
 .auto-comment-media-library>.row.wrap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.auto-comment-media-library>.row.wrap>label{display:block;min-width:0}.auto-comment-media-library .input{width:100%;margin-top:6px}.auto-comment-media-library #template-media-upload{display:none}.auto-comment-media-library>.row.wrap>label.btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;width:max-content}.auto-comment-media-library .chat-library-grid{max-height:45vh;overflow:auto}.auto-comment-media-library .row.between{gap:12px}@media(max-width:600px){.auto-comment-media-library>.row.wrap{grid-template-columns:minmax(0,1fr)}.auto-comment-media-library .row.between{flex-wrap:wrap}}
 #auto-plan-form .auto-comment [data-auto-comment-body]>label.field{display:block!important;text-align:left!important;align-items:stretch;justify-content:flex-start}
+
+.auto-comment[hidden]{display:none!important}.auto-comment-warning{z-index:1200}.auto-comment-warning li{margin:12px 0}.auto-comment-warning .modal-footer{display:flex;gap:10px;flex-wrap:wrap}

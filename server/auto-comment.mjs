@@ -1,4 +1,4 @@
-import {autoCommentCapabilities,autoCommentIssue} from '../public/auto-comment-capabilities.js';
+import {commentForChannel} from '../public/auto-comment-capabilities.js';
 import {extraToken} from './social-extra.mjs';
 import {uploadSocialMedia} from './social-media-upload.mjs';
 import {blueskyPost} from './social-replies.mjs';
@@ -14,7 +14,7 @@ export function validateAutoComment(value,channels=[],user){
  if(!text&&!assetIds.length)throw invalid('Nhập nội dung hoặc đính kèm ảnh cho tự động comment.');
  if(text.length>10000)throw invalid('Bình luận vượt 10.000 ký tự.');
  for(const id of assetIds){const a=get('assets',id);if(!a||a.active===false||a.type!=='image'||!(a.scopes||['post']).includes('post'))throw invalid('Ảnh bình luận không còn dùng cho đăng bài.');if(user&&a.connectionId)assertChannel(user,a.connectionId);}
- for(const id of channels){const c=get('connections',id);if(!c)throw invalid('Không tìm thấy kênh bình luận.');const issue=autoCommentIssue(c,{text,assetIds});if(issue)throw invalid(issue);const cap=autoCommentCapabilities[c.provider];if(cap.imageBytes&&assetIds.some(id=>get('assets',id)?.size>cap.imageBytes))throw invalid(c.name+': ảnh bình luận cần không quá 1 MB.');if(!text&&!cap.image)throw invalid(c.name+': cần nội dung văn bản.');}
+ for(const id of channels)if(!get('connections',id))throw invalid('Không tìm thấy kênh bình luận.');
  return {enabled:true,text,assetIds};
 }
 export async function sendPostComment(c,p,config,{request=remote,send=sendMessage,tokenFor=refreshedToken,socialToken=extraToken,upload=uploadSocialMedia}={}){
@@ -39,8 +39,8 @@ export async function autoCommentTick(send=sendPostComment){
  if(busy)return;busy=true;try{
  const rows=db.prepare("SELECT id FROM records WHERE kind='publications' AND json_extract(data,'$.status')='published' AND json_extract(data,'$.autoComment.enabled')=1 AND (json_extract(data,'$.autoCommentStatus') IS NULL OR json_extract(data,'$.autoCommentStatus')='retry') LIMIT 10").all();
  for(const row of rows){let p=get('publications',row.id);if(p.autoCommentRetryAt&&Date.parse(p.autoCommentRetryAt)>Date.now())continue;const c=get('connections',p.connectionId);if(!c||c.status!=='connected')continue;
- try{const config=validateAutoComment(p.autoComment,[c.id]);if(!p.externalId)throw Error('Bài đăng chưa có ID nền tảng; cần đối soát trước khi comment.');
- p=put('publications',{...p,autoCommentStatus:'sending',autoCommentAttempts:(p.autoCommentAttempts||0)+1,autoCommentError:''});
+ try{const projection=commentForChannel(p.autoComment,c,(p.autoComment.assetIds||[]).map(id=>get('assets',id))),config=projection.config; if(!config.enabled){put('publications',{...p,autoCommentStatus:'skipped',autoCommentWarning:projection.warnings.join(' '),autoCommentError:''});continue;}validateAutoComment(config,[c.id]);if(!p.externalId)throw Error('Bài đăng chưa có ID nền tảng; cần đối soát trước khi comment.');
+ p=put('publications',{...p,autoCommentStatus:'sending',autoCommentAttempts:(p.autoCommentAttempts||0)+1,autoCommentError:'',autoCommentWarning:projection.warnings.join(' ')});
  const result=await send(c,p,config);const id=result?.id||result?.externalId;if(!id)throw Object.assign(Error('Chưa nhận mã xác nhận bình luận; kiểm tra bài gốc trước khi gửi lại.'),{unknown:true});
  put('publications',{...get('publications',p.id),autoCommentStatus:'sent',autoCommentExternalId:String(id),autoCommentSentAt:now(),autoCommentError:''});
  }catch(error){const retry=error.providerStatus===429&&(p.autoCommentAttempts||0)<3,status=retry?'retry':p.autoCommentStatus==='sending'&&(!error.providerStatus||error.providerStatus>=500)?'unknown':'failed';
