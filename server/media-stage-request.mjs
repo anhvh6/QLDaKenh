@@ -5,7 +5,7 @@ export async function mediaStageRequest(request,url,options={},sleep=ms=>new Pro
   try{return await request(url,options);}catch(error){
    const data=error.providerData,job=data?.jobStatus||data;
    if(new URL(url).hostname==='video.bsky.app'&&(job?.blob?.ref||job?.jobId&&[job.error,data?.error].includes('already_exists')))return data;
-   const transient=error.unknown||error.retryable||error.providerStatus>=500||/fetch failed|network|timeout/i.test(error.message);
+   const transient=error.unknown||error.retryable||error.providerStatus>=500||error.providerStatus===403&&error.responseFormat==='html'||/fetch failed|network|timeout/i.test(error.message);
    if(transient&&attempt<2){await sleep(500*2**attempt);continue;}
    throw Object.assign(error,{unknown:false,mediaStage:true});
   }

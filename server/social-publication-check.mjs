@@ -1,8 +1,9 @@
+import {blueskyPublicRead} from './bluesky-read.mjs';
 import {hashtags,tumblrCaption} from '../public/platform-text-rules.js';
 import {extraToken} from './social-extra.mjs';
 export async function verifySocialPublication(c,p,request,fetchMedia=fetch){
  if(c.provider==='bluesky'){
-  const r=await request('https://public.api.bsky.app/xrpc/app.bsky.feed.getPosts?'+new URLSearchParams({uris:p.externalId})),post=r.posts?.find(x=>x.uri===p.externalId);
+  const r=await blueskyPublicRead('app.bsky.feed.getPosts',{uris:p.externalId},request),post=r.posts?.find(x=>x.uri===p.externalId);
   if(!post?.embed?.playlist)return null;
   const url=new URL(post.embed.playlist);if(url.protocol!=='https:'||url.hostname!=='video.bsky.app')throw Error('Bluesky trả địa chỉ video không hợp lệ.');
   const media=await fetchMedia(url,{signal:AbortSignal.timeout(20000)});if(!media.ok)return null;

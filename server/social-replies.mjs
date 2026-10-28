@@ -1,3 +1,4 @@
+import {blueskyPublicRead} from './bluesky-read.mjs';
 import {extraToken} from './social-extra.mjs';
 const auth=token=>({Authorization:`Bearer ${token}`});
 const json=(body,token)=>({method:'POST',headers:{...auth(token),'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -40,7 +41,7 @@ export async function replySocial(c,conv,text,options,request,refresh){
 }
 export async function blueskyPost(uri,request){
  if(!/^at:\/\/[^/]+\/app\.bsky\.feed\.post\/[^/]+$/.test(uri))throw new Error('ID bài Bluesky không hợp lệ.');
- const data=await request('https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?'+new URLSearchParams({uri,depth:'0',parentHeight:'0'}));
+ const data=await blueskyPublicRead('app.bsky.feed.getPostThread',{uri,depth:'0',parentHeight:'0'},request);
  const post=data.thread?.post;if(!post?.cid||!post?.uri)throw new Error('Không đọc được bài Bluesky gốc.');return post;
 }
 export async function blueskyInteraction(c,uri,collection,request){

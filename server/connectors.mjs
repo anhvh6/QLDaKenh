@@ -29,10 +29,10 @@ export const providers = {
 };
 export async function remote(url, options = {}) {
   const readOnly=(!options.method||options.method==='GET');
-  let res,raw; try { res = await fetch(url, { ...options, signal: options.signal || AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
-  let data; try { data = parseProviderJSON(raw); } catch { data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
+  let res,raw; try { res = await fetch(url, { ...options,headers:{Accept:'application/json','User-Agent':'QLDaKenh/2.1',...options.headers}, signal: options.signal || AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
+  let data,responseFormat='json'; try { data = parseProviderJSON(raw); } catch { responseFormat=/^\s*</.test(raw)?'html':'text'; data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
   const providerError = data.error && (typeof data.error === 'object' ? data.error.code && !['ok', 0, '0'].includes(data.error.code) : data.error !== 0);
-  if (!res.ok || providerError || new URL(url).hostname==='api.tumblr.com'&&Number(data.meta?.status)>=400) {
+  if (responseFormat!=='json' || !res.ok || providerError || new URL(url).hostname==='api.tumblr.com'&&Number(data.meta?.status)>=400) {
     const error = data.error && typeof data.error === 'object' ? data.error : {};
     const tumblrDetails=new URL(url).hostname==='api.tumblr.com'?(data.errors||[]).map(e=>[e.code,e.title||e.detail||e.message].filter(Boolean).join(': ')).join(' · '):'';
     const rawMessage = error.message || data.message || data.detail || tumblrDetails || data.meta?.msg || `API trả về ${res.status}`;
@@ -44,7 +44,7 @@ export async function remote(url, options = {}) {
           ? 'Threads từ chối quyền API. Kiểm tra quyền của thao tác trong Meta App Dashboard và kết nối lại Threads (đọc bình luận: threads_read_replies; quản lý trả lời: threads_manage_replies; xóa bài: threads_delete).'
           : rawMessage);
     const details = [message, error.code != null ? `code ${error.code}` : '', error.error_subcode != null ? `subcode ${error.error_subcode}` : '', error.error_user_msg || '', error.fbtrace_id ? `trace ${error.fbtrace_id}` : ''].filter(Boolean);
-    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, unknown:!readOnly&&res.status>=500, providerCode: error.code ?? (typeof data.error==='string'?data.error:undefined), providerData:data, providerSubcode: error.error_subcode, retryable:readOnly&&(res.status===429||res.status>=500||error.is_transient===true) });
+    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, unknown:!readOnly&&(res.status>=500||res.ok),responseFormat,providerHost:new URL(url).hostname,providerPath:new URL(url).pathname, providerCode: error.code ?? (typeof data.error==='string'?data.error:undefined), providerData:data, providerSubcode: error.error_subcode, retryable:readOnly&&(res.ok||res.status===429||res.status>=500||responseFormat==='html'&&res.status===403||error.is_transient===true) });
   }
   return data;
 }
