@@ -1,5 +1,5 @@
 {
-  "version": "eac95d657ce9",
+  "version": "a37d07268ca5",
   "compiler": "0.25.12",
   "files": {
     "public/auto-comment-capabilities.js": "def0107326a1a73663fc5845e70f02e4d303604bb7958021691f782fdadfc325",
@@ -85,8 +85,9 @@
     "public/report-model.js": "60b35c41f78ce401f959b480708f88928cb9916f98e78dfa12900a3403342c1e",
     "public/state-request.js": "288129d94ac91a49fb379d8ba2847cf3bc85658be95232f2509ef7953858d12e",
     "public/social-capabilities.js": "2cdf79070a8224c9fae746328b935ca2c3b8cbe23cbd0a34d175e686df19bc2a",
-    "public/social-health.js": "eefba93f9c95a5f6538ac64cebc06bb586b00abe4e3fde4f187b4cb81327bbaf",
-    "public/connection-groups.js": "39ba85d29bc94212fdd225b0f36c73b1db6678fe010401be8174ccc87d85166a",
+    "public/connection-health-model.js": "4b9486fd25f607661f7dd3474c6cec0bbac0b2d9260366aebd8096f6e0a1a807",
+    "public/social-health.js": "da72d937c3691a43c22b2ff4f2439805592ebccfe0510e8410d1304c1bb8ca10",
+    "public/connection-groups.js": "4512fbf0842093d564aa03204d465e40d6e0db7c180f42420dda3e0a9c0b790a",
     "public/connection-profile.js": "69db23f182cb225afae37cc294a0c948565591d3bd119d90365130f117c393b7",
     "public/comment-presentation.js": "ee4cc16af48db8f2044b56e916d7aca3444a19eb0992ad196546498a172ebea8",
     "public/calendar-presentation.js": "d0c1fcf446afa41b257b0d76d543e8d31037ba7c2d9912662afa3c5df7b478e8",
@@ -127,7 +128,7 @@
     "public/media-library.js": "8bfe42d35612223f82c0d559a84a2dfb00fe8abd015aec52d750ef6a43673575",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "4cf2b0b7f42a2bef797f142f7ee2451fa72549b20eb54d9214c4064348cfdfa3",
-    "public/app.js": "fbcd911edadcb378f670acb5445a9a54f7e8c0d3132aa26f07cf873f3bdeb089",
-    "public/app.bundle.js": "eac95d657ce9bc71268a3b21d8d86132a7f80c35551ddcb5ba5aac1c313c64a8"
+    "public/app.js": "824a79d571088f688f36633be4db978cf155bc099149e3f3033abece4bc2fc32",
+    "public/app.bundle.js": "a37d07268ca5e6b38c801985536ef021c810290b58c9ffec65d10fa7eb23b2eb"
   }
 }

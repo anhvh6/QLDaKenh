@@ -8,12 +8,13 @@ import {permission,fail} from './domain.mjs';
 import {assertChannel} from './taophacdo.mjs';
 import {publicationMetrics,threadsRepost} from './social-metrics.mjs';
 import {metaConversationAccount} from './meta-chat-identity.mjs';
+import {recordConnectionCheck} from './connection-health.mjs';
 const locks=new Map();
 export async function checkSocialHealth(c,request=remote){
  if(locks.has(c.id))return locks.get(c.id);
  const job=(async()=>{
  const operations=socialOperations[c.provider]||{},checks=[],s=secret(c.id),headers={Authorization:`Bearer ${s.token}`};
- const probe=async(key,fn)=>{try{const result=await fn();checks.push({key,status:'ok'});return result;}catch(error){checks.push({key,status:'error',message:String(error.message).replace(/<[^>]*>/g,'').slice(0,650)});}};
+ const probe=async(key,fn)=>{try{const result=await fn();checks.push({key,status:'ok'});if(key==='profile')recordConnectionCheck(c);return result;}catch(error){if(key==='profile')recordConnectionCheck(c,error);checks.push({key,status:'error',message:String(error.message).replace(/<[^>]*>/g,'').slice(0,650)});}};
  if(c.mode!=='api'||c.status==='disconnected')checks.push({key:'profile',status:'waiting',message:'Kênh chưa được xác thực API.'});
  else if(c.provider==='zalo_personal')checks.push({key:'chat',status:c.status==='connected'&&c.listenerState==='listening'?'ok':'error',message:c.listenerError||'Trạng thái phiên nhận tin: '+(c.listenerState||'chưa biết')});
  else if(c.status!=='connected')checks.push({key:'profile',status:'waiting',message:'Kênh chưa được xác thực API.'});

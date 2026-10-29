@@ -4,6 +4,7 @@ import {createHash,randomBytes} from 'node:crypto';
 import {all,get,put,remove,secret,saveSecret,now,audit} from './store.mjs';
 import {remote} from './connectors.mjs';
 import {googleOAuthClient} from './google-oauth-client.mjs';
+import {recordConnectionCheck} from './connection-health.mjs';
 
 const graphVersion=process.env.META_GRAPH_VERSION||'v25.0';
 const oauthProviders=new Set(['facebook','instagram','threads','x','youtube','blogger','tiktok',...Object.keys(extraOAuthRequirements)]);
@@ -52,7 +53,8 @@ export function startOAuth(user,connection,req){
   const client=googleOAuthClient(connection,secret);
   saveSecret(`oauth:${state}`,{googleClientId:client.clientId,googleClientSecret:client.clientSecret});
   const scope=connection.provider==='blogger'?'https://www.googleapis.com/auth/blogger':'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl';
-  url=`https://accounts.google.com/o/oauth2/v2/auth?${encode({client_id:client.clientId,redirect_uri:redirect,response_type:'code',scope,access_type:'offline',prompt:'consent',include_granted_scopes:'true',state})}`;
+  // YouTube channel identities cannot combine unrelated Drive grants.
+  url=`https://accounts.google.com/o/oauth2/v2/auth?${encode({client_id:client.clientId,redirect_uri:redirect,response_type:'code',scope,access_type:'offline',prompt:'consent',include_granted_scopes:'false',state})}`;
  }else{
   if(!redirect.startsWith('https://'))throw Object.assign(new Error('TikTok yêu cầu TIKTOK_REDIRECT_URI hoặc OAUTH_BASE_URL là HTTPS công khai.'),{status:503});
   url=`https://www.tiktok.com/v2/auth/authorize/?${encode({client_key:env('TIKTOK_CLIENT_KEY'),redirect_uri:redirect,response_type:'code',scope:'user.info.basic,video.publish',state})}`;
@@ -138,6 +140,7 @@ export async function finishOAuth(req,res,url){
    const previous=secret(target.id);
    saveSecret(target.id,{...previous,token:item.token,...(item.refreshToken?{refreshToken:item.refreshToken}:{}),...(item.expiresIn?{expiresAt:Date.now()+Number(item.expiresIn)*1000}:{}),...(item.extra||{})});
    target=put('connections',{...target,name:target.name||item.name,mode:oauthMode(provider,target.mode),...(provider==='facebook'||provider==='instagram'?{apiVersion:target.apiVersion||graphVersion}:{}),accountId:String(item.accountId),remoteName:item.name,avatar:item.avatar,status:'connected',verifiedAt:now(),oauthError:''});
+   put('connections',{...target,health:null});recordConnectionCheck(target);
    audit(record.userId,'oauth_connected',target.id,{provider,accountId:item.accountId});
    // A Page's access token alone is not enough: Facebook only starts sending webhook events (comments, messages)
    // for a Page once it is explicitly subscribed to this app via subscribed_apps. Without this call, the

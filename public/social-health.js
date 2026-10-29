@@ -1,4 +1,5 @@
 import {socialOperations,socialOperationLabels} from './social-capabilities.js';
+import {connectionState} from './connection-health-model.js';
 const escape=value=>String(value||'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 export function connectionHealthBadge(c){
  if(c.status==='disconnected')return '<span class="badge disconnected">Đã ngắt</span>';
@@ -9,12 +10,15 @@ export function connectionHealthBadge(c){
   if(['connecting','reconnecting'].includes(c.status)||['connecting','reconnecting','waiting_key'].includes(c.listenerState))return '<span class="badge pending">Đang kết nối</span>';
   return '<span class="badge failed">Phiên chưa hoạt động</span>';
  }
- const errors=(c.health?.checks||[]).filter(x=>x.status==='error');
- if(errors.some(x=>x.key==='profile'))return '<span class="badge failed">Lỗi xác thực API</span>';
- if(c.status==='connected'&&errors.length)return '<span class="badge blocked">API cần xử lý</span>';
- if(c.status==='connected')return '<span class="badge connected">Đã kết nối</span>';
+ if(c.status==='connected'){const state=connectionState(c);return `<span class="badge ${state.tone}">${escape(state.label)}</span>`;}
  if(c.status==='error')return '<span class="badge failed">Kết nối lỗi</span>';
  return '<span class="badge configured">Chưa xác thực</span>';
+}
+export function connectionHealthSummary(c){
+ if(c.mode!=='api'||c.provider==='zalo_personal'||c.status==='disconnected')return '';
+ const state=connectionState(c),check=state.check,stamp=value=>Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('vi-VN'):'';
+ const help={auth_required:'Kết nối lại kênh để cấp lại phiên truy cập.',permission_required:'Kiểm tra quyền của thao tác bị từ chối.',rate_limited:'Chờ hạn mức được đặt lại; tránh thử liên tục.',temporary_error:'Kiểm tra lại sau; chưa thể kết luận mất quyền truy cập.',error:'Mở chi tiết để xem nguyên nhân và kiểm tra lại.'};
+ return `<div class="channel-health-summary"><span>${check?.checkedAt?'Kiểm tra: '+escape(stamp(check.checkedAt)):'Chưa có kết quả kiểm tra API gần đây.'}</span>${check?.lastSuccessAt?`<span>Thành công gần nhất: ${escape(stamp(check.lastSuccessAt))}</span>`:''}${check&&check.status!=='ok'?`<p class="channel-health-error">${escape(check.message)}</p><span>${escape(help[check.status]||'')}</span>`:''}${c.publishingCheck?`<span>Đăng bài: ${c.publishingCheck.status==='ok'?'thành công':'cần xử lý'} · ${escape(stamp(c.publishingCheck.checkedAt))}</span>`:''}<button type="button" class="btn small" data-action="test-connection" data-id="${escape(c.id)}">Kiểm tra kết nối</button></div>`;
 }
 export function socialHealthHTML(c){
  const health=c.health,operations=socialOperations[c.provider]||{},errors=(health?.checks||[]).filter(x=>x.status==='error');
