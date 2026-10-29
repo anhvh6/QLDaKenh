@@ -36,7 +36,9 @@ export function oauthConfiguration(req){return Object.fromEntries([...oauthProvi
 export function startOAuth(user,connection,req){
  if(!supportsOAuth(connection.provider))throw Object.assign(new Error('Nền tảng này chưa hỗ trợ OAuth.'),{status:400});
  const state=randomBytes(24).toString('base64url'),codeVerifier=connection.provider==='x'?verifier():'';
- put('oauth_states',{id:state,userId:user.id,connectionId:connection.id,provider:connection.provider,expiresAt:Date.now()+10*60*1000});
+ // Consent can require account/channel selection and an interactive verification.
+ // The random state remains bound to the user, provider and channel and is single use.
+ put('oauth_states',{id:state,userId:user.id,connectionId:connection.id,provider:connection.provider,expiresAt:Date.now()+30*60*1000});
  if(codeVerifier)saveSecret(`oauth:${state}`,{codeVerifier});
  const redirect=redirectUri(connection.provider,req);let url;
  if(Object.hasOwn(extraOAuthRequirements,connection.provider))return extraAuthorization(connection,state,redirect,remote);
@@ -124,7 +126,8 @@ async function exchange(provider,code,redirect,state,connection){
 export async function finishOAuth(req,res,url){
  const provider=url.pathname.split('/')[3],state=url.searchParams.get('state')||'',record=get('oauth_states',state);
  const done=(ok,message)=>{res.writeHead(302,{Location:`/?oauth=${ok?'success':'error'}&message=${encodeURIComponent(message)}#settings`,'Cache-Control':'no-store'});res.end();};
- if(!record||record.provider!==provider||record.expiresAt<Date.now()){done(false,'Phiên kết nối đã hết hạn. Vui lòng thử lại.');return;}
+ if(!record||record.provider!==provider){done(false,'Liên kết cấp quyền này đã được xử lý hoặc không còn hợp lệ. Quay lại Cài đặt → Kênh kết nối và bấm Kết nối lại để mở phiên mới; không dùng tab Google cũ.');return;}
+ if(record.expiresAt<=Date.now()){remove('oauth_states',state);saveSecret(`oauth:${state}`,{});done(false,'Đã quá thời hạn của phiên cấp quyền. Quay lại Cài đặt → Kênh kết nối và bấm Kết nối lại. Phiên mới có hiệu lực 30 phút.');return;}
  remove('oauth_states',state);
  try{
   if(url.searchParams.get('error'))throw new Error(url.searchParams.get('error_description')||'Bạn đã hủy cấp quyền.');

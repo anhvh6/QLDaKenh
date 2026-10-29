@@ -31,3 +31,13 @@ Google authorization error. Backend rollout and a completed OAuth consent flow
 are still required before a successful YouTube publish can be claimed.
 
 Reference: https://developers.google.com/youtube/reporting/guides/authorization/server-side-web-apps
+
+Follow-up: interactive OAuth states previously expired after ten minutes, which
+was insufficient when waiting at account selection/consent during support.
+New states last thirty minutes; user/provider/channel binding and single-use
+consumption remain intact. Expired states are cleared and the user is directed
+to start a new flow. Already-consumed links have a distinct message. Tests cover
+acceptance at fifteen minutes, rejection at thirty and replay rejection.
+The broader OAuth regression check also caught empty HTTP 204 DELETE responses
+being mistaken for invalid JSON; only explicit empty DELETE 204 acknowledgements
+are accepted. Publishing still requires a valid provider response.

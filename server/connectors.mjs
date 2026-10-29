@@ -31,6 +31,7 @@ export const providers = {
 export async function remote(url, options = {}) {
   const readOnly=(!options.method||options.method==='GET');
   let res,raw; try { res = await fetch(url, { ...options,headers:{Accept:'application/json','User-Agent':'QLDaKenh/2.1',...options.headers}, signal: options.signal || AbortSignal.timeout(45000) }); raw=await res.text(); } catch(error) { throw Object.assign(new Error(readOnly?'Tạm thời không đọc được trạng thái từ nền tảng. Hệ thống sẽ kiểm tra lại.':'Không xác định kết quả từ nhà cung cấp. Kiểm tra ở ứng dụng gốc trước khi thử lại.'), { unknown: !readOnly, retryable:readOnly, networkCode:error.cause?.code||error.code||error.name }); }
+  if(options.method==='DELETE'&&res.status===204&&!raw.trim())return {};
   let data,responseFormat='json'; try { data = parseProviderJSON(raw); } catch { responseFormat=/^\s*</.test(raw)?'html':'text'; data = { message: /^\s*</.test(raw)?`API nền tảng trả về trang HTML (${res.status}) thay vì JSON.`:raw.slice(0,300) }; }
   const providerError = data.error && (typeof data.error === 'object' ? data.error.code && !['ok', 0, '0'].includes(data.error.code) : data.error !== 0);
   if (responseFormat!=='json' || !res.ok || providerError || new URL(url).hostname==='api.tumblr.com'&&Number(data.meta?.status)>=400) {
