@@ -12,6 +12,7 @@ import { basename, join } from 'node:path';
 import { secret, get, saveSecret, dataDir } from './store.mjs';
 import { publicMediaUrl } from './public-media.mjs';
 import { googleRefreshClient } from './google-oauth-client.mjs';
+import { googleAPIError } from './google-api-error.mjs';
 
 export const providers = {
   facebook: { label: 'Facebook Page', publish: true, message: true, oauth: true, update: true, delete: true, formats: ['text', 'image', 'video'], hint: 'Kết nối OAuth để chọn Facebook Page bạn quản lý; ảnh/video cần URL HTTPS công khai.' },
@@ -35,7 +36,8 @@ export async function remote(url, options = {}) {
   if (responseFormat!=='json' || !res.ok || providerError || new URL(url).hostname==='api.tumblr.com'&&Number(data.meta?.status)>=400) {
     const error = data.error && typeof data.error === 'object' ? data.error : {};
     const tumblrDetails=new URL(url).hostname==='api.tumblr.com'?(data.errors||[]).map(e=>[e.code,e.title||e.detail||e.message].filter(Boolean).join(': ')).join(' · '):'';
-    const rawMessage = error.message || data.message || data.detail || tumblrDetails || data.meta?.msg || `API trả về ${res.status}`;
+    const googleError = googleAPIError(url, data);
+    const rawMessage = googleError?.message || error.message || data.message || data.detail || tumblrDetails || data.meta?.msg || (typeof data.error==='string'?data.error:'') || `API trả về ${res.status}`;
     const message = new URL(url).hostname==='open.tiktokapis.com'&&tiktokProviderMessage(error.code) || (/credits? depleted/i.test(String(rawMessage))
       ? 'Hạn mức API của ứng dụng X đã hết. Hãy mua hoặc nạp thêm credits trong X Developer Console rồi thử lại.'
       : new URL(url).hostname.endsWith('googleapis.com') && /insufficient authentication scopes/i.test(String(rawMessage))
@@ -43,8 +45,8 @@ export async function remote(url, options = {}) {
         : new URL(url).hostname === 'graph.threads.net' && Number(error.code) === 10
           ? 'Threads từ chối quyền API. Kiểm tra quyền của thao tác trong Meta App Dashboard và kết nối lại Threads (đọc bình luận: threads_read_replies; quản lý trả lời: threads_manage_replies; xóa bài: threads_delete).'
           : rawMessage);
-    const details = [message, error.code != null ? `code ${error.code}` : '', error.error_subcode != null ? `subcode ${error.error_subcode}` : '', error.error_user_msg || '', error.fbtrace_id ? `trace ${error.fbtrace_id}` : ''].filter(Boolean);
-    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, unknown:!readOnly&&(res.status>=500||res.ok),responseFormat,providerHost:new URL(url).hostname,providerPath:new URL(url).pathname, providerCode: error.code ?? (typeof data.error==='string'?data.error:undefined), providerData:data, providerSubcode: error.error_subcode, retryable:readOnly&&(res.ok||res.status===429||res.status>=500||responseFormat==='html'&&res.status===403||error.is_transient===true) });
+    const details = [message, (googleError?.code ?? error.code) != null ? `code ${googleError?.code ?? error.code}` : '', error.error_subcode != null ? `subcode ${error.error_subcode}` : '', error.error_user_msg || '', error.fbtrace_id ? `trace ${error.fbtrace_id}` : ''].filter(Boolean);
+    throw Object.assign(new Error(details.join(' · ').slice(0, 700)), { status: 502, providerStatus: res.status, unknown:!readOnly&&(res.status>=500||res.ok),responseFormat,providerHost:new URL(url).hostname,providerPath:new URL(url).pathname, providerCode: googleError?.code ?? error.code ?? (typeof data.error==='string'?data.error:undefined), reconnectRequired:googleError?.reconnectRequired||false, providerData:data, providerSubcode: error.error_subcode, retryable:readOnly&&(res.ok||res.status===429||res.status>=500||responseFormat==='html'&&res.status===403||error.is_transient===true) });
   }
   return data;
 }
