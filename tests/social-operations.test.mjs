@@ -93,8 +93,14 @@ test('public sendMessage dispatch reaches new X/YouTube reply implementation',as
  const original=global.fetch;saveSecret('x-reply',{token:'token'});
  try{global.fetch=async(url,o)=>{assert.ok(String(url).endsWith('/2/tweets'));assert.equal(JSON.parse(o.body).reply.in_reply_to_tweet_id,'post');return Response.json({data:{id:'ack'}});};assert.equal((await sendMessage({id:'x-reply',provider:'x'},{kind:'comment',externalCommentId:'post'},'Reply')).id,'ack');}finally{global.fetch=original;}
 });
-test('quota-sensitive providers use slower polling and failures back off',()=>{
- assert.equal(commentPollInterval('youtube'),300000);assert.equal(commentPollInterval('x'),300000);assert.equal(commentPollInterval('facebook'),15000);
+test('comment sync backfills promptly then reconciles according to provider capability',()=>{
+ for(const provider of ['facebook','instagram','threads','youtube','x','mastodon','bluesky','blogger','devto','reddit','tumblr'])assert.equal(commentPollInterval(provider),10000);
+ const complete={completedAt:'2026-10-30T00:00:00.000Z'};
+ for(const provider of ['facebook','instagram','threads'])assert.equal(commentPollInterval(provider,complete),15*60000);
+ assert.equal(commentPollInterval('youtube',complete),2*60000);
+ for(const provider of ['mastodon','bluesky'])assert.equal(commentPollInterval(provider,complete),60000);
+ for(const provider of ['x','blogger','devto','reddit','tumblr'])assert.equal(commentPollInterval(provider,complete),5*60000);
+ assert.equal(commentPollInterval('facebook',{...complete,queue:[{id:'older-post'}]}),10000);
  assert.equal(commentRetryDelay({message:'Connection reset',retryable:true}),30000);assert.equal(commentRetryDelay(new Error('Credits depleted')),6*3600000);assert.equal(commentRetryDelay({message:'Too many requests',providerStatus:429}),15*60000);
 });
 test('read-only health catches valid X identity but exhausted timeline credits',async()=>{

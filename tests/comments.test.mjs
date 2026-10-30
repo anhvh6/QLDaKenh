@@ -34,6 +34,7 @@ test('historical comments dedupe, include attachment-only content and preserve r
 test('webhook edits/removals update original records without replaying removed comments',()=>{
  const event=(verb,message)=>[{id:'page',time:200,changes:[{field:'feed',value:{item:'comment',verb,comment_id:'live',post_id:'post',from:{id:'live-person',name:'Live'},message,created_time:100}}]}];
  ingestCommentEvents(c,event('add','Hi'));ingestCommentEvents(c,event('add','Hi'));const row=all('messages').find(m=>m.externalId==='live');assert.equal(all('messages').filter(m=>m.externalId==='live').length,1);
+ assert.equal(get('comment_sync',c.id).transport,'webhook');assert.ok(get('comment_sync',c.id).lastEventAt);
  ingestCommentEvents(c,event('edited','Changed'));assert.equal(get('messages',row.id).text,'Changed');ingestCommentEvents(c,event('remove'));assert.ok(get('messages',row.id).deletedAt);upsertComment(c,{id:'live',message:'Old data',from:{id:'live-person'}});assert.ok(get('messages',row.id).deletedAt);
 });
 test('sync resumes comment pagination and records API errors without claiming success',async()=>{
