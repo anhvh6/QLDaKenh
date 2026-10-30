@@ -25,7 +25,25 @@ function commentMessage(channelId,externalId){
 }
 
 export const commentProviders=new Set(['facebook','threads','instagram','youtube','blogger','x','devto','mastodon','bluesky','tumblr','reddit']);
-export const commentPollInterval=provider=>({facebook:15000,instagram:30000,threads:60000,youtube:300000,x:300000,mastodon:120000,bluesky:120000,blogger:300000,devto:300000})[provider]||300000;
+export const commentSyncPolicy=Object.freeze({
+ facebook:{transport:'webhook',reconcileMs:15*60000},
+ instagram:{transport:'webhook',reconcileMs:15*60000},
+ threads:{transport:'webhook',reconcileMs:15*60000},
+ youtube:{transport:'poll',reconcileMs:2*60000},
+ mastodon:{transport:'poll',reconcileMs:60000},
+ bluesky:{transport:'poll',reconcileMs:60000},
+ blogger:{transport:'poll',reconcileMs:5*60000},
+ devto:{transport:'poll',reconcileMs:5*60000},
+ reddit:{transport:'poll',reconcileMs:5*60000},
+ tumblr:{transport:'poll',reconcileMs:5*60000},
+ x:{transport:'poll',reconcileMs:5*60000}
+});
+export function commentPollInterval(provider,state={}){
+ // Finish initial history quickly. Afterwards Meta webhooks are the live source,
+ // and polling is only a repair/reconciliation pass.
+ if(!state.completedAt||state.queue?.length||state.after)return 10000;
+ return commentSyncPolicy[provider]?.reconcileMs||5*60000;
+}
 export function commentRetryDelay(error){return /quota|credits?|hạn mức|401|permission|quyền|token.*expired/i.test(String(error.message))?6*3600000:error.providerStatus===429?15*60000:error.retryable?30000:5*60000;}
 const locks=new Map();
 const base=c=>c.provider==='threads'?'https://graph.threads.net/v1.0':`https://graph.facebook.com/${c.apiVersion||process.env.META_GRAPH_VERSION||'v25.0'}`;
@@ -50,7 +68,9 @@ export function ingestThreadsNotification(channel,payload){
   }
   // Retain routing metadata only, not customer content or credentials.
   db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(key,channel.id,now(),JSON.stringify({field,id:String(item.id)}));
-  put('threads_webhook_status',{id:channel.id,lastReceivedAt:now(),field});
+  const receivedAt=now(),sync=get('comment_sync',channel.id)||{id:channel.id};
+  put('threads_webhook_status',{id:channel.id,lastReceivedAt:receivedAt,field});
+  put('comment_sync',{...sync,lastEventAt:receivedAt,transport:'webhook'});
  });return true;
 }
 export function updateCommentAuthor(channel,item){
@@ -138,7 +158,7 @@ async function syncProviderComments(channel,state,request){
  if(channel.provider==='devto')return syncDevto(channel,state,request);
  if(channel.provider==='x')return syncX(channel,state,request);
 }
-export function ingestCommentEvents(channel,entries){for(const entry of entries||[]){if(String(entry.id)!==String(channel.accountId))continue;for(const change of entry.changes||[]){const v=change.value||{},instagram=channel.provider==='instagram'&&change.field==='comments',commentId=String(instagram?v.id||'':v.comment_id||'');if(!commentId||(!instagram&&(change.field!=='feed'||v.item!=='comment')))continue;const verb=instagram?'add':v.verb,key=channel.id+':comment:'+commentId+':'+verb+':'+(v.created_time||entry.time||'');if(db.prepare('SELECT id FROM events WHERE id=?').get(key))continue;transaction(()=>{if(verb==='remove'){for(const c of db.prepare("SELECT id,data,version FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.kind')='comment'").all(channel.id).map(stored)){const m=stored(db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.externalId')=? AND json_extract(data,'$.conversationId')=? ORDER BY updated_at DESC LIMIT 1").get(commentId,c.id));if(m)put('messages',{...m,deletedAt:now(),text:'Bình luận đã xóa',attachments:[],status:'deleted'});if(c.externalCommentId===commentId)put('conversations',{...c,status:'resolved',remoteDeleted:true});}}else if(instagram||['add','edited'].includes(verb)){const from=instagram?{id:v.from?.id||v.from?.username,name:v.from?.username}:v.from||{id:v.sender_id,name:v.sender_name};upsertComment(channel,{id:commentId,message:instagram?v.text||'':v.message||'',from,parent:{id:v.parent_id},attachment:v.photo?{media:{image:{src:v.photo?.url||v.photo}}}:v.attachment,created_time:new Date(Number(v.created_time||entry.time||Date.now()/1000)*1000).toISOString()},{id:instagram?v.media?.id:v.post_id},true);}db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(key,channel.id,now(),JSON.stringify(change));});}}}
+export function ingestCommentEvents(channel,entries){let received=false;for(const entry of entries||[]){if(String(entry.id)!==String(channel.accountId))continue;for(const change of entry.changes||[]){const v=change.value||{},instagram=channel.provider==='instagram'&&change.field==='comments',commentId=String(instagram?v.id||'':v.comment_id||'');if(!commentId||(!instagram&&(change.field!=='feed'||v.item!=='comment')))continue;const verb=instagram?'add':v.verb,key=channel.id+':comment:'+commentId+':'+verb+':'+(v.created_time||entry.time||'');if(db.prepare('SELECT id FROM events WHERE id=?').get(key))continue;transaction(()=>{if(verb==='remove'){for(const c of db.prepare("SELECT id,data,version FROM records WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.kind')='comment'").all(channel.id).map(stored)){const m=stored(db.prepare("SELECT id,data,version FROM records WHERE kind='messages' AND json_extract(data,'$.externalId')=? AND json_extract(data,'$.conversationId')=? ORDER BY updated_at DESC LIMIT 1").get(commentId,c.id));if(m)put('messages',{...m,deletedAt:now(),text:'Bình luận đã xóa',attachments:[],status:'deleted'});if(c.externalCommentId===commentId)put('conversations',{...c,status:'resolved',remoteDeleted:true});}}else if(instagram||['add','edited'].includes(verb)){const from=instagram?{id:v.from?.id||v.from?.username,name:v.from?.username}:v.from||{id:v.sender_id,name:v.sender_name};upsertComment(channel,{id:commentId,message:instagram?v.text||'':v.message||'',from,parent:{id:v.parent_id},attachment:v.photo?{media:{image:{src:v.photo?.url||v.photo}}}:v.attachment,created_time:new Date(Number(v.created_time||entry.time||Date.now()/1000)*1000).toISOString()},{id:instagram?v.media?.id:v.post_id},true);}db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(key,channel.id,now(),JSON.stringify(change));});received=true;}}if(received){const receivedAt=now(),sync=get('comment_sync',channel.id)||{id:channel.id};put('comment_sync',{...sync,lastEventAt:receivedAt,transport:'webhook'});}return received;}
 
 export async function syncComments(channel,request=remote){
  if(!commentProviders.has(channel.provider))throw new Error('Chưa triển khai đồng bộ bình luận cho nền tảng này.');
@@ -169,6 +189,6 @@ export async function syncComments(channel,request=remote){
  queue=queue.slice(processed);state=put('comment_sync',{...state,queue,after,status:'ready',error:'',syncedAt:now(),nextRetryAt:null,...(!queue.length&&!after?{completedAt:now()}:{})});return state;
  }catch(error){const transient=error.retryable===true&&!!state.completedAt;return put('comment_sync',{...state,status:transient?'ready':'error',error:transient?'':error.message,...(transient?{lastTransientError:error.message,lastTransientAt:now()}:{}),syncedAt:now(),nextRetryAt:Date.now()+commentRetryDelay(error)});}})();locks.set(channel.id,job);try{return await job;}finally{locks.delete(channel.id);}
 }
-export async function commentsTick(){await Promise.all(all('connections').filter(c=>c.status==='connected'&&c.mode==='api'&&commentProviders.has(c.provider)).map(async c=>{const s=get('comment_sync',c.id);if(Date.now()<Number(s?.nextRetryAt||0)||Date.now()-Date.parse(s?.syncedAt||0)<commentPollInterval(c.provider))return;await syncComments(c);}));}
+export async function commentsTick(){await Promise.all(all('connections').filter(c=>c.status==='connected'&&c.mode==='api'&&commentProviders.has(c.provider)).map(async c=>{const s=get('comment_sync',c.id);if(Date.now()<Number(s?.nextRetryAt||0)||Date.now()-Date.parse(s?.syncedAt||0)<commentPollInterval(c.provider,s))return;await syncComments(c);}));}
 export function commentsStatus(user){permission(user,'inbox');return all('connections').filter(c=>c.status==='connected').filter(c=>{try{assertChannel(user,c.id);return true;}catch{return false;}}).map(c=>{const s=get('comment_sync',c.id);return {id:c.id,name:c.remoteName||c.name,provider:c.provider,supported:commentProviders.has(c.provider)||c.mode==='demo',status:s?.status||'waiting',syncedAt:s?.syncedAt,error:s?.error||'',backfilling:!!s?.queue?.length||!!s?.after,count:db.prepare("SELECT count(*) n FROM records INDEXED BY idx_comment_channel WHERE kind='conversations' AND json_extract(data,'$.connectionId')=? AND json_extract(data,'$.kind')='comment'").get(c.id).n,missingAuthorCount:db.prepare("SELECT count(*) AS n FROM records c JOIN records p ON p.kind='customers' AND p.id=json_extract(c.data,'$.customerId') WHERE c.kind='conversations' AND json_extract(c.data,'$.kind')='comment' AND json_extract(c.data,'$.connectionId')=? AND json_extract(p.data,'$.name')=?").get(c.id,'Khách từ bình luận').n};});}
 export async function commentsRoute(path,method,input,user){const privateChat=path.match(/^\/api\/comments\/conversations\/([^/]+)\/private-chat$/);if(privateChat&&method==='POST')return openCommentPrivateChat(user,privateChat[1]);const context=path.match(/^\/api\/comments\/conversations\/([^/]+)\/context$/);if(context&&method==='GET')return commentContextPreview(user,context[1]);if(path==='/api/comments/status'&&method==='GET')return commentsStatus(user);if(path==='/api/comments/sync'&&method==='POST'){permission(user,'inbox');const channels=commentsStatus(user).filter(c=>c.supported);const apiChannels=channels.filter(c=>get('connections',c.id)?.mode==='api');for(const c of apiChannels)void syncComments(get('connections',c.id));return {started:apiChannels.length};}}

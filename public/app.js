@@ -153,9 +153,8 @@ async function refreshLiveInbox() {
     reconcileMessageNodes(chat,chatHistoryControl(id)+chatMessages(data.messages.filter(m=>!m.deletedAt),c,S)); enhanceLiveMessages(); syncChatPins(); chat.scrollTop=bottom?chat.scrollHeight:top;if(notificationMessage){if(!data.messages.some(m=>m.id===notificationMessage)){await loadFullChat(id);}else{document.querySelector('[data-message="'+CSS.escape(notificationMessage)+'"]')?.scrollIntoView({block:'center'});document.querySelector('[data-message="'+CSS.escape(notificationMessage)+'"]')?.classList.add('notification-message-target');notificationMessage=null;}}
   } catch (error) { if (error.status === 404 && $('#reply-form')?.dataset.id === id) { removeConversations([id]); void refreshBackground().catch(() => { }); } } finally { liveInboxLoads.delete(loadKey); }
 }
-setInterval(() => void refreshLiveInbox(), 2000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && route === 'inbox') void refreshInbox().catch(() => { }); });
-window.addEventListener('online', () => { if (route === 'inbox') void refreshInbox().catch(() => { }); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && ['inbox','comments'].includes(route)) void refreshInbox().catch(() => { }); });
+window.addEventListener('online', () => { if (['inbox','comments'].includes(route)) void refreshInbox().catch(() => { }); });
 function queueInboxRefresh() { inboxRefreshPending = true; clearTimeout(inboxRefreshTimer); inboxRefreshTimer = setTimeout(() => { if (['inbox','comments'].includes(route)) refreshInbox(true).catch(() => { }); }, 500); }
 async function refreshInbox(paintOnly = false) {
   if (!paintOnly) void refreshLiveInbox();
