@@ -40,5 +40,7 @@ export function inboxSnapshot(user,{revision,providers,users,conversationId}={})
  const visible=[...scoped.conversations].filter(c=>c.kind!=='comment'&&!c.careHidden),requested=conversationId&&visible.find(c=>c.id===conversationId);
  const first=requested||visible.sort((a,b)=>String(b.lastAt||b.updatedAt).localeCompare(String(a.lastAt||a.updatedAt)))[0];
  if(first){scoped.initialChatWindow={conversationId:first.id,...chatWindow(first.id,new URLSearchParams({limit:'60'}),first.platformPins||[])};}
+ // Post previews are only rendered on the comments page, which loads its own snapshot; on real data they were ~half of this payload.
+ scoped.conversations=scoped.conversations.map(({postMedia,...c})=>c);
  return scoped;
 }

@@ -10,7 +10,7 @@ const owner={id:'owner',role:'owner'},staff={id:'staff',role:'support'};
 for(const id of ['a','b']){
  put('connections',{id,provider:'zalo_personal',mode:'demo',status:'connected'});
  put('customers',{id:'p'+id,name:id});
- put('conversations',{id:'c'+id,kind:'message',customerId:'p'+id,connectionId:id,lastAt:'2026-10-24T00:00:00Z'});
+ put('conversations',{id:'c'+id,kind:'message',customerId:'p'+id,connectionId:id,lastAt:'2026-10-24T00:00:00Z',postMedia:[{url:'POST-MEDIA-ONLY'}]});
 }
 put('team_members',{id:'tm',teamId:'t',userId:staff.id});put('channel_teams',{id:'ct',teamId:'t',connectionId:'a'});
 test('inbox is independent of publishing; bounded initial messages obey channel scope',()=>{
@@ -20,7 +20,7 @@ test('inbox is independent of publishing; bounded initial messages obey channel 
  const state=inboxSnapshot(staff,{revision:'r',users:[]});assert.equal(state.inboxCompact,true);assert.deepEqual(state.conversations.map(c=>c.id),['ca']);assert.equal(state.initialChatWindow.messages.length,60);assert.equal(state.initialChatWindow.hasMore,true);assert.equal(state.messages.length,0);assert.equal(state.contents.length,0);assert.equal(state.publications.length,0);
  const targeted=inboxSnapshot(owner,{revision:'r',users:[],conversationId:'cb'});assert.equal(targeted.initialChatWindow.conversationId,'cb');assert.deepEqual(targeted.initialChatWindow.messages.map(m=>m.id),['private']);
  assert.equal(inboxSnapshot(staff,{revision:'r',users:[],conversationId:'cb'}).initialChatWindow.conversationId,'ca');
- assert.ok(!JSON.stringify(state).includes('PRIVATE-MESSAGE'));assert.ok(!JSON.stringify(state).includes('PUBLISH-ONLY'));
+ assert.ok(!JSON.stringify(state).includes('PRIVATE-MESSAGE'));assert.ok(!JSON.stringify(state).includes('POST-MEDIA-ONLY'));assert.ok(!JSON.stringify(state).includes('PUBLISH-ONLY'));
  put('channel_teams',{...get('channel_teams','ct'),connectionId:'b'});assert.notEqual(inboxRevision(),rev);assert.deepEqual(inboxSnapshot(staff,{users:[]}).initialChatWindow.messages.map(m=>m.id),['private']);
 });
 test('revision counters track raw edits, moves and deletes, including rollback',()=>{

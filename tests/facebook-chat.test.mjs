@@ -193,3 +193,12 @@ test('sync records the actual failing network stage and retries reads without re
  await assert.rejects(syncFacebookChat(channel,async()=>{calls++;assert.equal(get('facebook_chat_sync',channel.id).status,'syncing');throw Object.assign(new Error('opaque network failure'),{networkCode:'UND_ERR_CONNECT_TIMEOUT'});}),/UND_ERR_CONNECT_TIMEOUT/);
  const state=get('facebook_chat_sync',channel.id);assert.equal(calls,2);assert.equal(state.status,'error');assert.equal(state.failure.stage,'conversations');assert.equal(state.failure.networkCode,'UND_ERR_CONNECT_TIMEOUT');assert.equal(state.failure.attempts,2);
 });
+
+test('sent message adopts Meta timestamp from its echo so order matches Messenger',()=>{
+ const incoming=ingestFacebookMessage(ch,item('order-in','2026-10-20T10:00:20.000Z','hihi'),{history:true});
+ const sent=put('messages',{conversationId:incoming.conversationId,direction:'outgoing',text:'Lại',externalId:'order-out',status:'accepted',createdAt:'2026-10-20T10:00:28.000Z'});
+ const echo={...item('order-out','2026-10-20T10:00:10.000Z','Lại'),from:{id:'page-id'},to:{data:[{id:'person'}]},is_echo:true};
+ const fixed=ingestFacebookMessage(ch,echo);
+ assert.equal(fixed.id,sent.id);assert.equal(fixed.createdAt,'2026-10-20T10:00:10.000Z');assert.equal(fixed.localCreatedAt,'2026-10-20T10:00:28.000Z');assert.ok(fixed.version>sent.version);
+ assert.equal(ingestFacebookMessage(ch,{...echo,created_time:'2026-10-20T10:00:11.000Z'}).createdAt,'2026-10-20T10:00:10.000Z');
+});
