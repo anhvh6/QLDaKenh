@@ -5416,3 +5416,9 @@ body.comments-route .comment-tag-filter>summary:hover,body.comments-route .comme
 #auto-plan-form .auto-comment [data-auto-comment-body]>label.field{display:block!important;text-align:left!important;align-items:stretch;justify-content:flex-start}
 
 .auto-comment[hidden]{display:none!important}.auto-comment-warning{z-index:1200}.auto-comment-warning li{margin:12px 0}.auto-comment-warning .modal-footer{display:flex;gap:10px;flex-wrap:wrap}
+
+.page-loading {
+    opacity: .55;
+    pointer-events: none;
+    transition: opacity .15s
+}

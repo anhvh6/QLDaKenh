@@ -545,7 +545,7 @@ if ('serviceWorker' in navigator){
   event.ports?.[0]?.postMessage({handled:true});
   const conversation=target.searchParams.get('conversation');selectedConversation=conversation||null;notificationMessage=target.searchParams.get('message');
   if(!conversation||S.conversations.some(c=>c.id===conversation)){render();void refreshBackground().catch(err=>toast(err.message,true));}
-  else{const page=$('#page');if(page)page.innerHTML='<p role="status">Đang mở nội dung thông báo…</p>';void refresh().catch(err=>toast(err.message,true));}
+  else{const page=$('#page');page?.classList.add('page-loading');void refresh().catch(err=>toast(err.message,true)).finally(()=>$('#page')?.classList.remove('page-loading'));}
  });
 }
 document.addEventListener('submit', async event => {

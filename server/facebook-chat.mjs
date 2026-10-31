@@ -64,7 +64,11 @@ export function ingestFacebookMessage(channel, item, { history = false, particip
  const sticker = stickerURL ? {url:stickerURL,text:'Sticker Facebook'} : null;
  const text = item.message || (item.sticker_id === 369239263222822 ? '👍' : attachments.length || sticker ? '' : '[Tin nhắn Facebook]');
  if (duplicate) {
-  const existing=get('messages',duplicate.id);
+  let existing=get('messages',duplicate.id);
+  // Sends are first stamped with our clock; the echo/history carries Meta's time, which is what Messenger orders by.
+  if(outgoing&&existing.direction==='outgoing'&&!existing.metaTimeAt&&Number.isFinite(Date.parse(item.created_time))&&Math.abs(Date.parse(createdAt)-Date.parse(existing.createdAt))<3600000){
+   db.prepare("UPDATE records SET data=json_set(data,'$.createdAt',?,'$.localCreatedAt',?,'$.metaTimeAt',1),version=version+1 WHERE kind='messages' AND id=?").run(createdAt,existing.createdAt,existing.id);existing=get('messages',existing.id);
+  }
   // A history replay must repair the reply window even if the message was stored earlier.
   if(!outgoing&&!existing.deletedAt&&(!conv.lastInboundAt||createdAt>conv.lastInboundAt))conv=put('conversations',{...get('conversations',conv.id),lastInboundAt:createdAt});
   // The webhook can arrive before the richer history response. Enrich media without losing staff attribution or local deletion.
