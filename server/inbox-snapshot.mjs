@@ -16,7 +16,7 @@ export {inboxKinds} from './inbox-kinds.mjs';
 export const inboxRevision=()=>kindsRevision(inboxKinds);
 // Avoid hydrating publishing history, shipping/POS integrations and every message
 // just to paint a conversation list. Existing permission/care scoping is retained.
-export function inboxSnapshot(user,{revision,providers,users}={}){
+export function inboxSnapshot(user,{revision,providers,users,conversationId}={}){
  const state={user,providers,snapshotRevision:revision,snapshotView:'inbox',inboxCompact:true,contentFeatures:{snapshot:true,thumbnails:true}};
  for(const key of [...kinds,...extraKinds,'staffHandoffs','chatMentions','chatbotRuns','chatbotConversations','aiConnections','chatbots','chatbotRoutes','mediaCategories','mediaFavorites','copyPlanCalendar','copyPlanSummaries','savedPlanSummaries','chatPlanSummaries'])state[key]=[];
  const excluded=new Set(['settings','learner_source_facts','study_plans','chatbot_jobs','chatbot_runs','chatbots','chatbot_routes','ai_connections','staff_handoffs']);
@@ -37,7 +37,8 @@ export function inboxSnapshot(user,{revision,providers,users}={}){
  state.orderWorkspace=orderWorkspaceState(user);state.orderRouting=orderRoutingState();state.integrations={};
  if(user.role!=='owner')state.connections=state.connections.map(({accountId,apiVersion,...c})=>c);
  const scoped=scopeCareChats(scopeState(state,user),user,{includeExceptions:false});
- const first=[...scoped.conversations].filter(c=>c.kind!=='comment'&&!c.careHidden).sort((a,b)=>String(b.lastAt||b.updatedAt).localeCompare(String(a.lastAt||a.updatedAt)))[0];
+ const visible=[...scoped.conversations].filter(c=>c.kind!=='comment'&&!c.careHidden),requested=conversationId&&visible.find(c=>c.id===conversationId);
+ const first=requested||visible.sort((a,b)=>String(b.lastAt||b.updatedAt).localeCompare(String(a.lastAt||a.updatedAt)))[0];
  if(first){scoped.initialChatWindow={conversationId:first.id,...chatWindow(first.id,new URLSearchParams({limit:'60'}),first.platformPins||[])};}
  return scoped;
 }

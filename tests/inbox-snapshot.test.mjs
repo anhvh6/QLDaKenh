@@ -18,6 +18,8 @@ test('inbox is independent of publishing; bounded initial messages obey channel 
  put('messages',{id:'private',conversationId:'cb',text:'PRIVATE-MESSAGE'});
  const rev=inboxRevision();for(let i=0;i<1000;i++)put('contents',{id:'post'+i,caption:'PUBLISH-ONLY'.repeat(100)});assert.equal(inboxRevision(),rev);
  const state=inboxSnapshot(staff,{revision:'r',users:[]});assert.equal(state.inboxCompact,true);assert.deepEqual(state.conversations.map(c=>c.id),['ca']);assert.equal(state.initialChatWindow.messages.length,60);assert.equal(state.initialChatWindow.hasMore,true);assert.equal(state.messages.length,0);assert.equal(state.contents.length,0);assert.equal(state.publications.length,0);
+ const targeted=inboxSnapshot(owner,{revision:'r',users:[],conversationId:'cb'});assert.equal(targeted.initialChatWindow.conversationId,'cb');assert.deepEqual(targeted.initialChatWindow.messages.map(m=>m.id),['private']);
+ assert.equal(inboxSnapshot(staff,{revision:'r',users:[],conversationId:'cb'}).initialChatWindow.conversationId,'ca');
  assert.ok(!JSON.stringify(state).includes('PRIVATE-MESSAGE'));assert.ok(!JSON.stringify(state).includes('PUBLISH-ONLY'));
  put('channel_teams',{...get('channel_teams','ct'),connectionId:'b'});assert.notEqual(inboxRevision(),rev);assert.deepEqual(inboxSnapshot(staff,{users:[]}).initialChatWindow.messages.map(m=>m.id),['private']);
 });

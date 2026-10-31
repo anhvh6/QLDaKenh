@@ -27,7 +27,13 @@ test('notification opens cached conversation immediately without waiting for wor
  let handler,rendered=0,background=0,ack=0,full=0;
  const context={navigator:{serviceWorker:{addEventListener:(_,fn)=>handler=fn}},URL,location:{origin:'https://app.test',assign:()=>assert.fail('Must not reload')},S:{user:{id:'owner'},conversations:[{id:'chat'}]},rememberInboxDraft:()=>{},closeModal:()=>{},history:{pushState:()=>{}},render:()=>rendered++,refreshBackground:()=>{background++;return new Promise(()=>{});},refresh:()=>{full++;return Promise.resolve();},toast:()=>{},$:()=>null};
  vm.runInNewContext(source.slice(start,end)+'\n });',context);
- handler({data:{type:'hub-open-notification',url:'https://app.test/?conversation=chat#inbox'},ports:[{postMessage:r=>{assert.equal(r.handled,true);ack++;}}]});
- assert.equal(ack,1);assert.equal(rendered,1);assert.equal(background,1);assert.equal(full,0);
+ handler({data:{type:'hub-open-notification',url:'https://app.test/?conversation=chat&message=message-1#inbox'},ports:[{postMessage:r=>{assert.equal(r.handled,true);ack++;}}]});
+ assert.equal(ack,1);assert.equal(rendered,1);assert.equal(background,1);assert.equal(full,0);assert.equal(context.selectedConversation,'chat');assert.equal(context.notificationMessage,'message-1');
  handler({data:{type:'hub-open-notification',url:'https://foreign.test/'},ports:[{postMessage:()=>assert.fail('Foreign URL')} ]});assert.equal(rendered,1);
+});
+
+test('cold notification includes its conversation and message in the first inbox snapshot request',()=>{
+ const source=readFileSync('public/app.js','utf8'),start=source.indexOf('function stateParams('),end=source.indexOf('\n',start);
+ const context={URLSearchParams,location:{search:'?conversation=chat-2&message=message-2'}};vm.runInNewContext(source.slice(start,end)+';result=stateParams("inbox")',context);
+ assert.equal(context.result.get('view'),'inbox');assert.equal(context.result.get('conversation'),'chat-2');assert.equal(context.result.get('message'),'message-2');
 });
