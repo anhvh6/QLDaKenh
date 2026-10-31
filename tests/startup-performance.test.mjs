@@ -37,3 +37,17 @@ test('cold notification includes its conversation and message in the first inbox
  const context={URLSearchParams,location:{search:'?conversation=chat-2&message=message-2'}};vm.runInNewContext(source.slice(start,end)+';result=stateParams("inbox")',context);
  assert.equal(context.result.get('view'),'inbox');assert.equal(context.result.get('conversation'),'chat-2');assert.equal(context.result.get('message'),'message-2');
 });
+
+test('notification boot paints the selected chat before the application snapshot finishes',async()=>{
+ const source=readFileSync('public/notification-chat-boot.js','utf8'),calls=[];
+ const app={dataset:{},innerHTML:'',querySelector:()=>null};
+ const context={URLSearchParams,location:{search:'?conversation=chat%2Ffast&message=message-3',hash:'#inbox'},document:{getElementById:id=>id==='app'?app:null},requestAnimationFrame:fn=>fn(),fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({conversation:{id:'chat/fast',title:'Khách nhanh'},messages:[{id:'message-3',text:'<script>alert(1)</script>',direction:'incoming',createdAt:'2026-10-31T08:00:00.000Z'}]})};}};
+ context.window=context;vm.runInNewContext(source,context);const result=await context.__notificationChatWindowPromise;
+ assert.equal(calls.length,1);assert.equal(calls[0].url,'/api/chat/conversations/chat%2Ffast/live?limit=60');assert.equal(calls[0].options.headers['ngrok-skip-browser-warning'],'true');
+ assert.equal(result.conversation.id,'chat/fast');assert.equal(context.__notificationChatWindow.conversationId,'chat/fast');assert.match(app.innerHTML,/Khách nhanh/);assert.match(app.innerHTML,/&lt;script&gt;alert\(1\)&lt;\/script&gt;/);assert.doesNotMatch(app.innerHTML,/<script>/);
+});
+
+test('notification boot is loaded before the main application bundle',()=>{
+ const html=readFileSync('public/index.html','utf8'),fast=html.indexOf('/notification-chat-boot.js'),bundle=html.indexOf('/app.bundle.js');
+ assert.ok(fast>=0);assert.ok(bundle>fast);
+});
