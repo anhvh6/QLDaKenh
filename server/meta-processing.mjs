@@ -14,7 +14,7 @@ export function checkMetaProcessing(state, provider) {
 
 export function resetPublicationProcessing(p) {
   const clean = {...p};
-  for (const key of ['containerId', 'container', 'childContainerIds', 'carouselPending', 'socialVerification', 'processingStartedAt', 'nextCheckAt', 'statusReadFailures', 'processingErrorChecks', 'processingFailure', 'externalId', 'url', 'publishedAt']) delete clean[key];
+  for (const key of ['containerId', 'container', 'mastodonMedia', 'childContainerIds', 'carouselPending', 'socialVerification', 'processingStartedAt', 'nextCheckAt', 'statusReadFailures', 'processingErrorChecks', 'processingFailure', 'externalId', 'url', 'publishedAt']) delete clean[key];
   return clean;
 }
 

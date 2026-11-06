@@ -107,6 +107,7 @@ async function exchange(provider,code,redirect,state,connection){
  if(provider==='youtube'||provider==='blogger'){
   const binding=secret(`oauth:${state}`),clientId=binding.googleClientId||env('GOOGLE_CLIENT_ID'),clientSecret=binding.googleClientSecret||env('GOOGLE_CLIENT_SECRET');
   const tokens=await tokenRequest('https://oauth2.googleapis.com/token',{code,client_id:clientId,client_secret:clientSecret,redirect_uri:redirect,grant_type:'authorization_code'});
+  if(!tokens.refresh_token)throw new Error('Google chưa cấp quyền truy cập ngoại tuyến. Hãy kết nối lại và chấp nhận màn hình cấp quyền để có thể đăng theo lịch.');
   const extra={googleClientId:clientId,googleClientSecret:clientSecret};
   if(provider==='blogger'){
    const blogs=await remote('https://www.googleapis.com/blogger/v3/users/self/blogs',{headers:{Authorization:`Bearer ${tokens.access_token}`}});
@@ -143,7 +144,7 @@ export async function finishOAuth(req,res,url){
    const previous=secret(target.id);
    saveSecret(target.id,{...previous,token:item.token,...(item.refreshToken?{refreshToken:item.refreshToken}:{}),...(item.expiresIn?{expiresAt:Date.now()+Number(item.expiresIn)*1000}:{}),...(item.extra||{})});
    target=put('connections',{...target,name:target.name||item.name,mode:oauthMode(provider,target.mode),...(provider==='facebook'||provider==='instagram'?{apiVersion:target.apiVersion||graphVersion}:{}),accountId:String(item.accountId),remoteName:item.name,avatar:item.avatar,status:'connected',verifiedAt:now(),oauthError:''});
-   put('connections',{...target,health:null});recordConnectionCheck(target);
+   put('connections',{...target,health:null,...(['youtube','blogger'].includes(provider)?{publishingCheck:null}:{})});recordConnectionCheck(target);
    audit(record.userId,'oauth_connected',target.id,{provider,accountId:item.accountId});
    // A Page's access token alone is not enough: Facebook only starts sending webhook events (comments, messages)
    // for a Page once it is explicitly subscribed to this app via subscribed_apps. Without this call, the

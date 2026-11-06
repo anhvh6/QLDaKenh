@@ -1,6 +1,30 @@
 import {hashtagFacets,hashtags,tumblrCaption,hashtagMatches} from '../public/platform-text-rules.js';
 import {uploadSocialMedia} from './social-media-upload.mjs';
 import {secret,saveSecret} from './store.mjs';
+import {createHash} from 'node:crypto';
+
+export const blueskyRecordKey=id=>'qld-'+createHash('sha256').update(id).digest('hex');
+const collection='app.bsky.feed.post';
+const blueskyReceipt=(uri,handle)=>({externalId:uri,url:`https://bsky.app/profile/${encodeURIComponent(handle)}/post/${uri.split('/').pop()}`});
+export async function reconcileBluesky(c,p,remote){
+ const token=await extraToken(c,remote);
+ const r=await remote('https://bsky.social/xrpc/com.atproto.repo.getRecord?'+new URLSearchParams({repo:c.accountId,collection,rkey:p.blueskyRecordKey}),{headers:bearer(token)});
+ if(r.uri!==`at://${c.accountId}/${collection}/${p.blueskyRecordKey}`)return null;
+ return blueskyReceipt(r.uri,c.accountId);
+}
+async function postMastodon(p,token,media,remote){
+ const options=post({status:String(p.caption||p.title||''),...(media?{media_ids:media}:{}),visibility:p.visibility==='private'?'private':'public'},token);
+ if(p.id)options.headers['Idempotency-Key']=String(p.id);
+ const r=await remote('https://mastodon.social/api/v1/statuses',options);
+ if(!r.id)throw Object.assign(Error('Mastodon chưa trả mã bài viết; cần đối soát trước khi thử lại.'),{unknown:true});
+ return {externalId:String(r.id),url:r.url};
+}
+export async function continueMastodon(c,p,remote,beforePost=()=>{}){
+ const token=await extraToken(c,remote),media=await remote('https://mastodon.social/api/v1/media/'+encodeURIComponent(p.containerId),{headers:bearer(token)});
+ if(!media?.url)return null;
+ beforePost();
+ return postMastodon(p,token,[p.containerId],remote);
+}
 
 export const extraProviders={
  reddit:{label:'Reddit',publish:true,oauth:true,formats:['text'],hint:'OAuth Reddit với quyền identity, submit, read, vote. Cần ứng dụng API được Reddit cho phép; mặc định đăng lên hồ sơ của bạn.'},
@@ -62,17 +86,21 @@ export async function publishExtra(c,p,remote){
  if(c.provider==='bluesky'&&p.visibility==='private')throw new Error('Bluesky không hỗ trợ bài riêng tư. Chọn công khai trước khi đăng.');
  if(!['text','image','video'].includes(p.type)||c.provider==='reddit'&&p.type!=='text')throw new Error('Định dạng không được hỗ trợ.');
  const token=await extraToken(c,remote),text=String(p.caption||p.title||'');let r;
- const media=p.type==='text'?null:await uploadSocialMedia(c,p,token,remote);
  if(c.provider==='mastodon'){
   if(Array.from(text).length>500)throw new Error('Mastodon: nội dung vượt 500 ký tự.');
-  r=await remote('https://mastodon.social/api/v1/statuses',{...post({status:text,...(media?{media_ids:media}:{}),visibility:p.visibility==='private'?'private':'public'},token),headers:{...post({},token).headers,...(p.id?{'Idempotency-Key':String(p.id)}:{})}});
-  if(!r.id)throw Object.assign(new Error('Mastodon chưa trả mã bài viết; cần đối soát trước khi thử lại.'),{unknown:true});return {externalId:String(r.id),url:r.url};
+  if(p.type==='text')return postMastodon(p,token,null,remote);
+  const {mediaId}=await uploadSocialMedia(c,p,token,remote,{deferMastodon:true});
+  return {containerId:mediaId,mastodonMedia:true,processing:true};
  }
+ const media=p.type==='text'?null:await uploadSocialMedia(c,p,token,remote);
  if(c.provider==='bluesky'){
   if([...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text)].length>300)throw new Error('Bluesky: nội dung vượt 300 ký tự.');
   const profile=await extraProfile(c,remote,token);
-  r=await remote('https://bsky.social/xrpc/com.atproto.repo.createRecord',post({repo:profile.accountId,collection:'app.bsky.feed.post',record:{$type:'app.bsky.feed.post',text,facets:hashtagFacets(text),...(media?{embed:media}:{}),createdAt:new Date().toISOString()}},token));
-  if(!r.uri)throw new Error('Bluesky chưa trả mã bài viết.');return {externalId:r.uri,...(p.type==='video'?{processing:true,socialVerification:true,containerId:r.uri}:{}),url:`https://bsky.app/profile/${profile.handle}/post/${r.uri.split('/').pop()}`};
+  if(p.blueskyRecordKey&&profile.accountId!==c.accountId)throw Error('Phiên Bluesky không thuộc kênh đã lên lịch. Hãy kết nối lại đúng tài khoản.');
+  try{r=await remote('https://bsky.social/xrpc/com.atproto.repo.createRecord',post({repo:profile.accountId,collection,...(p.blueskyRecordKey?{rkey:p.blueskyRecordKey}:{}),record:{$type:collection,text,facets:hashtagFacets(text),...(media?{embed:media}:{}),createdAt:new Date().toISOString()}},token));}
+  catch(error){if(error.providerStatus>=500||/RecordAlreadyExists|already exists/i.test(error.providerCode+' '+error.message))error.unknown=true;throw error;}
+  if(!r.uri)throw Object.assign(Error('Bluesky chưa trả mã bài viết; cần đối soát.'),{unknown:true});
+  return {...blueskyReceipt(r.uri,profile.handle),...(p.type==='video'?{processing:true,socialVerification:true,containerId:r.uri}:{})};
  }
  if(c.provider==='tumblr'){
   r=await remote(`https://api.tumblr.com/v2/blog/${encodeURIComponent(c.accountId)}/posts`,media?{method:'POST',headers:bearer(token),body:media,signal:AbortSignal.timeout(600000)}:post({tags:hashtags(text).join(','),content:[{type:'text',text:tumblrCaption(text)||text,...(!tumblrCaption(text)?{formatting:hashtagMatches(text).map(m=>({start:Array.from(text.slice(0,m.index)).length,end:Array.from(text.slice(0,m.index+m.text.length)).length,type:'link',url:'https://www.tumblr.com/tagged/'+encodeURIComponent(m.tag)}))}:{})}],state:p.visibility==='private'?'private':'published'},token));

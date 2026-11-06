@@ -1,5 +1,5 @@
 {
-  "version": "9dae8024fecd",
+  "version": "b2c87be0bbe7",
   "compiler": "0.25.12",
   "files": {
     "public/auto-comment-capabilities.js": "def0107326a1a73663fc5845e70f02e4d303604bb7958021691f782fdadfc325",
@@ -128,7 +128,7 @@
     "public/media-library.js": "8bfe42d35612223f82c0d559a84a2dfb00fe8abd015aec52d750ef6a43673575",
     "public/plans.js": "96453152172ef269f63609a9b1e78148f4fb622ed94d95bed6b040d1dd0bf05d",
     "public/care.js": "667d1da35a27005fdadb4b69373152bc3de6b5e5d424810db6373bb702e91593",
-    "public/app.js": "f3802e4e627419677b1c1ad5bfb58d1c67419c3f91edb29605fbb9cfdbcaa39e",
-    "public/app.bundle.js": "9dae8024fecd54e8ad1be7cb1a209493990068df791c53fe4c4ae48bfa6b4b8a"
+    "public/app.js": "8608340bd4e0a9ea36d1a480273b891d76fd08786299b59b5c59d129d93eb727",
+    "public/app.bundle.js": "b2c87be0bbe7bcdf8bfce185c61c53012360c5e39b252238aba8c9a0da0eaa67"
   }
 }

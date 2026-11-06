@@ -75,17 +75,21 @@ test('video publishing uploads actual bytes and attaches native media on all thr
  put('assets',{id:'video-test',url:'/uploads/asset_video-test.mp4',mime:'video/mp4',type:'video',active:true});
  for(const provider of ['mastodon','bluesky','tumblr']){
   const c={id:'video-'+provider,provider,accountId:provider==='bluesky'?'did:plc:test':'blog',expectedAccount:''};saveSecret(c.id,{token:'token',refreshToken:provider==='bluesky'?'refresh':undefined,expiresAt:Date.now()+999999});let uploaded=false;
-  const r=await publishExtra(c,{id:'publication-'+provider,type:'video',caption:'Test #yoga #dep',assets:['video-test']},async(url,opts)=>{
+  const p={id:'publication-'+provider,type:'video',caption:'Test #yoga #dep',assets:['video-test']};
+  const request=async(url,opts)=>{
    if(url.startsWith('https://plc.directory/'))return {service:[{id:'#atproto_pds',serviceEndpoint:'https://test.bsky.network'}]};
    if(url.includes('getServiceAuth'))return {token:'service-token'};
    if(url.includes('app.bsky.video.uploadVideo')){uploaded=true;return {blob:{$type:'blob',ref:{$link:'cid'},mimeType:'video/mp4',size:15}};}
    if(url.endsWith('/api/v2/media')){assert.equal(await opts.body.get('file').text(),'fake-video-test');uploaded=true;return {id:'media',url:'https://media.test/video.mp4'};}
+   if(url.endsWith('/api/v1/media/media'))return {id:'media',url:'https://media.test/video.mp4'};
    if(url.endsWith('.uploadBlob')){assert.equal(await opts.body.text(),'fake-video-test');uploaded=true;return {blob:{$type:'blob',ref:{$link:'cid'},mimeType:'video/mp4',size:15}};}
    if(url.endsWith('.getSession'))return {did:'did:plc:test',handle:'test.bsky.social'};
    if(provider==='mastodon'){assert.deepEqual(JSON.parse(opts.body).media_ids,['media']);return {id:'post',url:'https://mastodon.social/post'};}
    if(provider==='bluesky'){assert.equal(JSON.parse(opts.body).record.embed.$type,'app.bsky.embed.video');return {uri:'at://did:plc:test/app.bsky.feed.post/post'};}
    assert.ok(opts.body instanceof FormData);assert.equal(JSON.parse(opts.body.get('json')).tags,'yoga,dep');assert.equal(JSON.parse(opts.body.get('json')).content[0].text,'Test');assert.equal(JSON.parse(opts.body.get('json')).content[1].media.identifier,'upload');assert.equal(await opts.body.get('upload').text(),'fake-video-test');uploaded=true;return {response:{id:'post'}};
-  });assert.ok(uploaded);assert.ok(r.externalId);
+  };let r=await publishExtra(c,p,request);
+  if(provider==='mastodon'){assert.equal(r.processing,true);r=await (await import('../server/social-extra.mjs')).continueMastodon(c,{...p,...r},request);}
+  assert.ok(uploaded);assert.ok(r.externalId);
  }
 });
 

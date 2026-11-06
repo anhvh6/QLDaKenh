@@ -13,7 +13,7 @@ export async function socialMediaBlob(p){
  if(!mime?.startsWith(p.type+'/'))throw Error('Loại tệp không khớp định dạng bài đăng.');
  return {blob:await openAsBlob(path,{type:mime}),name:basename(path),mime,size};
 }
-export async function uploadSocialMedia(c,p,token,request){
+export async function uploadSocialMedia(c,p,token,request,{deferMastodon=false}={}){
  const originalRequest=request;request=(url,options)=>mediaStageRequest(originalRequest,url,options);
  const file=await socialMediaBlob(p),headers={Authorization:'Bearer '+token};
  if(c.provider==='bluesky'){
@@ -49,6 +49,7 @@ export async function uploadSocialMedia(c,p,token,request){
  form.set('file',file.blob,file.name);
  let r=await request('https://mastodon.social/api/v2/media',{method:'POST',headers,body:form,signal:AbortSignal.timeout(600000)});
  if(!r.id)throw Error('Mastodon chưa trả mã media.');
+ if(deferMastodon)return {mediaId:String(r.id)};
  for(let i=0;!r.url&&i<30;i++){await new Promise(resolve=>setTimeout(resolve,2000));r=await request('https://mastodon.social/api/v1/media/'+encodeURIComponent(r.id),{headers});}
  if(!r.url)throw Error('Mastodon vẫn xử lý media; chưa tạo bài đăng.');
  return [r.id];
