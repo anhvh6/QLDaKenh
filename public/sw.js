@@ -1,7 +1,18 @@
 self.addEventListener('install',()=>self.skipWaiting());
-self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
-// Private API responses and media are deliberately not cached by the service worker.
-self.addEventListener('fetch',()=>{});
+self.addEventListener('activate',e=>e.waitUntil((async()=>{await self.clients.claim();try{for(const name of await caches.keys())if(name.startsWith('hub-assets-')&&name!=='hub-assets-v1')await caches.delete(name);}catch{}})()));
+// Private API responses, media, HTML and CSS are deliberately not cached. Only the content-hashed app bundle and boot script
+// (URL carries ?v=<hash> that changes with every build) are kept, so a phone launch does not re-download ~900 KB of JavaScript.
+const hashedAsset=url=>/^\/(?:app\.bundle|notification-chat-boot)\.js$/.test(url.pathname)&&!!url.searchParams.get('v');
+self.addEventListener('fetch',event=>{
+ const request=event.request;if(request.method!=='GET')return;
+ let url;try{url=new URL(request.url);}catch{return;}if(url.origin!==self.location.origin||!hashedAsset(url))return;
+ event.respondWith((async()=>{
+  let cache;try{cache=await caches.open('hub-assets-v1');const hit=await cache.match(request);if(hit)return hit;}catch{}
+  const response=await fetch(request);
+  if(cache&&response.ok&&response.type==='basic')event.waitUntil((async()=>{try{await cache.put(request,response.clone());for(const old of await cache.keys()){const u=new URL(old.url);if(u.pathname===url.pathname&&u.search!==url.search)await cache.delete(old);}}catch{}})());
+  return response;
+ })());
+});
 self.addEventListener('push',event=>{event.waitUntil((async()=>{
  let payload={};try{payload=event.data?.json()||{};}catch{}
  await self.registration.showNotification(payload.title||'Có thông báo mới',{body:payload.body||'Mở ứng dụng để xem nội dung.',icon:'/icons/app-192.png',badge:'/icons/badge-96.png',tag:payload.tag||'hub-notification',renotify:true,silent:payload.silent===true,data:{url:payload.url||'/#inbox'}});
