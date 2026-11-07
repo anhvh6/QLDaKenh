@@ -163,3 +163,17 @@ test('staff-only appointment delivers advance and due push once to the assigned 
  const both=received.filter(p=>p.tag.includes(reminder.id));assert.equal(both.length,2);assert.equal(both[1].title,'Đến giờ nhắc hẹn');assert.ok(both.every(p=>p.userId===staff.id&&p.url===advance[0].url));
  await pushRoute('/api/push/unsubscribe','POST',{endpoint:staffSub.endpoint},staff);
 });
+test('service worker caches only the content-hashed bundle; API, HTML, CSS and unversioned scripts always hit the network',async()=>{
+ const listeners={},store=new Map(),networkHits=[],self={location:{origin:'https://hub.test'},addEventListener:(name,fn)=>listeners[name]=fn};
+ const cache={match:async req=>store.get(req.url),put:async(req,res)=>{store.set(req.url,res);},keys:async()=>[...store.keys()].map(url=>({url})),delete:async req=>store.delete(req.url)};
+ const caches={open:async()=>cache,keys:async()=>[],delete:async()=>true};
+ const fetchImpl=async req=>{networkHits.push(req.url);return {ok:true,type:'basic',clone(){return this;},tag:req.url};};
+ vm.runInNewContext(readFileSync('public/sw.js','utf8'),{self,URL,caches,fetch:fetchImpl});
+ const run=async(url,method='GET')=>{let responded,waiting;const event={request:{url,method},respondWith:p=>responded=p,waitUntil:p=>waiting=p};listeners.fetch(event);if(!responded)return {handled:false};const response=await responded;await waiting;return {handled:true,response};};
+ for(const url of ['https://hub.test/api/state?view=inbox','https://hub.test/','https://hub.test/style.css?v=1','https://hub.test/app.bundle.js','https://hub.test/sw.js','https://other.test/app.bundle.js?v=abc'])assert.equal((await run(url)).handled,false,url);
+ assert.equal((await run('https://hub.test/app.bundle.js?v=abc','POST')).handled,false);
+ assert.equal(networkHits.length,0);
+ const first=await run('https://hub.test/app.bundle.js?v=abc');assert.equal(first.handled,true);assert.equal(networkHits.length,1);
+ const second=await run('https://hub.test/app.bundle.js?v=abc');assert.equal(second.response.tag,'https://hub.test/app.bundle.js?v=abc');assert.equal(networkHits.length,1);
+ await run('https://hub.test/app.bundle.js?v=def');assert.deepEqual([...store.keys()],['https://hub.test/app.bundle.js?v=def']);
+});

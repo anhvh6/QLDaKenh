@@ -10,7 +10,7 @@ Root vercel.json is the source of deployment configuration:
 - npm run build:app && npm run check rebuilds the browser bundle and validates source/bundle consistency.
 - Only public is published. Local signing files, credentials and customer data must never enter Git or the public directory.
 - Static files are served by Vercel. Remaining requests, including /api and stored media, retain the existing proxy to http://36.50.55.233/$1.
-- HTML/CSS/JS are revalidated so the Android TWA and website use the same frontend release. This is not a service-worker cache: sw.js does not cache private APIs/media.
+- HTML/CSS/JS are revalidated so the Android TWA and website use the same frontend release. The service worker (sw.js) does not cache private APIs, media, HTML or CSS. Its only cache is the content-hashed app.bundle.js?v=<hash> and notification-chat-boot.js?v=<version>, whose URL changes with every build, so each release still reaches the TWA on the next launch while repeat launches skip re-downloading the bundle.
 
 After pushing main, inspect the Git-triggered production deployment, ensure it reaches Ready, compare the deployed commit and public/app.bundle.meta.json version, verify served files and /api/health, then test affected flows in browser/app. A push accepted by GitHub is not evidence the build succeeded.
 
