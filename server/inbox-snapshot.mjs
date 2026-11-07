@@ -45,5 +45,10 @@ export function inboxSnapshot(user,{revision,providers,users,conversationId}={})
  const commentIds=new Set();
  scoped.conversations=scoped.conversations.map(({postMedia,...c})=>{if(c.kind!=='comment')return c;commentIds.add(c.id);const {postTitle,postUrl,postCreatedAt,lastMessage,...slim}=c;return slim;});
  for(const key of ['conversationCare','chatbotConversations'])if(Array.isArray(scoped[key]))scoped[key]=scoped[key].filter(row=>!commentIds.has(row.id));
+ // People who only ever commented are not needed to paint Chat; keep anyone any other row (chat, order, plan, reminder...) points at.
+ const referenced=new Set();
+ for(const [key,rows] of Object.entries(scoped)){if(!Array.isArray(rows)||key==='customers'||key==='identities')continue;for(const row of rows){if(!row||typeof row!=='object'||row.customerId==null)continue;if(key==='conversations'&&commentIds.has(row.id))continue;referenced.add(row.customerId);}}
+ const commentOnly=new Set(scoped.conversations.filter(c=>commentIds.has(c.id)&&c.customerId!=null&&!referenced.has(c.customerId)).map(c=>c.customerId));
+ if(commentOnly.size){scoped.customers=scoped.customers.filter(c=>!commentOnly.has(c.id));scoped.identities=(scoped.identities||[]).filter(i=>!commentOnly.has(i.customerId));}
  return scoped;
 }
