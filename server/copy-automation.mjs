@@ -10,7 +10,7 @@ import {spawn} from 'node:child_process';
 import {existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
-import {all,get as stored,put,db,uid,now,transaction} from './store.mjs';
+import {all,get as stored,put,db,uid,now,transaction,kindsRevision} from './store.mjs';
 import {permission,fail,schedule} from './domain.mjs';
 import {providers} from './connectors.mjs';
 import {assertChannel} from './taophacdo.mjs';
@@ -90,7 +90,13 @@ export function createPlan(user,input,time=Date.now()){
  return transaction(()=>{const p=input.appendToPlanId?own(user,'copy_plans',input.appendToPlanId):put('copy_plans',{...fields,userId:user.id,status:input.status==='draft'?'draft':'active',lastCheckAt:'',nextCheckAt:new Date(time).toISOString(),slotPolicy:2}),result=addPlanItems(p,accepted);result.skippedVideos+=rejected;event(p,input.appendToPlanId?'appended':'created',(input.appendToPlanId?'Bổ sung ':'Tạo kế hoạch: ')+result.addedVideos+' video; bỏ qua '+result.skippedVideos+' video trùng/đã đăng hoặc không phù hợp yêu cầu nền tảng.');return {...p,...result,appended:!!input.appendToPlanId};});
 }
 function publicationsFor(item,history=false,publications=publicationCandidates(item)){const latest=new Map();for(const p of publications.filter(p=>(p.copyPlanItemId===item.id||item.contentId&&p.contentId===item.contentId)&&p.status!=='cancelled'&&(history||(!(item.supersededPublicationIds||[]).includes(p.id)&&(!p.connectionId||(item.channels||[]).includes(p.connectionId))))).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))))if(!latest.has(p.connectionId||p.id))latest.set(p.connectionId||p.id,p);return [...latest.values()];}
-function videoContext(){const posts=new Map(all('copy_posts').map(p=>[p.id,p])),byKey=new Map();for(const c of all('contents')){const key=c.sourceVideoKey||sourceVideoKey(posts.get(c.sourceCopyId));if(!key)continue;if(!byKey.has(key))byKey.set(key,new Set());byKey.get(key).add(c.id);}const publications=all('publications');for(const p of publications)if(p.sourceVideoKey){if(!byKey.has(p.sourceVideoKey))byKey.set(p.sourceVideoKey,new Set());byKey.get(p.sourceVideoKey).add(p.contentId);}return {byKey,publications,items:all('copy_plan_items'),plans:all('copy_plans'),connections:all('connections')};}
+// Built once per plan per 5-second tick, and it re-reads and parses five kinds. Reuse it while none of them changed (every write bumps
+// the trigger-maintained revision, so a plan that reserved slots makes the next plan rebuild it). Connections are always fresh, and a
+// transaction never reuses or stores it because a rollback could repeat an old revision.
+let videoContextMemo=null;
+function videoContext(){const revision=db.isTransaction?'':kindsRevision(['copy_posts','contents','publications','copy_plan_items','copy_plans']);
+if(revision&&videoContextMemo?.revision===revision)return {...videoContextMemo.value,connections:all('connections')};
+const posts=new Map(all('copy_posts').map(p=>[p.id,p])),byKey=new Map();for(const c of all('contents')){const key=c.sourceVideoKey||sourceVideoKey(posts.get(c.sourceCopyId));if(!key)continue;if(!byKey.has(key))byKey.set(key,new Set());byKey.get(key).add(c.id);}const publications=all('publications');for(const p of publications)if(p.sourceVideoKey){if(!byKey.has(p.sourceVideoKey))byKey.set(p.sourceVideoKey,new Set());byKey.get(p.sourceVideoKey).add(p.contentId);}const value={byKey,publications,items:all('copy_plan_items'),plans:all('copy_plans')};if(revision)videoContextMemo={revision,value};return {...value,connections:all('connections')};}
 export function remainingChannels(plan,video,item,context=videoContext()){const contents=context.byKey.get(video.provider+':'+video.externalId)||new Set();return plan.channels.filter(id=>!context.items.some(x=>x.id!==item?.id&&x.videoId===video.id&&(['scheduled','preparing','ready','publishing','unknown'].includes(x.state)||x.state==='pending'&&(!item||item.state==='pending'&&(String(x.createdAt||'').localeCompare(String(item.createdAt||''))||x.id.localeCompare(item.id))<0)&&(context.plans||[]).some(p=>p.id===x.planId&&p.campaignId===plan.campaignId&&p.userId===video.userId&&['active','paused'].includes(p.status)))&&x.channels?.includes(id))&&!context.publications.some(p=>p.connectionId===id&&contents.has(p.contentId)&&['published','demo_published','manually_confirmed','scheduled','dispatching','processing','unknown'].includes(p.status)&&!(item?.contentId===p.contentId&&p.status==='scheduled')));}
 
 // Stable shuffled ranking keeps preview and reservation order consistent across restarts.
