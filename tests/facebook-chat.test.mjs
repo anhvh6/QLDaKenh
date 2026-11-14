@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 mkdirSync('test-data',{recursive:true});process.env.DATA_DIR=mkdtempSync(join(resolve('test-data'),'facebook-chat-'));process.env.PLAN_REMOTE_CATALOG='0';
 const {put,get,all,saveSecret,dataDir}=await import('../server/store.mjs');
-const {ingestFacebookMessage,ingestFacebookEvents,syncFacebookChat,facebookChatTick}=await import('../server/facebook-chat.mjs');
+const {ingestFacebookMessage,ingestFacebookEvents,syncFacebookChat,facebookChatTick,chatPollInterval}=await import('../server/facebook-chat.mjs');
 const {chatRoute}=await import('../server/chat.mjs');
 const {defaultFilters,filterThreads}=await import('../public/inbox-model.js');
 const ch=put('connections',{id:'page',provider:'facebook',mode:'api',status:'connected',accountId:'page-id'});
@@ -201,4 +201,16 @@ test('sent message adopts Meta timestamp from its echo so order matches Messenge
  const fixed=ingestFacebookMessage(ch,echo);
  assert.equal(fixed.id,sent.id);assert.equal(fixed.createdAt,'2026-10-20T10:00:10.000Z');assert.equal(fixed.localCreatedAt,'2026-10-20T10:00:28.000Z');assert.ok(fixed.version>sent.version);
  assert.equal(ingestFacebookMessage(ch,{...echo,created_time:'2026-10-20T10:00:11.000Z'}).createdAt,'2026-10-20T10:00:10.000Z');
+});
+
+test('chat polling relaxes once webhooks are delivering and stays fast while backfilling or after errors',()=>{
+ const now=Date.parse('2026-11-14T12:00:00Z'),ig={provider:'instagram'},fb={provider:'facebook'},recent={lastMessageEventAt:'2026-11-14T10:00:00Z'},stale={lastMessageEventAt:'2026-11-14T05:00:00Z'};
+ assert.equal(chatPollInterval(fb,{status:'ready'},recent,now),60000);
+ assert.equal(chatPollInterval(ig,{status:'ready'},recent,now),60000);
+ assert.equal(chatPollInterval(fb,{status:'ready'},stale,now),30000);
+ assert.equal(chatPollInterval(fb,{status:'ready'},undefined,now),30000);
+ assert.equal(chatPollInterval(ig,{status:'ready'},undefined,now),15000);
+ assert.equal(chatPollInterval(ig,{status:'ready'},{},now),15000);
+ assert.equal(chatPollInterval(ig,{status:'ready',after:'cursor'},recent,now),5000);
+ assert.equal(chatPollInterval(fb,{status:'error',after:'cursor'},recent,now),30000);
 });

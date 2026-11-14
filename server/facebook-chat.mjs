@@ -157,10 +157,20 @@ export async function syncFacebookChat(channel, request = remote) {
  } finally { running.delete(channel.id); }
 }
 
+// Polling is the safety net behind webhooks, not the primary path. Keep it fast only while history is still being paged in or the channel
+// has no recent webhook delivery (Instagram without message webhooks), and relax it once Meta is demonstrably pushing messages.
+const webhookFreshMs=6*3600*1000;
+export function chatPollInterval(channel,state,webhookStatus,now=Date.now()){
+ if(state?.status==='error')return 30000;
+ if(state?.after)return 5000;
+ const lastPush=Date.parse(webhookStatus?.lastMessageEventAt||'');
+ if(Number.isFinite(lastPush)&&now-lastPush<webhookFreshMs)return 60000;
+ return channel?.provider==='instagram'?15000:30000;
+}
 export async function facebookChatTick(request = remote) {
  await Promise.allSettled(all('connections').filter(c => ['facebook','instagram'].includes(c.provider) && !c.deletedAt && c.status === 'connected' && c.mode === 'api').map(async channel=>{
   const state = get('facebook_chat_sync', channel.id);
-  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < (state.status==='error'?30000:channel.provider==='instagram'||state.after?5000:10000)) return;
+  if (state?.syncedAt && Date.now() - Date.parse(state.syncedAt) < chatPollInterval(channel, state, get('facebook_webhook_status', channel.id))) return;
   try { await syncFacebookChat(channel, request); } catch { /* Error is stored for the channel's diagnostic UI. */ }
  }));
 }

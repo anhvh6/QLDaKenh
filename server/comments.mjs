@@ -2,6 +2,7 @@ import {commentReadBatch} from './comment-read-batch.mjs';
 import {syncSocialComments} from './social-comment-sync.mjs';
 import {commentPostMedia} from '../public/comment-post-media.js';
 import {openCommentPrivateChat} from './comment-private.mjs';
+import {commentPostMediaNeedsSave} from './comment-media-refresh.mjs';
 import {commentContextPreview} from './comment-context.mjs';
 import {all,get,put,secret,now,db,notification,transaction} from './store.mjs';
 import {remote,refreshedToken} from './connectors.mjs';
@@ -107,7 +108,7 @@ export function upsertComment(channel,item,post={},live=false){
  const postUrl=safeUrl(post.permalink_url||post.permalink);if(postUrl&&!conv.postUrl)conv=put('conversations',{...get('conversations',conv.id),postUrl,postTitle:post.message||post.text||conv.postTitle||''});
  if(!own&&customer&&(name!=='Khách từ bình luận')&&(customer.name!==name||item.from?.picture?.data?.url&&!customer.avatar))put('customers',{...customer,name,avatar:safeUrl(item.from?.picture?.data?.url)||customer.avatar||''});
  const created=Date.parse(item.created_time||item.timestamp||'');const createdAt=Number.isFinite(created)?new Date(created).toISOString():existing?.createdAt||now();
- const postMedia=commentPostMedia(post);if(postMedia.length&&JSON.stringify(conv.postMedia)!==JSON.stringify(postMedia)){conv=put('conversations',{...get('conversations',conv.id),postMedia});}
+ const postMedia=commentPostMedia(post);if(commentPostMediaNeedsSave(conv,postMedia)){conv=put('conversations',{...get('conversations',conv.id),postMedia,postMediaAt:now()});}
  const text=String(item.message??item.text??''),attachments=commentAttachments(item);
  if(existing?.reactionUpdatedAt&&Date.now()-Date.parse(existing.reactionUpdatedAt)<30000)item={...item,user_likes:existing.liked,like_count:existing.likeCount};
  const authorMissing=!own&&!providedName&&name==='Khách từ bình luận';
