@@ -77,12 +77,33 @@ export const getSupabaseHeaders=supabaseAuth({url:SUPABASE_URL,key:SUPABASE_KEY,
 
 db.exec(readFileSync(new URL('../docs/chat-crm-storage.sqlite.sql',import.meta.url),'utf8'));
 
+// Background workers re-read whole kinds every 1-5 seconds. Keep the raw rows per kind and reuse them while that kind's trigger-maintained
+// revision is unchanged; objects are still parsed per call, so callers can mutate results exactly as before. Never used inside a
+// transaction (a rollback could replay an old revision number over different data) or for 'connections', whose trigger skips
+// bookkeeping-only updates and so cannot prove freshness.
+const statements=new Map();
+const statement=sql=>{let st=statements.get(sql);if(!st){st=db.prepare(sql);statements.set(sql,st);}return st;};
+const rowCache=new Map(),rowCacheLimits={perKind:24*1024*1024,total:96*1024*1024};let rowCacheBytes=0;
+const uncachedKinds=new Set(['connections']);
+const kindRevisionOf=kind=>statement('SELECT value FROM kind_revision WHERE kind=?').get(kind)?.value||0;
+function evictRows(kind){const old=rowCache.get(kind);if(old){rowCacheBytes-=old.bytes;rowCache.delete(kind);}}
 export function all(kind) {
-  return db.prepare('SELECT id, data, version FROM records WHERE kind=? ORDER BY updated_at DESC').all(kind).map(r => ({...JSON.parse(r.data), version: r.version, id: r.id}));
+  const parse=r => ({...JSON.parse(r.data), version: r.version, id: r.id});
+  const load=() => statement('SELECT id, data, version FROM records WHERE kind=? ORDER BY updated_at DESC').all(kind);
+  if (db.isTransaction || uncachedKinds.has(kind)) return load().map(parse);
+  const revision = kindRevisionOf(kind), hit = rowCache.get(kind);
+  if (hit && hit.revision === revision) { rowCache.delete(kind); rowCache.set(kind, hit); return hit.rows.map(parse); }
+  evictRows(kind);
+  const rows = load(), bytes = rows.reduce((n, r) => n + r.data.length, 0);
+  if (bytes <= rowCacheLimits.perKind) {
+    rowCache.set(kind, { revision, rows, bytes }); rowCacheBytes += bytes;
+    while (rowCacheBytes > rowCacheLimits.total && rowCache.size > 1) evictRows(rowCache.keys().next().value);
+  }
+  return rows.map(parse);
 }
 
 export function get(kind, id) {
-  const row = db.prepare('SELECT data, version FROM records WHERE kind=? AND id=?').get(kind, id);
+  const row = statement('SELECT data, version FROM records WHERE kind=? AND id=?').get(kind, id);
   if (!row) return null;
   return {...JSON.parse(row.data), version: row.version, id};
 }

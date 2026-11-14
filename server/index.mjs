@@ -77,7 +77,7 @@ import { db, dataDir, all, get, put, remove, transaction, now, uid, audit, secre
 import { seed } from './seed.mjs';
 import * as domain from './domain.mjs';
 import { filterDisconnectedChats } from '../public/chat-connection-state.js';
-import { studentCareRoute, scopeCareChats, assertCareConversation, filterCareNotifications } from './student-care.mjs';
+import { studentCareRoute, scopeCareChats, assertCareConversation, filterCareNotifications, clientNotifications } from './student-care.mjs';
 import { planRoute, syncPlanHandoff } from './plan-bridge.mjs';
 import * as care from './taophacdo.mjs';
 import { supabaseRoute, integrationState } from './supabase.mjs';
@@ -261,7 +261,7 @@ async function dispatch(req, res, url, user, input) {
   if (path === '/api/notifications' && method === 'GET') {
     const key = user.id + ':' + user.role, sourceRevision = stateRevision();
     let snapshot = notificationCache.get(key, sourceRevision);
-    if (!snapshot) { const rows = filterCareNotifications(all('notifications'), user); snapshot = notificationCache.set(key, sourceRevision, { rows, revision: createHash('sha256').update(key + JSON.stringify(rows)).digest('hex') }); }
+    if (!snapshot) { const rows = clientNotifications(all('notifications'), user); snapshot = notificationCache.set(key, sourceRevision, { rows, revision: createHash('sha256').update(key + JSON.stringify(rows)).digest('hex') }); }
     if (url.searchParams.get('since') === snapshot.revision) return { unchanged: true, revision: snapshot.revision };
     return url.searchParams.has('since') ? snapshot : snapshot.rows;
   }

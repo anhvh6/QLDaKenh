@@ -1,4 +1,4 @@
-import {filterCareNotifications} from './student-care.mjs';
+import {clientNotifications,clientNotificationLimits} from './student-care.mjs';
 import {all,get,db} from './store.mjs';
 import {kinds} from './domain.mjs';
 import {extraKinds,scopeState} from './taophacdo.mjs';
@@ -8,7 +8,7 @@ export function contentSnapshot(user,{revision,providers}={}){
  const state={user,providers,snapshotRevision:revision,snapshotView:'content',contentFeatures:{snapshot:true,thumbnails:true}};
  for(const key of [...kinds,...extraKinds,'mediaCategories','mediaFavorites','copyPlanCalendar','copyPlanSummaries','savedPlanSummaries','chatPlanSummaries','chatMentions','staffHandoffs'])state[key]=[];
  for(const key of ['contents','assets','connections','campaigns','products','publications','notifications'])state[key]=all(key);
- state.notifications=state.notifications.some(n=>n.conversationId)?filterCareNotifications(state.notifications,user):state.notifications.filter(n=>!n.recipientId||n.recipientId===user.id);
+ state.notifications=state.notifications.some(n=>n.conversationId)?clientNotifications(state.notifications,user):state.notifications.filter(n=>!n.recipientId||n.recipientId===user.id).slice(0,clientNotificationLimits.send);
  state.connections=state.connections.map(({accountId,apiVersion,...c})=>user.role==='owner'?{...c,accountId,apiVersion}:c);
  const posts=new Map(all('copy_posts').filter(p=>p.userId===user.id).map(p=>[p.id,p]));
  const videos=all('copy_videos').filter(v=>v.userId===user.id),byPost=new Map(videos.filter(v=>v.postId).map(v=>[v.postId,v])),byKey=new Map(videos.map(v=>[v.provider+':'+v.externalId,v]));

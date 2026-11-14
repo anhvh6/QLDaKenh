@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {db,get,put,remove} from './store.mjs';
+import {db,get,put,remove,kindsRevision} from './store.mjs';
 
 export const communicationLock = Symbol('communication platform lock');
 export const communicationAutomatic = Symbol('communication automatic sender');
@@ -27,11 +27,16 @@ export function recordStaffSend(provider,text,assetIds,time=Date.now(),messageId
 }
 // Only confirmed outgoing staff messages count. Incoming messages, notes, AI,
 // imported history and failed/uncertain sends never release a campaign.
+// The join below scans every message; skip it while no message, conversation or connection has changed since the last scan of this provider
+// (queued jobs re-check this every second while they wait).
+const observedAt=new Map();
 function observeStaffSends(provider){
+ const revision=kindsRevision(['messages','conversations','connections']);if(observedAt.get(provider)===revision)return;
  const s=state(provider),since=s.observedStaffAt||0;
  const rows=db.prepare(`SELECT m.id,m.data FROM records m JOIN records c ON c.kind='conversations' AND c.id=json_extract(m.data,'$.conversationId') JOIN records ch ON ch.kind='connections' AND ch.id=json_extract(c.data,'$.connectionId') WHERE m.kind='messages' AND (CASE WHEN json_extract(ch.data,'$.provider')='zalo_personal' THEN 'zalo' ELSE json_extract(ch.data,'$.provider') END)=? AND coalesce(json_extract(c.data,'$.kind'),'message')!='comment' AND json_extract(m.data,'$.direction')='outgoing' AND json_extract(m.data,'$.status') IN ('accepted','sent','delivered','read','demo') AND coalesce(json_extract(m.data,'$.history'),0)=0 AND json_extract(m.data,'$.communicationCampaignId') IS NULL AND json_extract(m.data,'$.botId') IS NULL AND coalesce(json_extract(m.data,'$.senderType'),'staff')!='ai' AND json_extract(m.data,'$.deletedAt') IS NULL AND coalesce(json_extract(m.data,'$.sentAt'),json_extract(m.data,'$.createdAt'))>? ORDER BY coalesce(json_extract(m.data,'$.sentAt'),json_extract(m.data,'$.createdAt')),m.id`).all(provider,new Date(since).toISOString());
  let observed=since;for(const row of rows){const m=JSON.parse(row.data),at=Date.parse(m.sentAt||m.createdAt);observed=Math.max(observed,at);recordStaffSend(provider,m.text,(m.attachments||[]).map(a=>a.assetId||a.url),at,row.id);}
  if(observed>since)put('communication_send_state',{...state(provider),observedStaffAt:observed});
+ if(!db.isTransaction)observedAt.set(provider,revision);
 }
 export function communicationSendWait(provider,text,assetIds,time=Date.now()){
  provider=platform(provider);

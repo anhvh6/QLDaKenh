@@ -56,6 +56,10 @@ export function validateCareStaff(input){
  const staffPermissions={};for(const [id,p] of Object.entries(permissions)){if(!p||typeof p.receive!=='boolean'||typeof p.mute!=='boolean')fail('Quyền nhân viên không hợp lệ.');staffPermissions[id]={receive:p.receive,mute:!p.receive||p.mute};}
  return {staffPermissions};
 }
+// Clients only render the recent end of the list; production had ~10k notifications (4 MB) in every snapshot. Rows arrive newest first.
+// Pre-limit before filtering so the per-row access checks stay bounded; badge counts that need every row keep using filterCareNotifications.
+export const clientNotificationLimits={scan:3000,send:300};
+export function clientNotifications(rows,user,source,policies){return filterCareNotifications(rows.slice(0,clientNotificationLimits.scan),user,source,policies).slice(0,clientNotificationLimits.send);}
 export function filterCareNotifications(rows,user,source=studentCareState(),policies=new Map()){
  const teams=new Set(all('team_members').filter(m=>m.userId===user.id).map(m=>m.teamId)),channels=new Set(all('channel_teams').filter(t=>teams.has(t.teamId)).map(t=>t.connectionId));
  const conversations=new Map(source.conversations.map(c=>[c.id,c])),access=new Map(),rights=accessFor(user),reads=new Set(db.prepare("SELECT json_extract(data,'$.notificationId') AS id FROM records WHERE kind='notification_reads' AND json_extract(data,'$.userId')=?").all(user.id).map(r=>r.id));
@@ -80,7 +84,7 @@ export function scopeCareChats(state,user,{includeExceptions=true}={}){
  const source=studentCareState();
  const policies=carePolicies(source);
  if(includeExceptions&&user.role==='owner')state.careExceptions=exceptionPreview(Object.fromEntries(Object.keys(learnerStages).map(k=>[k,{}])),source.studentCareSettings,true,source,policies).rows;
- if(Array.isArray(state.notifications))state.notifications=filterCareNotifications(state.notifications,user,source,policies);
+ if(Array.isArray(state.notifications))state.notifications=clientNotifications(state.notifications,user,source,policies);
  state.notificationConversationIds=state.conversations.filter(c=>receivesCare(source,c,user,policies.get(c.id))).map(c=>c.id);
  state.conversationCare=state.conversations.map(c=>({id:c.id,...policies.get(c.id)}));
  state.conversations=state.conversations.map(c=>({...c,careHidden:!visibleCare(source,c,user,policies.get(c.id)),careTaskPrompt:!policies.get(c.id).staffPermissions[user.id]?.receive&&careTaskAccess(source,c,user).prompt}));
