@@ -38,12 +38,14 @@ CREATE TRIGGER IF NOT EXISTS records_revision_delete AFTER DELETE ON records BEG
 if(db.prepare("SELECT sql FROM sqlite_master WHERE name='idx_messages_external'").get()?.sql.includes('conversationId'))db.exec('DROP INDEX idx_messages_external');
 db.exec("CREATE INDEX IF NOT EXISTS idx_messages_external ON records(json_extract(data,'$.externalId')) WHERE kind='messages'");
 export const recordRevision=()=>db.prepare('SELECT value FROM record_revision WHERE id=1').get().value;
-// Channel sync timestamps/progress must not broadcast a full CRM refresh.
+// Channel sync timestamps/progress must not broadcast a full CRM refresh. The pollers rewrite these rows every few seconds; counting them
+// made every dashboard/workspace/notification cache miss and every open client refetch its snapshot continuously.
+db.exec('DROP TRIGGER IF EXISTS state_revision_insert;DROP TRIGGER IF EXISTS state_revision_delete;DROP TRIGGER IF EXISTS state_revision_update;');
 db.exec(`CREATE TABLE IF NOT EXISTS state_revision(id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER NOT NULL);
 INSERT OR IGNORE INTO state_revision VALUES(1,0);
-CREATE TRIGGER IF NOT EXISTS state_revision_insert AFTER INSERT ON records WHEN NEW.kind!='push_subscriptions' BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
-CREATE TRIGGER IF NOT EXISTS state_revision_delete AFTER DELETE ON records WHEN OLD.kind!='push_subscriptions' BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
-CREATE TRIGGER IF NOT EXISTS state_revision_update AFTER UPDATE ON records WHEN NEW.kind!='push_subscriptions' AND (NEW.kind!='connections' OR
+CREATE TRIGGER IF NOT EXISTS state_revision_insert AFTER INSERT ON records WHEN NEW.kind!='push_subscriptions' AND NEW.kind NOT IN ('facebook_chat_sync','facebook_chat_cursors','comment_sync','comment_post_sync') BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS state_revision_delete AFTER DELETE ON records WHEN OLD.kind!='push_subscriptions' AND OLD.kind NOT IN ('facebook_chat_sync','facebook_chat_cursors','comment_sync','comment_post_sync') BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS state_revision_update AFTER UPDATE ON records WHEN NEW.kind!='push_subscriptions' AND NEW.kind NOT IN ('facebook_chat_sync','facebook_chat_cursors','comment_sync','comment_post_sync') AND (NEW.kind!='connections' OR
  json_extract(NEW.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error') IS NOT json_extract(OLD.data,'$.status','$.name','$.provider','$.mode','$.accountId','$.listenerState','$.error'))
  BEGIN UPDATE state_revision SET value=value+1 WHERE id=1; END;`);
 export const stateRevision=()=>db.prepare('SELECT value FROM state_revision WHERE id=1').get().value;
