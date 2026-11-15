@@ -137,9 +137,22 @@ async function prepareItem(plan,item,user,deps){
  if(!job)job=(deps.startCopy||startCopy)(user,post.id,'drive',{automatic:true,contentId:content.id,copyPlanId:plan.id,copyPlanItemId:item.id});
  event(plan,'preparing','Bắt đầu tải về Google Drive.',item.id);put('copy_plan_items',{...get('copy_plan_items',item.id),state:'preparing',contentId:content.id,copyJobId:job.id,attempts:(item.attempts||0)+1,error:''});
 }
+// Failed/unknown items stay in those states until a publication proves otherwise, so this pass used to re-query every one of them
+// (thousands on production) on every 5-second tick and kept a core busy. Its outcome depends only on plan items and publications, so
+// skip it while neither changed. The revision is read before the pass: its own writes (and any change made while it yields) bump it
+// and cause exactly one more pass. Never trusted inside a transaction, where a rollback could repeat an old revision.
+export const automationStats={reconcilePasses:0};
+let reconciledRevision='';
+async function reconcileFailedItems(){
+ const revision=db.isTransaction?'':kindsRevision(['copy_plan_items','publications']);
+ if(revision&&reconciledRevision===revision)return;
+ automationStats.reconcilePasses++;
+ for(const item of all('copy_plan_items').filter(i=>['failed','unknown'].includes(i.state))){await yieldAutomation();const pubs=publicationsFor(item);if(pubs.length&&pubs.every(p=>['published','manually_confirmed','demo_published'].includes(p.status))&&(item.channels||[]).every(id=>pubs.some(p=>p.connectionId===id)))put('copy_plan_items',{...item,state:'published',error:''});}
+ reconciledRevision=revision;
+}
 export async function automationTick(time=Date.now(),deps={}){
  if(ticking)return;ticking=true;try{
- for(const item of all('copy_plan_items').filter(i=>['failed','unknown'].includes(i.state))){await yieldAutomation();const pubs=publicationsFor(item);if(pubs.length&&pubs.every(p=>['published','manually_confirmed','demo_published'].includes(p.status))&&(item.channels||[]).every(id=>pubs.some(p=>p.connectionId===id)))put('copy_plan_items',{...item,state:'published',error:''});}
+ await reconcileFailedItems();
  for(const s of all('copy_sources').filter(s=>s.status==='queued')){if(scans.size>=2)break;if(s.automaticOnly&&!all('copy_plans').some(p=>p.sourceId===s.id&&canPrepare(p,time)))continue;try{actor(s);}catch{put('copy_sources',{...s,status:'stopped',error:'Tài khoản không còn quyền quét nguồn.'});continue;}for(const p of all('copy_plans').filter(p=>p.mode==='new'&&p.sourceId===s.id&&canPrepare(p,time))){const slot=dailySlots(p,time+MONITOR_LEAD,time+MONITOR_PREPARE)[0];put('copy_plans',{...p,lastCheckAt:new Date(time).toISOString(),nextCheckAt:new Date(time+p.intervalMinutes*60000).toISOString(),...(slot?{preparedSlotAt:slot}:{})});}void scanSource(s,deps.scan||runSourceExtractor);}
  for(const plan of all('copy_plans').filter(p=>!['completed','cancelled'].includes(p.status))){await yieldAutomation();try{
   if(!canPrepare(plan,time)){pauseItems(plan);if(plan.endAt&&time>Date.parse(plan.endAt)){put('copy_plans',{...plan,status:'completed'});event(plan,'completed','Hết thời gian hoạt động.');}continue;}
