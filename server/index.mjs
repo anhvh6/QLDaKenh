@@ -44,6 +44,7 @@ import { ingestFacebookEvents, facebookChatTick } from './facebook-chat.mjs';
 import { publicationPreflight } from './publish-preflight.mjs';
 import { resumePurges } from './customer-purge.mjs';
 import { completeDriveOAuth } from './drive-oauth.mjs';
+import { adaptiveDelay } from './adaptive-delay.mjs';
 import { copyRoute, copyArchive, copyPreviewMedia, publicCopyMedia, scheduleCopied, recoverCopyJobs, copyTick } from './social-copy.mjs';
 import { parseZaloContent } from './zalo-message-content.mjs';
 import { isTypeCode } from '../public/chat-media-content.js';
@@ -374,7 +375,8 @@ recoverCustomerReminders();setInterval(() => void systemMonitor.worker('customer
 
 void systemMonitor.worker('commentsTick',()=>commentsTick()).catch(e=>console.error('Comments:',e.message));setInterval(()=>void systemMonitor.worker('commentsTick',()=>commentsTick()).catch(e=>console.error('Comments:',e.message)),15000).unref();
 
-recoverAutomation();setInterval(()=>void systemMonitor.worker('automationTick',()=>automationTick()).catch(e=>console.error('Copy automation:',e.message)),5000).unref();
+// Plan work is minutes-scale (30 min preparation, 5 min handoff windows), so space runs by 3x their own duration instead of a fixed 5 s.
+recoverAutomation();(function scheduleAutomation(delay){setTimeout(()=>{const started=Date.now();Promise.resolve(systemMonitor.worker('automationTick',()=>automationTick())).catch(e=>console.error('Copy automation:',e.message)).finally(()=>scheduleAutomation(adaptiveDelay(Date.now()-started)));},delay).unref();})(5000);
 
 recoverPosJobs();setInterval(()=>void systemMonitor.worker('posTick',()=>posTick()).catch(e=>console.error('POS worker:',e.message)),1000).unref();
 
