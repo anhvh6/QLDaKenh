@@ -5,7 +5,7 @@
   "buildCommand": "npm run build:app && npm run check",
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/(.*)", "destination": "http://36.50.55.233/$1" }
+    { "source": "/(.*)", "destination": "https://api.quanlydakenh.xyz/$1" }
   ],
   "headers": [
     { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
